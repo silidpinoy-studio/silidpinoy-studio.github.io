@@ -1,0 +1,2232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson Plan Generator</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            display: ['"Fraunces"', 'serif'],
+          },
+          colors: {
+            ink: '#0B0A12',
+            canvas: '#F7F6F3',
+            mist: '#EEEDF8',
+            iris: { 50:'#F1EEFE',100:'#E7E2FD',200:'#D2C9FB',500:'#6D5BF5',600:'#5B46E8',700:'#4632C9' },
+          },
+          transitionTimingFunction: {
+            spring: 'cubic-bezier(0.32,0.72,0,1)',
+            soft: 'cubic-bezier(0.22,1,0.36,1)',
+          },
+        },
+      },
+    };
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="deped-options.js"></script>
+    <script src="shared-api.js"></script>
+    <script src="shared-keys.js"></script>
+    <script src="shared-validate.js"></script>
+    <script src="shared-docs.js"></script>
+    <script src="shared-docs-ui.js"></script>
+    <script src="shared-file-utils.js"></script>
+    <script src="shared-toast.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&display=swap" rel="stylesheet">
+    <style>
+        * { -webkit-font-smoothing: antialiased; }
+        body { margin:0; background:#F7F6F3; }
+        body::before {
+          content:""; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0.035;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+        /* DepEd output tables */
+        #output-content table:not(.signature-table) {
+            width: 100%; border-collapse: collapse; margin-bottom: 0;
+            background-color: white; color: black; border: 2px solid black;
+        }
+        #output-content table.signature-table {
+            width: 100%; border: none; margin-top: 2rem;
+        }
+        #output-content table:not(.signature-table) th, #output-content table:not(.signature-table) td {
+            border: 1px solid black; padding: 15px; text-align: left; vertical-align: top;
+        }
+        #output-content table.signature-table td {
+            border: none; padding: 10px; text-align: left; vertical-align: top;
+        }
+        #output-content table:not(.signature-table) td:first-child {
+            width: 25%; background-color: #f8fafc;
+        }
+        #output-content h1, #output-content h2, #output-content h3 {
+            font-weight: bold; margin-bottom: 0.75rem;
+        }
+        #output-content h1 { font-size: 1.5rem; }
+        #output-content h2 { font-size: 1.25rem; }
+        #output-content blockquote {
+            font-style: italic; color: #4b5563; margin-bottom: 1rem; font-size: 0.9em;
+        }
+        .page-break {
+            page-break-before: always; clear: both; margin-top: 3rem; padding-top: 2rem;
+            border-top: 2px dashed #cbd5e1;
+        }
+        /* Premium components */
+        .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.14) 0%,transparent 70%); }
+        .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1); }
+        .btn-spring:hover { transform:translateY(-2px); }
+        .premium-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:36px !important; }
+        .card-bezel { border-radius:1.75rem; padding:6px; background:white; box-shadow:0 24px 70px -34px rgba(11,10,18,0.3); }
+        .card-inner { border-radius:calc(1.75rem - 6px); background:#F7F6F3; }
+        .pill-group { display:flex; background:white; ring:1 ring-black/5; padding:4px; border-radius:12px; }
+        .pill-group button { flex:1; padding:8px 12px; border-radius:10px; font-size:13px; font-weight:600; transition: all .2s; color:rgba(11,10,18,0.5); }
+        .pill-group button.active { background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3); }
+        .section-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+        .section-header .icon-circle { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; background:rgba(91,70,232,0.1); color:#5B46E8; }
+        .section-header h3 { font-size:14px; font-weight:700; letter-spacing:-0.01em; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+        .animate-fade-in { animation:fadeIn .2s ease-out forwards; }
+        .reveal { opacity:0; transform:translateY(24px); transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+        .reveal.visible { opacity:1; transform:translateY(0); }
+        /* Loader */
+        .loader { border-top-color: #5B46E8; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        /* Autocomplete dropdown */
+        .autocomplete-wrap { position:relative; }
+        .autocomplete-list {
+          position:absolute; top:100%; left:0; right:0; z-index:50;
+          background:white; border-radius:12px; margin-top:4px;
+          box-shadow:0 12px 40px -8px rgba(11,10,18,0.18);
+          ring:1 ring-black/5; max-height:200px; overflow-y:auto;
+          border:1px solid rgba(0,0,0,0.06);
+          display:none;
+        }
+        .autocomplete-list.show { display:block; }
+        .autocomplete-item {
+          padding:8px 14px; cursor:pointer; font-size:13px; font-weight:500;
+          color:#0B0A12; transition: background .15s;
+        }
+        .autocomplete-item:first-child { border-radius:12px 12px 0 0; }
+        .autocomplete-item:last-child { border-radius:0 0 12px 12px; }
+        .autocomplete-item:hover { background:#F1EEFE; }
+        .autocomplete-item .ac-sub { font-size:10px; color:rgba(11,10,18,0.35); font-weight:400; }
+        @page { size: A4 landscape; margin: 0.6in; }
+        @media print {
+          body { background:#fff !important; }
+          body::before{display:none!important;}
+          .no-print{display:none!important;}
+          #silid-toast-container{display:none!important;}
+          #silid-docs-root{display:none!important;}
+          .print-card{border:none!important;box-shadow:none!important;background:transparent!important;padding:0!important;}
+          .print-full{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important;}
+          .print-full > div{border-radius:0!important;box-shadow:none!important;min-height:0!important;padding:0!important;}
+          .print-flow{overflow:visible!important;height:auto!important;max-height:none!important;padding:0!important;}
+        }
+    </style>
+</head>
+<body class="font-sans text-ink antialiased min-h-screen flex flex-col">
+
+    <!-- Premium Header Nav -->
+    <header class="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+        <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
+            <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer">
+                <span class="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
+                    <span class="text-[15px] font-extrabold leading-none">S</span>
+                </span>
+                <span class="font-semibold tracking-tight text-base">Silid<span class="text-iris-600">Pinoy</span></span><span class="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
+            </a>
+            <a href="index.html#test-maker" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Test Maker</a>
+            <a href="tos.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
+            <span class="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">Lesson Plan</span>
+            <a href="powerpoint.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
+            <a href="activity.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+            <span data-silid-docs-slot class="ml-1 flex items-center"></span>
+            <button id="settings-btn" type="button" class="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span id="api-status-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>
+            </button>
+        </nav>
+
+        <!-- Inline Settings dropdown (API key) -->
+        <div id="settings-dropdown" class="hidden absolute top-full right-4 mt-3 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50">
+            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Primary API Key</label>
+            <input type="password" id="settings-key-input" placeholder="Paste your API key..." autocomplete="off"
+                class="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-2">Backup API Key <span class="normal-case font-medium text-ink/35">(optional)</span></label>
+            <input type="password" id="settings-key-input-2" placeholder="Paste a key from another account..." autocomplete="off"
+                class="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+            <label class="flex items-start gap-2 mt-3 text-[11px] text-ink/70 cursor-pointer select-none">
+                <input type="checkbox" id="remember-keys" class="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
+                <span>Remember my API key on this device</span>
+            </label>
+            <p id="remember-keys-hint" class="text-[10px] text-ink/40 mt-1.5">Off — your key is kept for this browser session only and is never written to your device.</p>
+            <p class="text-[10px] text-ink/40 mt-1">Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-iris-600 underline">Get keys</a></p>
+            <button id="settings-test-btn" type="button"
+                class="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100">
+                Test API Key
+            </button>
+            <p id="settings-test-msg" class="hidden text-[10px] mt-1.5 px-1"></p>
+            <div class="border-t border-black/5 mt-3 pt-3">
+                <a href="index.html#settings" class="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    School &amp; Personal Info
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Planner View Wrapper -->
+    <div id="planner-view" class="flex-grow w-full pt-28 pb-12">
+        <main class="container mx-auto p-4 md:p-6 lg:flex lg:gap-6">
+            
+            <!-- Input Form Section -->
+            <section class="no-print lg:w-1/3 h-fit flex-shrink-0 space-y-4">
+                
+                <form id="lesson-form" class="space-y-4">
+
+                    <!-- Card: Language & Input Mode -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+                            <h3 id="ui-lang-label">Language / Wika <span class="text-red-500">*</span></h3>
+                        </div>
+                        <div class="pill-group" id="lang-pill">
+                            <button type="button" data-value="en" class="rounded-[10px]">English</button>
+                            <button type="button" data-value="ph" class="active">Filipino</button>
+                        </div>
+                        <input type="hidden" name="languageMode" id="languageMode" value="ph">
+
+                        <div class="section-header mt-5">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                            <h3 id="ui-mode-label">Input Mode <span class="text-red-500">*</span></h3>
+                        </div>
+                        <div class="pill-group" id="mode-pill">
+                            <button type="button" data-value="manual" class="active" id="ui-mode-manual">A. Manual</button>
+                            <button type="button" data-value="exemplar" id="ui-mode-exemplar">B. Exemplar</button>
+                            <button type="button" data-value="others" id="ui-mode-others">C. Other Sources</button>
+                        </div>
+                        <input type="hidden" name="inputMode" id="inputMode" value="manual">
+                    </div></div>
+
+                    <!-- Card: Upload (conditional) -->
+                    <div id="upload-section" class="card-bezel hidden"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
+                            <h3 id="upload-title">Upload File</h3>
+                        </div>
+                        <p id="upload-desc" class="text-[11px] text-ink/45 -mt-2 mb-3">Upload a PDF, TXT, DOC, or DOCX.</p>
+                        <input type="file" id="reference-upload" accept=".pdf,.txt,.doc,.docx" class="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-iris-600 file:text-white hover:file:bg-iris-700 cursor-pointer">
+                        <div id="upload-status" class="hidden mt-3 text-sm font-semibold transition-all"></div>
+                    </div></div>
+
+                    <!-- Card: Basic Details -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                            <h3>Basic Details</h3>
+                        </div>
+                        <div class="space-y-3.5">
+                            <div>
+                                <label id="ui-area-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Learning Area/s <span class="text-red-500">*</span></label>
+                                <div class="autocomplete-wrap">
+                                    <input type="text" id="learningArea" required placeholder="e.g. Araling Panlipunan 7, Science 7" autocomplete="off" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    <div id="learningArea-list" class="autocomplete-list"></div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="teacherName" value="">
+                            <input type="hidden" id="teacherRole" value="">
+                            <input type="hidden" id="checkerName" value="">
+                            <input type="hidden" id="checkerRole" value="">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label id="ui-grade-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grade Level and Section <span class="text-red-500">*</span></label>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div>
+                                            <select id="gradeLevelSel" required class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                                <option value="" selected disabled>-- Grade --</option>
+                                                <option value="Kindergarten">Kindergarten</option>
+                                                <option value="Grade 1">Grade 1</option>
+                                                <option value="Grade 2">Grade 2</option>
+                                                <option value="Grade 3">Grade 3</option>
+                                                <option value="Grade 4">Grade 4</option>
+                                                <option value="Grade 5">Grade 5</option>
+                                                <option value="Grade 6">Grade 6</option>
+                                                <option value="Grade 7">Grade 7</option>
+                                                <option value="Grade 8">Grade 8</option>
+                                                <option value="Grade 9">Grade 9</option>
+                                                <option value="Grade 10">Grade 10</option>
+                                                <option value="Grade 11">Grade 11</option>
+                                                <option value="Grade 12">Grade 12</option>
+                                            </select>
+                                        </div>
+                                        <div class="autocomplete-wrap">
+                                            <input type="text" id="sectionInput" required placeholder="Section (e.g. Mabini)" autocomplete="off" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                            <div id="sectionInput-list" class="autocomplete-list"></div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="gradeSection" value="">
+                                </div>
+                                <div>
+                                    <label id="ui-level-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Level of the Learners <span class="text-red-500">*</span></label>
+                                    <select id="learnerLevel" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                        <option value="Advanced">Advanced</option>
+                                        <option value="Proficient">Proficient</option>
+                                        <option value="Approaching Proficiency" selected>Approaching Proficiency</option>
+                                        <option value="Developing">Developing</option>
+                                        <option value="Beginning">Beginning</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: Schedule & Sequence -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></span>
+                            <h3>Schedule &amp; Sequence</h3>
+                        </div>
+                        <div class="space-y-3.5">
+                            <div>
+                                <label id="ui-session-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">No. of Sessions/Days for the Week <span class="text-red-500">*</span></label>
+                                <select id="sessions" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                </select>
+                                <p id="ui-session-hint" class="text-[11px] text-ink/45 mt-1.5">AI will generate a single weekly table with adjacent columns for each day.</p>
+                            </div>
+                            <div>
+                                <label id="ui-duration-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Session Duration (minutes) <span class="text-red-500">*</span></label>
+                                <input type="number" id="session-duration" min="10" max="240" step="5" value="60" inputmode="numeric"
+                                    class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                <p id="ui-duration-hint" class="text-[11px] text-ink/45 mt-1.5">How long one session lasts — the AI plans the lesson to fit this time.</p>
+                            </div>
+                            <div>
+                                <label id="ui-sequence-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Lesson Plan Sequence <span class="text-red-500">*</span></label>
+                                <select id="lessonSequence" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                    <option value="deped">Basic DLP Format</option>
+                                    <option value="4as">4A's Format</option>
+                                    <option value="5es">5E's Format</option>
+                                    <option value="7es">7E's Format</option>
+                                    <option value="rmd" selected>Review–Motivation–Discussion Format</option>
+                                    <option value="matatag">MATATAG Format</option>
+                                    <option value="ilaw">ILAW Format</option>
+                                    <option value="idwdyd">I Do–We Do–You Do Sequence</option>
+                                    <option value="inquiry">Inquiry-Based Learning Sequence</option>
+                                    <option value="collab">Collaborative Learning Sequence</option>
+                                    <option value="demo">Demonstration–Return Demonstration Flow</option>
+                                </select>
+                                <p id="ui-sequence-hint" class="text-[11px] text-ink/45 mt-1.5">Controls content under Pre-Lesson and Flow of the Lesson.</p>
+                            </div>
+                            <div>
+                                <label id="ui-assessment-type-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Formative Assessment Type <span class="text-red-500">*</span></label>
+                                <select id="assessmentType" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                    <option value="multiple_choice" selected>Multiple Choice</option>
+                                    <option value="identification">Identification</option>
+                                    <option value="fill_in_the_blanks">Fill in the Blanks</option>
+                                    <option value="short_answer">Short Answer</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: Standards & Competencies -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+                            <h3>Standards &amp; Competencies</h3>
+                        </div>
+                        <div class="space-y-3.5">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label id="ui-content-std-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Content Standard <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                    <textarea id="contentStandard" rows="2" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+                                </div>
+                                <div>
+                                    <label id="ui-perf-std-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Performance Standard <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                    <textarea id="performanceStandard" rows="2" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+                                </div>
+                            </div>
+                            <div id="competency-wrapper">
+                                <label id="ui-comp-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Learning Competency/ies <span class="text-red-500">*</span></label>
+                                <div id="competencies-list" class="space-y-2 mt-2">
+                                    <div class="flex gap-2 items-start competency-row">
+                                        <textarea required rows="2" placeholder="Paste the exact curriculum competency here..." class="competency-input w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+                                    </div>
+                                </div>
+                                <button type="button" id="add-competency-btn" class="mt-3 text-xs text-iris-600 hover:text-iris-700 font-semibold transition-colors flex items-center">
+                                    + <span id="ui-add-comp">Magdagdag ng panibagong kasanayan</span>
+                                </button>
+                            </div>
+                            <div id="objectives-container">
+                                <label id="ui-obj-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Learning Objectives <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                <textarea id="objectives" rows="3" placeholder="Leave blank and the AI Master Teacher will generate these for you..." class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+                            </div>
+                            <div id="contextualization-container">
+                                <label id="ui-context-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Contextualization <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                <textarea id="contextualization" rows="2" placeholder="Add local context, culture, or specific learner situations here..." class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+                                <p id="ui-context-hint" class="text-[11px] text-ink/45 mt-1.5">Helps tailor the lesson to the learners' specific locale and culture.</p>
+                            </div>
+                        </div>
+                    </div></div>
+
+                    <!-- Error -->
+                    <div id="error-message" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded text-sm"></div>
+
+                    <!-- Validation Warning -->
+                    <div id="validation-warning" class="hidden no-print bg-amber-50 border-l-4 border-amber-400 text-amber-800 p-3 rounded text-sm"></div>
+
+                    <!-- Card: Generate / Reset -->
+                    <div class="card-bezel"><div class="card-inner p-4 rounded-[calc(1.75rem-6px)]">
+                        <div class="flex gap-2">
+                            <button type="button" id="reset-btn" title="Start fresh"
+                                class="flex-shrink-0 w-12 bg-white hover:bg-red-50 text-ink/40 hover:text-red-500 font-bold rounded-xl transition flex justify-center items-center ring-1 ring-black/5 hover:ring-red-200 btn-spring">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                            </button>
+                            <button type="submit" id="generate-btn" class="flex-1 bg-iris-600 hover:bg-iris-700 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 shadow-lg shadow-iris-200 btn-spring">
+                                <span id="ui-gen-btn">Bumuo ng Lesson Plan</span>
+                            </button>
+                        </div>
+                    </div></div>
+
+                </form>
+            </section>
+
+            <!-- Output Section -->
+            <section class="card-bezel lg:w-2/3 flex flex-col min-h-[600px] print-full"><div class="card-inner p-6 rounded-[calc(1.75rem-6px)] flex flex-col min-h-[600px]">
+                <div class="flex justify-between items-center mb-4 border-b pb-2 no-print">
+                    <h2 id="ui-out-title" style="font-family:Fraunces,serif" class="text-lg font-bold">Binuong Lesson Plan</h2>
+                    <div class="flex gap-2">
+                        <button id="download-btn" class="hidden text-sm bg-iris-50 hover:bg-iris-100 text-iris-700 py-1.5 px-3 rounded-xl ring-1 ring-iris-200 text-xs font-semibold transition-colors">
+                            <span id="ui-dl-btn">I-download ang DOCX</span>
+                        </button>
+                        <button id="download-doc-btn" title="One flat file — opens straight in Word, Google Docs, WPS or LibreOffice. Nothing to unzip." class="hidden text-sm bg-white hover:bg-mist text-ink/70 py-1.5 px-3 rounded-xl ring-1 ring-black/5 text-xs font-semibold transition">
+                            <span id="ui-doc-btn">Word (.doc)</span>
+                        </button>
+                        <button id="print-sheet-btn" title="Print, or save as PDF — opens on any device." class="hidden text-sm bg-white hover:bg-mist text-ink/70 py-1.5 px-3 rounded-xl ring-1 ring-black/5 text-xs font-semibold transition flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            <span id="ui-print-btn">Print / PDF</span>
+                        </button>
+                        <button id="copy-btn" class="hidden text-sm bg-white hover:bg-mist text-ink/70 py-1.5 px-3 rounded-xl ring-1 ring-black/5 text-xs font-semibold transition">
+                            <span id="ui-cp-btn">Kopyahin</span>
+                        </button>
+                        <button id="activity-btn" class="hidden text-sm bg-iris-600 hover:bg-iris-700 text-white py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-md shadow-iris-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                            <span id="ui-act-btn">Gawing Activity Sheet</span>
+                        </button>
+                        <button id="ppt-btn" class="hidden text-sm bg-ink hover:bg-ink/80 text-white py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            <span id="ui-ppt-btn">Gawing Presentation</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="output-container" class="flex-grow flex flex-col relative overflow-y-auto pr-2 print-flow">
+                    
+                    <!-- Initial State -->
+                    <div id="empty-state" class="m-auto text-center text-slate-400">
+                        <div class="text-5xl mb-3 text-ink/20">&#x1F916;</div>
+                        <p id="ui-empty-title">Ilagay ang detalye o mag-upload ng exemplar.</p>
+                        <p id="ui-empty-desc" class="text-sm mt-1">Gagawa ng iisang weekly DLL format base sa DepEd Guidelines.</p>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="loading-state" class="hidden m-auto flex flex-col items-center justify-center text-center py-16 px-6">
+                        <div class="relative mb-8">
+                            <div class="absolute inset-0 bg-iris-500 rounded-full animate-ping opacity-20"></div>
+                            <div class="w-24 h-24 bg-white rounded-full shadow-xl flex items-center justify-center relative z-10 ring-1 ring-black/5">
+                                <div class="loader border-4 border-slate-200 rounded-full w-10 h-10"></div>
+                            </div>
+                        </div>
+                        <h3 id="ui-load-title" class="text-xl font-bold text-ink">Binubuo ng AI Master Teacher ang iyong aralin...</h3>
+                        <p id="ui-load-desc" class="text-ink/45 text-sm mt-2 max-w-sm">Bumubuo ng weekly table format gamit ang iyong mga detalye at references. Karaniwang tumatagal ito ng ilang segundo — huwag isara ang tab.</p>
+                    </div>
+
+                    <!-- Result State -->
+                    <div id="output-content" class="hidden text-sm md:text-base pb-8 w-full overflow-x-auto">
+                        <!-- Content will be injected here -->
+                    </div>
+                </div>
+            </div></section>
+        </main>
+    </div>
+
+    <!-- Session picker modal: Turn into Activity Sheet -->
+    <div id="session-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div id="session-modal-backdrop" class="absolute inset-0 bg-ink/70 backdrop-blur-sm"></div>
+        <div class="relative card-bezel w-full max-w-md">
+            <div class="card-inner p-6 rounded-[calc(1.75rem-6px)]">
+                <div class="flex items-start gap-3 mb-4">
+                    <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="3" x2="21" y1="15" y2="15"/><line x1="9" x2="9" y1="9" y2="21"/><line x1="15" x2="15" y1="9" y2="21"/></svg></span>
+                    <div>
+                        <h3 id="ui-modal-title" style="font-family:Fraunces,serif" class="text-lg font-bold leading-tight">Gawing Activity Sheet</h3>
+                        <p id="ui-modal-desc" class="text-xs text-ink/50 mt-1 leading-relaxed">Piliin kung aling sesyon/araw ng lesson plan na ito ang gagawing activity sheet para sa mga mag-aaral.</p>
+                    </div>
+                </div>
+                <label id="ui-modal-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Sesyon / Araw</label>
+                <select id="session-select" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select mb-5"></select>
+                <div class="flex justify-end gap-2">
+                    <button id="session-cancel" class="text-sm bg-white hover:bg-mist text-ink/70 py-2 px-4 rounded-xl ring-1 ring-black/5 text-xs font-semibold transition">Kanselahin</button>
+                    <button id="session-confirm" class="text-sm bg-iris-600 hover:bg-iris-700 text-white py-2 px-4 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-iris-200 btn-spring">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+                        <span id="ui-modal-confirm">Gawing Activity Sheet</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // API Configuration setup required by guidelines
+        let apiKey = window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || ''); 
+        let apiKey2 = window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || ''); // optional backup key (2nd account)
+
+        // Upload Variables
+        const schoolInfo = (() => { try { return JSON.parse(localStorage.getItem('school_info')) || {}; } catch { return {}; } })();
+        /* School header lines for the generated plan — pulled from the shared Settings
+           (School & Personal Info), not hardcoded. Lines render only when their value
+           is set; with empty settings only the generic DepEd lines remain. */
+        function lessonSchoolHeaderHtml() {
+            var lines = [];
+            if (schoolInfo.regionNo || schoolInfo.regionName) {
+                var reg = 'REGION ' + (schoolInfo.regionNo || '');
+                if (schoolInfo.regionNo && schoolInfo.regionName) reg += ' – ';
+                reg += (schoolInfo.regionName || '') + ' REGION';
+                lines.push('<p style="margin: 0; font-size: 11pt; font-weight: bold;">' + reg.toUpperCase() + '</p>');
+            }
+            if (schoolInfo.division) lines.push('<p style="margin: 0; font-size: 11pt; font-weight: bold;">SCHOOLS DIVISION OFFICE OF ' + schoolInfo.division.toUpperCase() + '</p>');
+            if (schoolInfo.schoolName) lines.push('<p style="margin: 0; font-size: 13pt; font-weight: bold; margin-top: 5px;">' + schoolInfo.schoolName.toUpperCase() + '</p>');
+            if (schoolInfo.schoolAddress) lines.push('<p style="margin: 0; font-size: 11pt;">' + schoolInfo.schoolAddress + '</p>');
+            return lines.join('\n    ');
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            if (schoolInfo.teacherName) document.getElementById('teacherName').value = schoolInfo.teacherName;
+            if (schoolInfo.teacherTitle) document.getElementById('teacherRole').value = schoolInfo.teacherTitle;
+            if (schoolInfo.checkedBy) document.getElementById('checkerName').value = schoolInfo.checkedBy;
+            if (schoolInfo.checkedByPosition) document.getElementById('checkerRole').value = schoolInfo.checkedByPosition;
+        });
+        let referenceFileData = null;
+        let referenceMimeType = null;
+        let currentLang = 'ph'; // default language
+
+        // Translations Object
+        const i18n = {
+            en: {
+                homeDesc: "Empowering educators with an intelligent, streamlined tool to construct comprehensive lesson plans. Fully compliant with the newest DepEd Guidelines and the 8 evidence-based Learning Design Principles.",
+                homeBtn: "Open Lesson Planner",
+                lessonDetails: "Lesson Details",
+                langLabel: "Language / Wika <span class='text-red-500'>*</span>",
+                modeLabel: "Input Mode <span class='text-red-500'>*</span>",
+                modeManual: "A. Manual Input",
+                modeExemplar: "B. Upload Exemplar",
+                modeOthers: "C. Upload Other Sources",
+                uploadTitleExemplar: "Upload Lesson Exemplar",
+                uploadDescExemplar: "Upload a PDF, TXT, DOC, or DOCX. The AI will automatically extract details and use it as the main reference guide.",
+                uploadTitleOthers: "Upload Other Sources",
+                uploadDescOthers: "Upload reading materials, modules, or activity sheets. The AI will use this as a content reference.",
+                areaLabel: "Learning Area/s <span class='text-red-500'>*</span>",
+                teacherLabel: "Designed by Teacher/s <span class='text-red-500'>*</span>",
+                tRoleLabel: "Teacher Role",
+                checkerLabel: "Checked by <span class='text-red-500'>*</span>",
+                cRoleLabel: "Checker Role",
+                gradeLabel: "Grade Level and Section <span class='text-red-500'>*</span>",
+                learnerLevelLabel: "Level of the Learners <span class='text-red-500'>*</span>",
+                sessionLabel: "No. of Sessions/Days for the Week <span class='text-red-500'>*</span>",
+                sessionHint: "AI will generate a single weekly table with adjacent columns for each day.",
+                durationLabel: "Session Duration (minutes) <span class='text-red-500'>*</span>",
+                durationHint: "How long one session lasts — the AI plans the lesson to fit this time.",
+                sequenceLabel: "Lesson Plan Sequence for Pre-Lesson and Flow <span class='text-red-500'>*</span>",
+                sequenceHint: "This only controls the content under Pre-Lesson and Flow of the Lesson. The overall lesson plan format will remain unchanged.",
+                sequenceOptions: {
+                    fiveEs: "5E's Format",
+                    sevenEs: "7E's Format (Elicit, Engage, Explore, Explain, Elaborate, Evaluate, Extend)",
+                    rmd: "Review–Motivation–Discussion Format",
+                    matatag: "MATATAG Format",
+                    fourAs: "4A's Format",
+                    deped: "Basic DLP Format",
+                    ilaw: "ILAW Format",
+                    idwdyd: "I Do–We Do–You Do Sequence",
+                    inquiry: "Inquiry-Based Learning Sequence",
+                    collab: "Collaborative Learning Sequence",
+                    demo: "Demonstration–Return Demonstration Flow"
+                },
+                assessmentTypeLabel: "Formative Assessment Type <span class='text-red-500'>*</span>",
+                assessmentTypes: {
+                    multiple_choice: "Multiple Choice",
+                    identification: "Identification",
+                    fill_in_the_blanks: "Fill in the Blanks",
+                    short_answer: "Short Answer"
+                },
+                contentStdLabel: "Content Standard <span class='text-slate-400 font-normal'>(Optional)</span>",
+                perfStdLabel: "Performance Standard <span class='text-slate-400 font-normal'>(Optional)</span>",
+                compLabel: "Learning Competency/ies <span class='text-red-500'>*</span>",
+                addComp: "Add another competency",
+                objLabel: "Learning Objectives <span class='text-slate-400 font-normal'>(Optional)</span>",
+                contextLabel: "Contextualization <span class='text-slate-400 font-normal'>(Optional)</span>",
+                contextHint: "Add local context, culture, or specific learner situations to tailor the lesson.",
+                genBtn: "Generate Weekly Lesson Plan",
+                outTitle: "Generated Lesson Plan",
+                dlBtn: "Download DOCX",
+                printBtn: "Print / PDF",
+                cpBtn: "Copy",
+                pptBtn: "Turn into PPT",
+                emptyTitle: "Enter details or upload an exemplar.",
+                emptyDesc: "Generates a complete weekly DLL format based on DepEd Guidelines.",
+                loadTitle: "Master Teacher is writing your lesson plans...",
+                loadDesc: "Building your weekly lesson plan table using your details and references.",
+                placeholders: {
+                    learningArea: "e.g. Science 7",
+                    gradeSection: "e.g. Grade 7 - Archimedes",
+                    contentStd: "e.g. The learners demonstrate understanding of...",
+                    perfStd: "e.g. The learners shall be able to...",
+                    competency: "Paste the exact curriculum competency here",
+                    objectives: "Leave blank and the AI Master Teacher will generate these for you...",
+                    context: "e.g., Use local farming practices, nearby landmarks, or specific cultural traditions..."
+                },
+                sessions: [
+                    "1 Day (1 Column)", "2 Days (2 Columns)", "3 Days (3 Columns)", 
+                    "4 Days (4 Columns)", "5 Days (5 Columns)"
+                ],
+                defaults: {
+                    learningArea: "",
+                    gradeSection: "",
+                    contentStd: "",
+                    perfStd: "",
+                    competency: "",
+                    objectives: ""
+                },
+                statusExtracting: "Reading file and extracting data...",
+                statusSuccess: "Data extracted successfully! Ready to generate.",
+                statusReady: "File ready as reference (No forms extracted).",
+                statusError: "Cannot read file, please input manually."
+            },
+            ph: {
+                homeDesc: "Nagbibigay kapangyarihan sa mga guro gamit ang matalinong tool upang makabuo ng komprehensibong lesson plans. Sumusunod sa pinakabagong DepEd Guidelines at sa 8 Learning Design Principles.",
+                homeBtn: "Buksan ang Lesson Planner",
+                lessonDetails: "Detalye ng Aralin",
+                langLabel: "Language / Wika <span class='text-red-500'>*</span>",
+                modeLabel: "Paraan ng Pag-input <span class='text-red-500'>*</span>",
+                modeManual: "A. Manwal na Pag-input",
+                modeExemplar: "B. Mag-upload ng Exemplar",
+                modeOthers: "C. Ibang Sanggunian",
+                uploadTitleExemplar: "Mag-upload ng Exemplar",
+                uploadDescExemplar: "Mag-upload ng PDF, TXT, DOC, o DOCX. Awtomatikong kukunin ang detalye at gagamitin ng AI bilang pangunahing reference.",
+                uploadTitleOthers: "Ibang Sanggunian",
+                uploadDescOthers: "Mag-upload ng reading materials, modules, o activity sheets. Gagamitin ito ng AI bilang reference sa nilalaman.",
+                areaLabel: "Asignatura <span class='text-red-500'>*</span>",
+                teacherLabel: "Pangalan ng Guro <span class='text-red-500'>*</span>",
+                tRoleLabel: "Katungkulan ng Guro",
+                checkerLabel: "Sinuri ni <span class='text-red-500'>*</span>",
+                cRoleLabel: "Katungkulan ng Sumuri",
+                gradeLabel: "Baitang at Pangkat <span class='text-red-500'>*</span>",
+                learnerLevelLabel: "Antas ng mga Mag-aaral <span class='text-red-500'>*</span>",
+                sessionLabel: "Bilang ng Sesyon/Araw para sa Isang Linggo <span class='text-red-500'>*</span>",
+                sessionHint: "Bubuo ang AI ng iisang weekly table na may magkakatabing kolum para sa bawat araw.",
+                durationLabel: "Tagal ng Sesyon (minuto) <span class='text-red-500'>*</span>",
+                durationHint: "Gaano katagal ang isang sesyon — iaayos ng AI ang aralin sa loob ng oras na ito.",
+                sequenceLabel: "Piliin ang Daloy para sa Bago ang Aralin at Daloy ng Aralin <span class='text-red-500'>*</span>",
+                sequenceHint: "Ito lamang ang kokontrol sa laman ng Bago ang Aralin at Daloy ng Aralin. Hindi babaguhin ang kabuuang format ng lesson plan.",
+                sequenceOptions: {
+                    fiveEs: "5E's Format: Pukawin ang Interes / Tuklasin / Ipaliwanag / Palawakin / Tayahin",
+                    sevenEs: "7E's Format: Elicit / Engage / Explore / Explain / Elaborate / Evaluate / Extend",
+                    rmd: "Review–Motivation–Discussion Format: Paunang Gawain / Balik-Aral / Pagganyak / Pagtalakay",
+                    matatag: "MATATAG Format: Pagpukaw / Layunin / Salita / Pagproseso / Pagninilay",
+                    fourAs: "4A's Format: Gawain / Pagsusuri / Paglalahat / Paglalapat",
+                    deped: "Basic DLP Format: Paunang Gawain hanggang Takdang-Aralin",
+                    ilaw: "ILAW Format: Ihanda / Balikan / Iugnay / Linangin / Aktibong Pagsasanay",
+                    idwdyd: "I Do–We Do–You Do Sequence",
+                    inquiry: "Inquiry-Based Learning Sequence",
+                    collab: "Collaborative Learning Sequence",
+                    demo: "Demonstration–Return Demonstration Flow"
+                },
+                assessmentTypeLabel: "Uri ng Formative na Pagtataya <span class='text-red-500'>*</span>",
+                assessmentTypes: {
+                    multiple_choice: "Multiple Choice (Maramihang Pagpipilian)",
+                    identification: "Identification (Pagtukoy)",
+                    fill_in_the_blanks: "Fill in the Blanks (Punan ang Patlang)",
+                    short_answer: "Short Answer (Maikling Sagot)"
+                },
+                contentStdLabel: "Pamantayang Pangnilalaman <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                perfStdLabel: "Pamantayan sa Pagganap <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                compLabel: "Kasanayang Pampagkatuto <span class='text-red-500'>*</span>",
+                addComp: "Magdagdag ng panibagong kasanayan",
+                objLabel: "Mga Layunin <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                contextLabel: "Kontekstuwalisasyon <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                contextHint: "Magdagdag ng lokal na konteksto, kultura, o sitwasyon ng mga mag-aaral.",
+                genBtn: "Bumuo ng Weekly Lesson Plan",
+                outTitle: "Binuong Lesson Plan",
+                dlBtn: "I-download ang DOCX",
+                printBtn: "Print / PDF",
+                cpBtn: "Kopyahin",
+                pptBtn: "Gawing Presentation",
+                emptyTitle: "Ilagay ang detalye o mag-upload ng exemplar.",
+                emptyDesc: "Gagawa ng iisang weekly DLL format base sa DepEd Guidelines.",
+                loadTitle: "Binubuo ng AI Master Teacher ang iyong aralin...",
+                loadDesc: "Bumubuo ng weekly table format gamit ang iyong mga detalye at references.",
+                placeholders: {
+                    learningArea: "hal. Agham 7",
+                    gradeSection: "hal. Baitang 7 - Archimedes",
+                    contentStd: "hal. Naipamamalas ng mag-aaral ang pag-unawa sa...",
+                    perfStd: "hal. Ang mag-aaral ay nakabubuo ng...",
+                    competency: "I-paste ang eksaktong kasanayan mula sa curriculum dito",
+                    objectives: "Iwang blangko at ang AI na ang bubuo nito para sa iyo...",
+                    context: "hal. Gumamit ng lokal na pamamaraan ng pagsasaka, mga kilalang lugar, o tradisyon..."
+                },
+                sessions: [
+                    "1 Araw (1 Kolum)", "2 Araw (2 Kolum)", "3 Araw (3 Kolum)", 
+                    "4 Araw (4 Kolum)", "5 Araw (5 Kolum)"
+                ],
+                defaults: {
+                    learningArea: "",
+                    gradeSection: "",
+                    contentStd: "",
+                    perfStd: "",
+                    competency: "",
+                    objectives: ""
+                },
+                statusExtracting: "Binabasa ang file at nag-e-extract ng data...",
+                statusSuccess: "Data extracted successfully! Pwede mo nang i-generate.",
+                statusReady: "File ready bilang reference (Walang na-extract na forms).",
+                statusError: "Hindi mabasa ang file, paki-type na lamang nang manual."
+            }
+        };
+
+        // DOM Elements
+                                
+        const addCompetencyBtn = document.getElementById('add-competency-btn');
+        const competenciesList = document.getElementById('competencies-list');
+        const form = document.getElementById('lesson-form');
+        const generateBtn = document.getElementById('generate-btn');
+        const emptyState = document.getElementById('empty-state');
+        const loadingState = document.getElementById('loading-state');
+        const outputContent = document.getElementById('output-content');
+        const copyBtn = document.getElementById('copy-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const downloadDocBtn = document.getElementById('download-doc-btn');
+        const printSheetBtn = document.getElementById('print-sheet-btn');
+        const errorMessage = document.getElementById('error-message');
+        const validationWarning = document.getElementById('validation-warning');
+        const referenceUploadBtn = document.getElementById('reference-upload');
+        const uploadStatusDiv = document.getElementById('upload-status');
+        const uploadSection = document.getElementById('upload-section');
+        const uploadTitle = document.getElementById('upload-title');
+        const uploadDesc = document.getElementById('upload-desc');
+        const objectivesContainer = document.getElementById('objectives-container');
+        
+        const languageModeInput = document.getElementById('languageMode');
+        const inputModeInput = document.getElementById('inputMode');
+        const sessionsSelect = document.getElementById('sessions');
+        const lessonSequenceSelect = document.getElementById('lessonSequence');
+        const resetBtn = document.getElementById('reset-btn');
+        const learningAreaInput = document.getElementById('learningArea');
+        const gradeSectionInput = document.getElementById('gradeSection');
+        const gradeLevelSel = document.getElementById('gradeLevelSel');
+        const sectionInput = document.getElementById('sectionInput');
+        const learningAreaList = document.getElementById('learningArea-list');
+        const sectionInputList = document.getElementById('sectionInput-list');
+
+        /* ── Suggestions (built-in DepEd + saved history) ───────── */
+        const BUILTIN_SUGGESTIONS = {
+            lesson_suggestions_area: (window.DEPED_SUBJECTS || []),
+            lesson_suggestions_section: [],
+            lesson_suggestions_grade: []
+        };
+        function getSuggestions(key) {
+            const history = (() => { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } })();
+            const builtIn = BUILTIN_SUGGESTIONS[key] || [];
+            const seen = {};
+            return history.concat(builtIn).filter(v => {
+                const lv = String(v).toLowerCase();
+                if (seen[lv]) return false;
+                seen[lv] = true;
+                return true;
+            });
+        }
+        function saveSuggestion(key, value) {
+            if (!value) return;
+            let list = getSuggestions(key);
+            list = list.filter(v => v.toLowerCase() !== value.toLowerCase());
+            list.unshift(value);
+            if (list.length > 15) list = list.slice(0, 15);
+            localStorage.setItem(key, JSON.stringify(list));
+        }
+
+        /* ── Autocomplete ───────────────────────────────────────── */
+        function showAutocomplete(input, listEl, key) {
+            const val = input.value.trim().toLowerCase();
+            const suggestions = getSuggestions(key);
+            const filtered = val ? suggestions.filter(s => s.toLowerCase().includes(val)) : suggestions;
+            if (!filtered.length) { listEl.classList.remove('show'); listEl.innerHTML = ''; return; }
+            listEl.innerHTML = filtered.map(s =>
+                `<div class="autocomplete-item" data-val="${s.replace(/"/g,'&quot;')}">${s}</div>`
+            ).join('');
+            listEl.classList.add('show');
+            listEl.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    input.value = item.dataset.val;
+                    listEl.classList.remove('show');
+                });
+            });
+        }
+        function hideAutocomplete(listEl) { setTimeout(() => listEl.classList.remove('show'), 150); }
+
+        learningAreaInput.addEventListener('input', () => showAutocomplete(learningAreaInput, learningAreaList, 'lesson_suggestions_area'));
+        learningAreaInput.addEventListener('focus', () => showAutocomplete(learningAreaInput, learningAreaList, 'lesson_suggestions_area'));
+        learningAreaInput.addEventListener('blur', () => hideAutocomplete(learningAreaList));
+
+        /* ── Split Grade (dropdown) + Section (typeable) ────────── */
+        function syncGradeHidden() {
+            const g = gradeLevelSel ? gradeLevelSel.value : '';
+            const s = sectionInput ? sectionInput.value.trim() : '';
+            gradeSectionInput.value = (g && s) ? (g + ' - ' + s) : (g || s);
+        }
+        function applyGradeInput(value) {
+            const raw = (value || '').trim();
+            let gradePart = raw, sectionPart = '';
+            const dashIdx = raw.indexOf(' - ');
+            if (dashIdx > -1) { gradePart = raw.slice(0, dashIdx).trim(); sectionPart = raw.slice(dashIdx + 3).trim(); }
+            if (gradeLevelSel) {
+                const digits = gradePart.replace(/[^0-9]/g, '');
+                let matched = null;
+                if (digits) {
+                    for (let i = 0; i < gradeLevelSel.options.length; i++) {
+                        if (gradeLevelSel.options[i].value.replace(/[^0-9]/g, '') === digits) { matched = gradeLevelSel.options[i].value; break; }
+                    }
+                } else if (/kinder|kindergarten/i.test(gradePart)) { matched = 'Kindergarten'; }
+                gradeLevelSel.value = matched || '';
+                if (!matched && !sectionPart && gradePart) sectionPart = gradePart;
+            }
+            if (sectionInput) sectionInput.value = sectionPart;
+            syncGradeHidden();
+        }
+        gradeLevelSel.addEventListener('change', syncGradeHidden);
+        sectionInput.addEventListener('input', () => { syncGradeHidden(); showAutocomplete(sectionInput, sectionInputList, 'lesson_suggestions_section'); });
+        sectionInput.addEventListener('focus', () => showAutocomplete(sectionInput, sectionInputList, 'lesson_suggestions_section'));
+        sectionInput.addEventListener('blur', () => hideAutocomplete(sectionInputList));
+
+        /* ── Reset Form ─────────────────────────────────────────── */
+        function resetForm() {
+            if (!confirm('Clear all fields and start fresh?')) return;
+            form.reset();
+            document.getElementById('contentStandard').value = '';
+            document.getElementById('performanceStandard').value = '';
+            document.getElementById('objectives').value = '';
+            document.getElementById('contextualization').value = '';
+            competenciesList.innerHTML = `
+                <div class="flex gap-2 items-start competency-row">
+                    <textarea required rows="2" placeholder="${i18n[currentLang].placeholders.competency}" class="competency-input w-full w-full px-3 py-2 bg-white ring-1 ring-black/5 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none text-sm font-medium"></textarea>
+                </div>`;
+            uploadSection.classList.add('hidden');
+            objectivesContainer.classList.remove('hidden');
+            referenceFileData = null;
+            referenceUploadBtn.value = '';
+            uploadStatusDiv.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            loadingState.classList.add('hidden');
+            outputContent.classList.add('hidden');
+            copyBtn.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            downloadDocBtn.classList.add('hidden');
+            printSheetBtn.classList.add('hidden');
+            clearSavedLessonOutput();
+            currentLang = 'ph';
+            // Reset pill buttons
+            document.getElementById('lang-pill').querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            document.getElementById('lang-pill').querySelector('button[data-value="ph"]').classList.add('active');
+            languageModeInput.value = 'ph';
+            document.getElementById('mode-pill').querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            document.getElementById('mode-pill').querySelector('button[data-value="manual"]').classList.add('active');
+            inputModeInput.value = 'manual';
+            updateUIText();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        resetBtn.addEventListener('click', resetForm);
+
+        // Language Translation Logic
+        function updateUIText() {
+            const t = i18n[currentLang];
+            
+            document.getElementById('ui-lang-label').innerHTML = t.langLabel;
+            document.getElementById('ui-mode-label').innerHTML = t.modeLabel;
+            document.getElementById('ui-mode-manual').textContent = t.modeManual;
+            document.getElementById('ui-mode-exemplar').textContent = t.modeExemplar;
+            document.getElementById('ui-mode-others').textContent = t.modeOthers;
+            
+            // Adjust upload title if visible
+            const currentMode = inputModeInput.value;
+            if(currentMode === 'exemplar') {
+                uploadTitle.innerHTML = t.uploadTitleExemplar;
+                uploadDesc.textContent = t.uploadDescExemplar;
+            } else if (currentMode === 'others') {
+                uploadTitle.innerHTML = t.uploadTitleOthers;
+                uploadDesc.textContent = t.uploadDescOthers;
+            }
+
+            document.getElementById('ui-area-label').innerHTML = t.areaLabel;
+            document.getElementById('ui-grade-label').innerHTML = t.gradeLabel;
+            document.getElementById('ui-level-label').innerHTML = t.learnerLevelLabel;
+            document.getElementById('ui-session-label').innerHTML = t.sessionLabel;
+            document.getElementById('ui-session-hint').innerHTML = t.sessionHint;
+            document.getElementById('ui-duration-label').innerHTML = t.durationLabel;
+            document.getElementById('ui-duration-hint').innerHTML = t.durationHint;
+            document.getElementById('ui-sequence-label').innerHTML = t.sequenceLabel;
+            document.getElementById('ui-sequence-hint').innerHTML = t.sequenceHint;
+            document.querySelector('#lessonSequence option[value="5es"]').textContent = t.sequenceOptions.fiveEs;
+            document.querySelector('#lessonSequence option[value="7es"]').textContent = t.sequenceOptions.sevenEs;
+            document.querySelector('#lessonSequence option[value="rmd"]').textContent = t.sequenceOptions.rmd;
+            document.querySelector('#lessonSequence option[value="matatag"]').textContent = t.sequenceOptions.matatag;
+            document.querySelector('#lessonSequence option[value="4as"]').textContent = t.sequenceOptions.fourAs;
+            document.querySelector('#lessonSequence option[value="deped"]').textContent = t.sequenceOptions.deped;
+            document.querySelector('#lessonSequence option[value="ilaw"]').textContent = t.sequenceOptions.ilaw;
+            document.querySelector('#lessonSequence option[value="idwdyd"]').textContent = t.sequenceOptions.idwdyd;
+            document.querySelector('#lessonSequence option[value="inquiry"]').textContent = t.sequenceOptions.inquiry;
+            document.querySelector('#lessonSequence option[value="collab"]').textContent = t.sequenceOptions.collab;
+            document.querySelector('#lessonSequence option[value="demo"]').textContent = t.sequenceOptions.demo;
+
+            document.getElementById('ui-assessment-type-label').innerHTML = t.assessmentTypeLabel;
+            document.querySelector('#assessmentType option[value="multiple_choice"]').textContent = t.assessmentTypes.multiple_choice;
+            document.querySelector('#assessmentType option[value="identification"]').textContent = t.assessmentTypes.identification;
+            document.querySelector('#assessmentType option[value="fill_in_the_blanks"]').textContent = t.assessmentTypes.fill_in_the_blanks;
+            document.querySelector('#assessmentType option[value="short_answer"]').textContent = t.assessmentTypes.short_answer;
+
+            document.getElementById('ui-content-std-label').innerHTML = t.contentStdLabel;
+            document.getElementById('ui-perf-std-label').innerHTML = t.perfStdLabel;
+            document.getElementById('ui-comp-label').innerHTML = t.compLabel;
+            document.getElementById('ui-add-comp').textContent = t.addComp;
+            document.getElementById('ui-obj-label').innerHTML = t.objLabel;
+            document.getElementById('ui-context-label').innerHTML = t.contextLabel;
+            document.getElementById('ui-context-hint').innerHTML = t.contextHint;
+            document.getElementById('ui-gen-btn').textContent = t.genBtn;
+            document.getElementById('ui-out-title').innerHTML = t.outTitle;             document.getElementById('ui-dl-btn').textContent = t.dlBtn;
+             document.getElementById('ui-print-btn').textContent = t.printBtn;
+            document.getElementById('ui-cp-btn').textContent = t.cpBtn;
+            document.getElementById('ui-ppt-btn').textContent = t.pptBtn;
+            document.getElementById('ui-empty-title').textContent = t.emptyTitle;
+            document.getElementById('ui-empty-desc').textContent = t.emptyDesc;
+            document.getElementById('ui-load-title').textContent = t.loadTitle;
+            document.getElementById('ui-load-desc').textContent = t.loadDesc;
+
+            // Placeholders
+            document.getElementById('learningArea').placeholder = t.placeholders.learningArea;
+            document.getElementById('sectionInput').placeholder = (currentLang === 'ph') ? 'Pangkat (hal. Mabini)' : 'Section (e.g. Mabini)';
+            document.getElementById('contentStandard').placeholder = t.placeholders.contentStd;
+            document.getElementById('performanceStandard').placeholder = t.placeholders.perfStd;
+            document.getElementById('objectives').placeholder = t.placeholders.objectives;
+            document.getElementById('contextualization').placeholder = t.placeholders.context;
+            document.querySelectorAll('.competency-input').forEach(el => el.placeholder = t.placeholders.competency);
+
+            // Update Default Input Values
+            document.getElementById('learningArea').value = t.defaults.learningArea;
+            applyGradeInput(t.defaults.gradeSection);
+            document.getElementById('contentStandard').value = t.defaults.contentStd;
+            document.getElementById('performanceStandard').value = t.defaults.perfStd;
+            const firstComp = document.querySelector('.competency-input');
+            if(firstComp) firstComp.value = t.defaults.competency;
+            document.getElementById('objectives').value = t.defaults.objectives;
+
+            // Update Sessions Dropdown Options
+            const selectedSession = sessionsSelect.value || "4";
+            sessionsSelect.innerHTML = '';
+            t.sessions.forEach((txt, idx) => {
+                const opt = document.createElement('option');
+                opt.value = (idx + 1).toString();
+                opt.textContent = txt;
+                if(opt.value === selectedSession) opt.selected = true;
+                sessionsSelect.appendChild(opt);
+            });
+        }
+
+        // Initialize UI Text
+        updateUIText();
+
+        // Pill Button Logic
+        function setupPillGroup(groupId, hiddenInput, onChange) {
+            const container = document.getElementById(groupId);
+            const buttons = container.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    buttons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    hiddenInput.value = btn.dataset.value;
+                    if (onChange) onChange(btn.dataset.value);
+                });
+            });
+        }
+
+        setupPillGroup('lang-pill', languageModeInput, (val) => {
+            currentLang = val;
+            updateUIText();
+            // Update sessions dropdown after language change
+            const selectedSession = sessionsSelect.value || "4";
+            sessionsSelect.innerHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                const option = document.createElement('option');
+                option.value = i; option.textContent = i + (currentLang === 'ph' ? ' (Araw)' : ' (Day/s)');
+                if (String(i) === selectedSession) option.selected = true;
+                sessionsSelect.appendChild(option);
+            }
+        });
+
+        setupPillGroup('mode-pill', inputModeInput, (mode) => {
+            const t = i18n[currentLang];
+            if (mode === 'manual') {
+                uploadSection.classList.add('hidden');
+                objectivesContainer.classList.remove('hidden');
+                referenceFileData = null;
+                referenceUploadBtn.value = '';
+                uploadStatusDiv.classList.add('hidden');
+            } else if (mode === 'exemplar') {
+                uploadSection.classList.remove('hidden');
+                objectivesContainer.classList.add('hidden');
+                uploadTitle.innerHTML = t.uploadTitleExemplar;
+                uploadDesc.textContent = t.uploadDescExemplar;
+            } else if (mode === 'others') {
+                uploadSection.classList.remove('hidden');
+                objectivesContainer.classList.add('hidden');
+                uploadTitle.innerHTML = t.uploadTitleOthers;
+                uploadDesc.textContent = t.uploadDescOthers;
+            }
+        });
+
+        // Add Competency Logic
+        addCompetencyBtn.addEventListener('click', () => {
+            const row = document.createElement('div');
+            row.className = 'flex gap-2 items-start competency-row';
+            row.innerHTML = `
+                <textarea required rows="2" placeholder="${i18n[currentLang].placeholders.competency}" class="competency-input w-full w-full px-3 py-2 bg-white ring-1 ring-black/5 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none text-sm font-medium"></textarea>
+                <button type="button" class="text-red-500 hover:text-red-700 mt-1 p-2 transition-colors rounded-full hover:bg-red-50" onclick="this.parentElement.remove()" title="Remove Competency">
+                    ✕
+                </button>
+            `;
+            competenciesList.appendChild(row);
+        });
+
+        // Handle File Upload & AI Extraction
+        referenceUploadBtn.addEventListener('change', async (e) => {
+            const picked = e.target.files[0];
+            if (!picked) return;
+
+            let file = picked;
+            const ext = (picked.name.split('.').pop() || '').toLowerCase();
+            if (ext === 'doc' || ext === 'docx') {
+                /* Word files are turned into plain text so they reach the AI as text — the
+                   model does not accept raw .doc/.docx MIME types. .docx is read with mammoth
+                   (falling back to the html-docx-js chunk), .doc is stripped as HTML. */
+                let text = '';
+                if (ext === 'doc') {
+                    let raw = '';
+                    try { raw = await picked.text(); } catch { /* reported as unreadable below */ }
+                    const doc = (window.SilidFileUtils && window.SilidFileUtils.extractLegacyDocText)
+                        ? window.SilidFileUtils.extractLegacyDocText(raw)
+                        : { text: '' };
+                    if (doc.error) {
+                        showError(doc.error);
+                        referenceUploadBtn.value = '';
+                        return;
+                    }
+                    text = doc.text;
+                } else {
+                    if (!window.mammoth && !window.JSZip) {
+                        showError('The Word reader has not loaded yet. Check your connection and try again.');
+                        referenceUploadBtn.value = '';
+                        return;
+                    }
+                    let buf = null;
+                    try { buf = await picked.arrayBuffer(); } catch { /* reported as unreadable below */ }
+                    text = (buf && window.SilidFileUtils) ? await window.SilidFileUtils.extractDocxText(buf) : '';
+                }
+                if (!text) {
+                    showError("Could not read the Word file. Please upload a valid PDF, TXT, DOC, or DOCX file.");
+                    referenceUploadBtn.value = '';
+                    return;
+                }
+                file = new File([text], picked.name.replace(/\.docx?$/i, '.txt'), { type: 'text/plain' });
+            }
+
+            const validTypes = ['application/pdf', 'text/plain'];
+            if (!validTypes.includes(file.type)) {
+                showError("Please upload a valid PDF, TXT, DOC, or DOCX file.");
+                referenceUploadBtn.value = '';
+                return;
+            }
+
+            hideError();
+            referenceMimeType = file.type;
+            const t = i18n[currentLang];
+            
+            uploadStatusDiv.classList.remove('hidden');
+            uploadStatusDiv.classList.add('text-iris-600');
+            uploadStatusDiv.classList.remove('text-green-600', 'text-red-600', 'text-amber-600');
+            uploadStatusDiv.innerHTML = t.statusExtracting;
+            generateBtn.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                referenceFileData = event.target.result.split(',')[1];
+                
+                try {
+                    const extractPrompt = `Analyze the attached document. Extract the following information if available, and return IT ONLY as a strictly valid JSON format. If no information is found (e.g. it is a generic reading material), leave it as a blank string or empty array:
+                    {
+                        "learningArea": "string (e.g. Science 7, English 8)",
+                        "gradeLevel": "string (e.g. Grade 7, Grade 8 - Section Name)",
+                        "noOfSessions": number (From 1 to 5)",
+                        "competencies": ["string", "string"]
+                    }
+                    Do not add any markdown formats (like \`\`\`json) or explanations, only the pure JSON object.`;
+
+                    const result = await window.SilidAPI.callGeminiJSON({
+                        prompt: extractPrompt,
+                        inlineData: { mimeType: referenceMimeType, data: referenceFileData }
+                    });
+
+                    const extractedData = result;
+
+                    if(extractedData.learningArea) document.getElementById('learningArea').value = extractedData.learningArea;
+                    if(extractedData.gradeLevel) applyGradeInput(extractedData.gradeLevel);
+                    if(extractedData.noOfSessions) {
+                        const sessInput = document.getElementById('sessions');
+                        let val = Math.min(Math.max(extractedData.noOfSessions, 1), 5);
+                        sessInput.value = val;
+                    }
+                    if(extractedData.competencies && extractedData.competencies.length > 0) {
+                        competenciesList.innerHTML = '';
+                        extractedData.competencies.forEach(comp => {
+                            if (!comp) return;
+                            const row = document.createElement('div');
+                            row.className = 'flex gap-2 items-start competency-row';
+                            row.innerHTML = `
+                                <textarea required rows="2" class="competency-input w-full w-full px-3 py-2 bg-white ring-1 ring-black/5 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none text-sm font-medium">${comp}</textarea>
+                                <button type="button" class="text-red-500 hover:text-red-700 mt-1 p-2 transition-colors rounded-full hover:bg-red-50" onclick="this.parentElement.remove()" title="Remove Competency">
+                                    ✕
+                                </button>
+                            `;
+                            competenciesList.appendChild(row);
+                        });
+                        if (competenciesList.children.length === 0) addCompetencyBtn.click();
+                    }
+
+                    uploadStatusDiv.classList.replace('text-iris-600', 'text-green-600');
+                    uploadStatusDiv.innerHTML = i18n[currentLang].statusSuccess;
+                } catch (error) {
+                    console.error("Extraction error:", error);
+                    uploadStatusDiv.classList.replace('text-iris-600', 'text-amber-600');
+                    uploadStatusDiv.innerHTML = i18n[currentLang].statusReady + ' <span class="opacity-80">(' + ((error && error.message) || 'unknown error') + ')</span>';
+                } finally {
+                    generateBtn.disabled = false;
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Gemini retry/fallback logic is now centralized in shared-api.js
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            
+            const area = document.getElementById('learningArea').value.trim();
+            const teacher = document.getElementById('teacherName').value.trim();
+            const teacherRole = document.getElementById('teacherRole').value.trim();
+            const checkerName = document.getElementById('checkerName').value.trim();
+            const checkerRole = document.getElementById('checkerRole').value.trim();
+            const grade = document.getElementById('gradeSection').value.trim();
+
+            // Save inputs as suggestions for next time
+            saveSuggestion('lesson_suggestions_area', area);
+            saveSuggestion('lesson_suggestions_grade', grade);
+            saveSuggestion('lesson_suggestions_section', document.getElementById('sectionInput').value.trim());
+            const learnerLevel = document.getElementById('learnerLevel').value;
+            const sessionsValue = parseInt(document.getElementById('sessions').value);
+            const sessionDuration = Math.max(10, Math.min(240, parseInt(document.getElementById('session-duration').value, 10) || 60));
+            const lessonSequence = lessonSequenceSelect.value;
+            
+            const assessmentTypeSelect = document.getElementById('assessmentType');
+            const assessmentTypeText = assessmentTypeSelect.options[assessmentTypeSelect.selectedIndex].text;
+
+            const objectives = document.getElementById('objectives').value.trim();
+            const contextualization = document.getElementById('contextualization').value.trim();
+            const contentStandard = document.getElementById('contentStandard').value.trim();
+            const performanceStandard = document.getElementById('performanceStandard').value.trim();
+
+            const competencyInputs = document.querySelectorAll('.competency-input');
+            const competenciesArray = Array.from(competencyInputs).map(el => el.value.trim()).filter(val => val !== '');
+            
+            if (competenciesArray.length === 0) {
+                showError("Please enter at least one learning competency.");
+                return;
+            }
+
+            const competencyPromptText = competenciesArray.map(c => `- ${c}`).join('\n');
+            const competencyHtmlText = competenciesArray.length > 1 
+                ? competenciesArray.map(c => `• ${c}`).join('<br><br>') 
+                : competenciesArray[0];
+
+            let combinedCompetencyHtml = "";
+            if (contentStandard) combinedCompetencyHtml += `<strong>${currentLang === 'ph' ? 'Pamantayang Pangnilalaman:' : 'Content Standard:'}</strong><br>${contentStandard}<br><br>`;
+            if (performanceStandard) combinedCompetencyHtml += `<strong>${currentLang === 'ph' ? 'Pamantayan sa Pagganap:' : 'Performance Standard:'}</strong><br>${performanceStandard}<br><br>`;
+            combinedCompetencyHtml += `<strong>${currentLang === 'ph' ? 'Kasanayang Pampagkatuto:' : 'Learning Competency:'}</strong><br>${competencyHtmlText}`;
+
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<div class="loader border-2 border-white/30 border-t-white rounded-full w-4 h-4 mr-2"></div> ' + (currentLang === 'ph' ? 'Bumubuo...' : 'Generating...');
+            generateBtn.classList.add('opacity-75', 'cursor-not-allowed');
+            
+            emptyState.classList.add('hidden');
+            outputContent.classList.add('hidden');
+            copyBtn.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            downloadDocBtn.classList.add('hidden');
+            printSheetBtn.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+            clearSavedLessonOutput();
+
+            const selectedMode = inputModeInput.value;
+            
+            let systemPrompt = "";
+            let userQuery = "";
+            
+            if (currentLang === 'ph') {
+                systemPrompt = `Ikaw ay isang dalubhasang Master Teacher sa Pilipinas. Ang iyong gawain ay bumuo ng napakadetalye at nakaka-engganyong Pang-araw-araw na Tala sa Pagtuturo (Lesson Plan) base sa bagong DepEd Guidelines, sa 8 Learning Design Principles, at sa MATATAG Instructional Design Frameworks (4Is, 4Cs, 4Es). ILABAS LAMANG ang hinihinging pormat. HUWAG magdagdag ng anumang paliwanag o konbersasyonal na text sa labas ng hiniling na output. IMPORTANT: YOU MUST RESPOND ENTIRELY IN FILIPINO/TAGALOG. ALL CONTENT, DESCRIPTIONS, ASSESSMENTS, AND ACTIVITIES MUST BE WRITTEN IN TAGALOG.`;
+                
+                let fileInstruction = "";
+                if (selectedMode === 'exemplar' && referenceFileData) {
+                    let day5InstructionPh = sessionsValue === 5 ? `\nMAHALAGA PARA SA SESYON 5: Dahil 5 ang piniling bilang ng sesyon at kadalasang pang-4 na araw lamang ang exemplar, ang SESYON 5 ay DAPAT ilaan lamang sa 'Review o Buod' ng lahat ng paksa mula Sesyon 1 hanggang 4, kasama ang isang pangwakas na Assessment (Pagsusulit).` : "";
+                    
+                    fileInstruction = `\n[MAHALAGANG PANUTO: Mayroong in-upload na Lesson Exemplar ang user. Gamitin ang in-upload na document na ito bilang pangunahing REFERENCE para sa content, paksa, mga aktibidad, at daloy ng aralin. NGUNIT, MAHIGPIT NA IPINAGBABAWAL ang paggamit ng format ng exemplar. ANG STRICT SEQUENCE AT FORMAT NG HTML TABLE NA IBINIGAY SA BABA ANG DAPAT MONG SUNDIN AT BUUIN.
+                    
+                    CONGRUENCY RULE: Suriin nang mabuti ang mga Learning Objectives sa in-upload na Lesson Exemplar. Kailangang TUMUGMA (Congruent) ang mga layunin sa bawat araw. Ang Layunin para sa Day 1 ng exemplar ay DAPAT maging Tiyak na Layunin para sa Sesyon 1 ng iyong bubuuin, Day 2 sa Sesyon 2, at iba pa.${day5InstructionPh}]\n`;
+                } else if (selectedMode === 'others' && referenceFileData) {
+                    fileInstruction = `\n[MAHALAGANG PANUTO: Mayroong in-upload na Other Sources (e.g. readings, modules, activity sheets) ang user. Gamitin ang impormasyon sa in-upload na document na ito bilang karagdagang REFERENCE para paghugutan ng nilalaman, paksa, at mga konsepto sa pagbuo ng aralin. SUNDIN NANG MAHIGPIT ANG SEQUENCE AT FORMAT NG HTML TABLE NA IBINIGAY SA BABA.]\n`;
+                }
+
+                const sequenceInstructionPh = lessonSequence === 'deped'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: Basic DLP Format.
+MAHALAGA: Gamitin ang eksaktong Filipino headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", gamitin ang: <b>1. Paunang Gawain:</b>, <b>2. Balik-Aral:</b>, at <b>3. Pagganyak:</b>.
+Sa row na "Daloy ng Aralin", gamitin ang: <b>4. Paglalahad ng Aralin:</b>, <b>5. Pagtalakay:</b>, <b>6. Pinatnubayang Pagsasanay:</b>, <b>7. Malayang Pagsasanay:</b>, <b>8. Paglalahat:</b>, <b>9. Paglalapat:</b>, <b>10. Pagtataya:</b>, at <b>11. Takdang-Aralin:</b>.
+Gawing malinaw, praktikal, at handang gamitin sa Philippine classroom.`
+                    : lessonSequence === '4as'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: 4A’s Format.
+MAHALAGA: Gamitin ang eksaktong Filipino headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", maglagay ng maikling paghahanda gamit ang <b>Paunang Gawain:</b>, <b>Balik-Aral:</b>, at <b>Pagganyak:</b> kung kailangan.
+Sa row na "Daloy ng Aralin", gamitin LAMANG ang: <b>1. Gawain:</b>, <b>2. Pagsusuri:</b>, <b>3. Paglalahat:</b>, at <b>4. Paglalapat:</b>.
+Siguraduhing nagsisimula sa aktibidad, sinusundan ng pagproseso, pagbuo ng konsepto, at paggamit ng natutuhan.`
+                    : lessonSequence === '5es'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: 5E’s Format.
+MAHALAGA: Gamitin ang eksaktong Filipino headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", gamitin ang: <b>1. Pukawin ang Interes:</b>.
+Sa row na "Daloy ng Aralin", gamitin ang: <b>2. Tuklasin:</b>, <b>3. Ipaliwanag:</b>, <b>4. Palawakin:</b>, at <b>5. Tayahin:</b>.
+Huwag gamitin ang English headings na Engage, Explore, Explain, Elaborate, Evaluate kapag Filipino ang napiling wika.`
+                    : lessonSequence === '7es'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: 7E’s Format.
+MAHALAGA: Gamitin ang eksaktong headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", gamitin ang: <b>1. Elicit:</b> at <b>2. Engage:</b>.
+Sa row na "Daloy ng Aralin", gamitin ang: <b>3. Explore:</b>, <b>4. Explain:</b>, <b>5. Elaborate:</b>, <b>6. Evaluate:</b>, at <b>7. Extend:</b>.
+Isulat ang mismong nilalaman ng bawat bahagi sa wikang Filipino.`
+                    : lessonSequence === 'rmd'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: Review–Motivation–Discussion Format.
+MAHALAGA: Gamitin ang eksaktong Filipino headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", gamitin ang: <b>1. Paunang Gawain:</b>, <b>2. Balik-Aral:</b>, at <b>3. Pagganyak:</b>.
+Sa row na "Daloy ng Aralin", gamitin ang: <b>4. Paglalahad ng Aralin:</b>, <b>5. Pagtalakay:</b>, <b>6. Pinatnubayang Pagsasanay:</b>, <b>7. Malayang Pagsasanay:</b>, <b>8. Paglalahat:</b>, <b>9. Paglalapat:</b>, <b>10. Pagtataya:</b>, at <b>11. Takdang-Aralin:</b>.
+Ito ang simple at common classroom flow para sa regular DLP/DLL.`
+                    : lessonSequence === 'matatag'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: MATATAG Format.
+MAHALAGA: Gamitin ang eksaktong Filipino headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", gamitin ang: <b>1. Pagpukaw ng Dating Kaalaman:</b>, <b>2. Paglalahad ng Layunin:</b>, at <b>3. Pagsasanay sa Mahahalagang Salita:</b>.
+Sa row na "Daloy ng Aralin", gamitin ang: <b>4. Pagbasa, Pakikinig, o Panonood:</b>, <b>5. Pagtalakay at Pagproseso:</b>, <b>6. Pagsasanay:</b>, <b>7. Paglalapat o Paglilipat ng Pagkatuto:</b>, <b>8. Formative Assessment:</b>, at <b>9. Pagninilay:</b>.
+Gawing angkop sa MATATAG-style learning experience at learner-centered processing.`
+                    : lessonSequence === 'ilaw'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: ILAW Format.
+MAHALAGA: Gamitin ang eksaktong Filipino headings na ito at huwag palitan ang pagkakasunod-sunod.
+Sa row na "Bago ang Aralin", gamitin ang: <b>1. Ihanda ang Mag-aaral:</b>, <b>2. Balikan ang Natutuhan:</b>, at <b>3. Iugnay ang Bagong Aralin:</b>.
+Sa row na "Daloy ng Aralin", gamitin ang: <b>4. Linangin ang Kaalaman:</b>, <b>5. Aktibong Pagsasanay:</b>, <b>6. Wastong Paglalapat:</b>, <b>7. Paglalahat ng Aralin:</b>, <b>8. Pagtataya ng Pagkatuto:</b>, at <b>9. Pagpapayaman o Takdang-Aralin:</b>.
+Panatilihing malinaw, classroom-ready, at nakaayon sa praktikal na gamit ng ILAW lesson planner.`
+                    : lessonSequence === 'idwdyd'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: I Do–We Do–You Do Sequence.
+MAHALAGA: Sa row na "Bago ang Aralin", gamitin LAMANG ang headings na <b>Review:</b>, <b>Motivation:</b>, at <b>Lesson Purpose:</b>.
+Sa row na "Daloy ng Aralin", gamitin LAMANG ang headings na <b>I Do (Teacher Modeling):</b>, <b>We Do (Guided Practice):</b>, <b>You Do Together (Pair/Group Practice):</b>, <b>You Do Alone (Independent Practice):</b>, at <b>Checking for Understanding:</b>.
+Mainam ito para sa Math, grammar, reading skills, at step-by-step lessons.`
+                    : lessonSequence === 'inquiry'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: Inquiry-Based Learning Sequence.
+MAHALAGA: Sa row na "Bago ang Aralin", gamitin LAMANG ang headings na <b>Problem/Essential Question:</b> at <b>Prediction:</b>.
+Sa row na "Daloy ng Aralin", gamitin LAMANG ang headings na <b>Investigation/Exploration:</b>, <b>Gathering of Evidence:</b>, <b>Sharing of Findings:</b>, <b>Concept Formation:</b>, at <b>Application:</b>.
+Siguraduhing ang mga mag-aaral ay nag-oobserba, nagtatanong, nagsusuri, at bumubuo ng sariling konklusyon.`
+                    : lessonSequence === 'collab'
+                    ? `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: Collaborative Learning Sequence.
+MAHALAGA: Sa row na "Bago ang Aralin", gamitin LAMANG ang headings na <b>Review:</b>, <b>Motivation:</b>, at <b>Group Task Orientation:</b>.
+Sa row na "Daloy ng Aralin", gamitin LAMANG ang headings na <b>Think-Pair-Share:</b>, <b>Group Activity:</b>, <b>Gallery Walk/Reporting:</b>, <b>Peer Feedback:</b>, <b>Synthesis:</b>, at <b>Individual Accountability:</b>.
+Ilagay ang malinaw na papel ng bawat mag-aaral upang hindi maging group work na isang bata lang ang nagtatrabaho.`
+                    : `
+NAPILING DALUYAN NG USER PARA SA BAGO ANG ARALIN AT DALOY NG ARALIN: Demonstration–Return Demonstration Flow.
+MAHALAGA: Sa row na "Bago ang Aralin", gamitin LAMANG ang headings na <b>Review:</b>, <b>Motivation:</b>, at <b>Safety/Procedure Reminder:</b>.
+Sa row na "Daloy ng Aralin", gamitin LAMANG ang headings na <b>Teacher Demonstration:</b>, <b>Guided Demonstration:</b>, <b>Return Demonstration:</b>, <b>Feedback and Correction:</b>, at <b>Application/Performance Task:</b>.
+Mainam ito para sa EPP/TLE, MAPEH, Science skills, at performance-based lessons.`;
+
+                // Table Layout Variables for Tagalog
+                let sessionColsPh = Array.from({length: sessionsValue}, (_, i) => `<td style="font-weight:bold; text-align:center;">Sesyon ${i+1}</td>`).join('\n');
+                let durationColsPh = Array.from({length: sessionsValue}, () => `<td style="text-align:center;">${sessionDuration} minuto</td>`).join('\n');
+                let objColsPh = Array.from({length: sessionsValue}, (_, i) => `<td>(Tiyak na layunin para sa Sesyon ${i+1})</td>`).join('\n');
+                let preLessonColsPh = Array.from({length: sessionsValue}, (_, i) => {
+                    if (lessonSequence === 'deped' || lessonSequence === 'rmd') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>1. Paunang Gawain:</b>, <b>2. Balik-Aral:</b>, at <b>3. Pagganyak:</b>.)</td>`;
+                    if (lessonSequence === '4as') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Maglagay ng maikling paghahanda gamit ang <b>Paunang Gawain:</b>, <b>Balik-Aral:</b>, at <b>Pagganyak:</b> kung kailangan bago ang 4A’s.)</td>`;
+                    if (lessonSequence === '5es') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong heading na <b>1. Pukawin ang Interes:</b>. Maglagay ng maikling hook, tanong, larawan/sitwasyon, o gawain na magpapukaw ng interes.)</td>`;
+                    if (lessonSequence === '7es') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>1. Elicit:</b> at <b>2. Engage:</b> upang alamin ang dating kaalaman at pukawin ang interes.)</td>`;
+                    if (lessonSequence === 'matatag') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>1. Pagpukaw ng Dating Kaalaman:</b>, <b>2. Paglalahad ng Layunin:</b>, at <b>3. Pagsasanay sa Mahahalagang Salita:</b>.)</td>`;
+                    if (lessonSequence === 'ilaw') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>1. Ihanda ang Mag-aaral:</b>, <b>2. Balikan ang Natutuhan:</b>, at <b>3. Iugnay ang Bagong Aralin:</b>.)</td>`;
+                    if (lessonSequence === 'idwdyd') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Review:</b>, <b>Motivation:</b>, at <b>Lesson Purpose:</b>. Iugnay ang dating kaalaman sa bagong kasanayan.)</td>`;
+                    if (lessonSequence === 'inquiry') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Problem/Essential Question:</b> at <b>Prediction:</b>. Magbigay ng tanong o suliraning gagalugadin ng mga mag-aaral.)</td>`;
+                    if (lessonSequence === 'collab') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Review:</b>, <b>Motivation:</b>, at <b>Group Task Orientation:</b>. Ihanda ang learners sa collaborative task at malinaw na roles.)</td>`;
+                    if (lessonSequence === 'demo') return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Review:</b>, <b>Motivation:</b>, at <b>Safety/Procedure Reminder:</b>. Ipaalala ang tamang paraan at pag-iingat bago ang demonstration.)</td>`;
+                    return `<td>(Bago ang Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>1. Paunang Gawain:</b>, <b>2. Balik-Aral:</b>, at <b>3. Pagganyak:</b>.)</td>`;
+                }).join('\n');
+                let flowColsPh = Array.from({length: sessionsValue}, (_, i) => {
+                    if (lessonSequence === 'deped' || lessonSequence === 'rmd') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>4. Paglalahad ng Aralin:</b>, <b>5. Pagtalakay:</b>, <b>6. Pinatnubayang Pagsasanay:</b>, <b>7. Malayang Pagsasanay:</b>, <b>8. Paglalahat:</b>, <b>9. Paglalapat:</b>, <b>10. Pagtataya:</b>, at <b>11. Takdang-Aralin:</b>.)</td>`;
+                    if (lessonSequence === '4as') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin LAMANG at sa eksaktong sequence ang headings na <b>1. Gawain:</b>, <b>2. Pagsusuri:</b>, <b>3. Paglalahat:</b>, at <b>4. Paglalapat:</b>.)</td>`;
+                    if (lessonSequence === '5es') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>2. Tuklasin:</b>, <b>3. Ipaliwanag:</b>, <b>4. Palawakin:</b>, at <b>5. Tayahin:</b>. Gawing detalyado, sunod-sunod, at angkop sa antas ng mag-aaral.)</td>`;
+                    if (lessonSequence === '7es') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>3. Explore:</b>, <b>4. Explain:</b>, <b>5. Elaborate:</b>, <b>6. Evaluate:</b>, at <b>7. Extend:</b>. Gawing detalyado at sunod-sunod.)</td>`;
+                    if (lessonSequence === 'matatag') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>4. Pagbasa, Pakikinig, o Panonood:</b>, <b>5. Pagtalakay at Pagproseso:</b>, <b>6. Pagsasanay:</b>, <b>7. Paglalapat o Paglilipat ng Pagkatuto:</b>, <b>8. Formative Assessment:</b>, at <b>9. Pagninilay:</b>.)</td>`;
+                    if (lessonSequence === 'ilaw') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>4. Linangin ang Kaalaman:</b>, <b>5. Aktibong Pagsasanay:</b>, <b>6. Wastong Paglalapat:</b>, <b>7. Paglalahat ng Aralin:</b>, <b>8. Pagtataya ng Pagkatuto:</b>, at <b>9. Pagpapayaman o Takdang-Aralin:</b>.)</td>`;
+                    if (lessonSequence === 'idwdyd') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>I Do (Teacher Modeling):</b>, <b>We Do (Guided Practice):</b>, <b>You Do Together (Pair/Group Practice):</b>, <b>You Do Alone (Independent Practice):</b>, at <b>Checking for Understanding:</b>. Gawing malinaw ang transition mula teacher support papuntang independent work.)</td>`;
+                    if (lessonSequence === 'inquiry') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Investigation/Exploration:</b>, <b>Gathering of Evidence:</b>, <b>Sharing of Findings:</b>, <b>Concept Formation:</b>, at <b>Application:</b>. Ipakita kung paano tutuklas at bubuo ng konklusyon ang learners.)</td>`;
+                    if (lessonSequence === 'collab') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Think-Pair-Share:</b>, <b>Group Activity:</b>, <b>Gallery Walk/Reporting:</b>, <b>Peer Feedback:</b>, <b>Synthesis:</b>, at <b>Individual Accountability:</b>. Gawing malinaw ang roles, output, at rubrics/simple criteria.)</td>`;
+                    if (lessonSequence === 'demo') return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang headings na <b>Teacher Demonstration:</b>, <b>Guided Demonstration:</b>, <b>Return Demonstration:</b>, <b>Feedback and Correction:</b>, at <b>Application/Performance Task:</b>. Ilahad ang step-by-step procedure at performance criteria.)</td>`;
+                    return `<td>(Daloy ng Aralin para sa Sesyon ${i+1}. Gamitin ang eksaktong headings na <b>4. Paglalahad ng Aralin:</b>, <b>5. Pagtalakay:</b>, <b>6. Pinatnubayang Pagsasanay:</b>, <b>7. Malayang Pagsasanay:</b>, <b>8. Paglalahat:</b>, <b>9. Paglalapat:</b>, <b>10. Pagtataya:</b>, at <b>11. Takdang-Aralin:</b>.)</td>`;
+                }).join('\n');
+                let resourcesColsPh = Array.from({length: sessionsValue}, (_, i) => `<td>(Kagamitan para sa Sesyon ${i+1})</td>`).join('\n');
+                let integrationColsPh = Array.from({length: sessionsValue}, (_, i) => `<td>(Integrasyon para sa Sesyon ${i+1})</td>`).join('\n');
+                let assessmentColsPh = Array.from({length: sessionsValue}, (_, i) => `<td>(Ibigay ang AKTWAL na 5-item formative assessment o pagsusulit dito para sa Sesyon ${i+1}. Bawal ang puro instructions lang. Halimbawa: 1. Ano ang... 2. Bakit...)</td>`).join('\n');
+                let extensionColsPh = Array.from({length: sessionsValue}, (_, i) => `<td>(Karagdagang gawain para sa Sesyon ${i+1})</td>`).join('\n');
+                let reflectionColsPh = Array.from({length: sessionsValue}, (_, i) => `<td>*(Sasagutan pagkatapos)* <br><br>**Gabay na Tanong:** (Tanong para sa Sesyon ${i+1})</td>`).join('\n');
+
+                let contextInstructionPh = contextualization ? `\n- Lokal na Konteksto (Contextualization): ${contextualization}\n(MAHALAGA: I-integrate ang impormasyong ito sa mga gawain at halimbawa sa aralin upang mas maging angkop sa lugar at kultura ng mga mag-aaral nang hindi binabago ang table format.)` : "";
+
+                let manualObjPh = selectedMode === 'manual' ? `\n\nMAHALAGA PARA SA MGA LAYUNIN (MANUAL INPUT): Dahil manual input ang ginamit, ang "Mga Tiyak na Layunin" para sa bawat sesyon ay DAPAT maglaman at malinaw na i-label ang tatlong domeyn: 1. Knowledge, 2. Skills, at 3. Attitudes.` : "";
+
+                userQuery = `
+Ang user ay nangangailangan ng lesson plan na may ${sessionsValue} na sesyon (araw ng klase) para sa linggong ito.
+${fileInstruction}
+Details:
+- Asignatura: ${area}
+- Guro: ${teacher}
+- Baitang at Pangkat: ${grade}
+- Antas ng mga Mag-aaral: ${learnerLevel}
+- Uri ng Pagtataya (Assessment Type): ${assessmentTypeText}
+- Kasanayang Pampagkatuto: \n${competencyPromptText}
+- Mga Layunin: ${objectives || 'Bumuo ng EKSAKTONG TATLONG (3) specific at progressive na layunin para sa bawat araw sa wikang Filipino.'}${contextInstructionPh}${manualObjPh}
+${sequenceInstructionPh}
+
+CRITICAL INSTRUCTION FOR OBJECTIVES:
+Kailangan mong magbigay ng EKSAKTONG TATLO (3) na Tiyak na Layunin (Learning Objectives) para sa BAWAT SESYON/ARAW. Siguraduhing palaging mayroong 3 layunin (tulad ng Knowledge, Skills, at Attitude) sa bawat kolum ng layunin, anuman ang mangyari.
+
+CRITICAL INSTRUCTION FOR WEEKLY PLAN:
+Ang antas ng mga mag-aaral ay "${learnerLevel}". Mangyaring iakma ang hirap ng mga gawain, pagtataya, at mga katanungan batay sa antas na ito (adjust the difficulty based on learner level), ngunit HUWAG baguhin ang format o pagkakasunod-sunod ng lesson plan.
+TAGAL NG BAWAT SESYON (CRITICAL): Bawat sesyon ay tumatagal ng EKSAKTONG ${sessionDuration} minuto. Panatilihin nang eksakto ang row na "Tagal ng Bawat Sesyon" ("${sessionDuration} minuto" para sa bawat sesyon) at iakma ang bilis ng mga gawain sa "Daloy ng Aralin" para kumasya ang buong aralin sa loob ng ${sessionDuration} minuto. Maglagay ng magaspang na minuto sa mga hakbang kung nakakatulong ito sa guro (hal. 10 minuto para sa bago ang aralin).
+DO NOT generate separate tables for each day. 
+You must generate ONLY ONE FULL HTML TABLE. Ang mga kolum ay kakatawan sa mga sesyon o araw ng linggo.
+DO NOT wrap the output in markdown code blocks (\`\`\`html). Output the raw HTML code directly.
+Punan ng makabuluhang detalye ang mga placeholders na nasa loob ng panaklong "(...)".
+Lahat dapat nasa wikang FILIPINO/TAGALOG.
+PARA SA FORMATIVE NA PAGTATAYA: Kailangan mong magbigay ng EXACTLY 5 ACTUAL na mga tanong (test items) kada sesyon. HUWAG lang magbigay ng panuto tulad ng "Magbigay ng 5-item quiz". Ang uri ng test ay DAPAT: ${assessmentTypeText} (halimbawa: kung Multiple Choice, magbigay ng A, B, C, D na opsyon; kung Fill in the blanks, maglagay ng patlang).
+MAHALAGA PARA SA MATH FORMULAS: HUWAG gumamit ng LaTeX formatting (tulad ng $x^2$ o \\[ \\]). Gamitin lamang ang mga standard HTML tags (tulad ng <sup> para sa exponents, <sub> para sa subscripts) at Unicode math symbols (tulad ng √, π, ×, ÷, ½, ≠, ≤, ≥). Halimbawa: isulat ang x<sup>2</sup> + y<sup>2</sup> = z<sup>2</sup> sa halip na $x^2 + y^2 = z^2$. Ito ay para hindi masira ang format ng mga equation kapag in-export o nai-download ang file.
+
+LESSON SEQUENCE RULE FOR PRE-LESSON AND FLOW (CRITICAL):
+Sundin nang mahigpit ang napiling sequence ng user para sa rows na "Bago ang Aralin" at "Daloy ng Aralin". Ito lamang ang dapat magdikta ng headings at laman sa dalawang bahaging iyon. HUWAG baguhin ang ibang rows o ang kabuuang table format.
+
+FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
+
+<div style="text-align: center; font-family: Arial, sans-serif; margin-bottom: 20px; line-height: 1.3;">
+    <p style="margin: 0; font-size: 11pt;">Republic of the Philippines</p>
+    <p style="margin: 0; font-size: 13pt; font-weight: bold; font-family: 'Times New Roman', serif;">Department of Education</p>
+    ${lessonSchoolHeaderHtml()}
+</div>
+
+<h1 style="text-align: center; color: #1e40af; font-size: 1.5rem; font-weight: bold; text-transform: uppercase;">TALA SA PAGTUTURO - LINGGUHANG PANG-ARAW-ARAW</h1>
+
+<table>
+  <tr>
+    <td><strong>Pangalan ng Aralin</strong></td>
+    <td colspan="${sessionsValue}">(Pangalan ng lesson/s para sa buong linggo)</td>
+  </tr>
+  <tr>
+    <td><strong>Asignatura</strong></td>
+    <td colspan="${sessionsValue}">${area}</td>
+  </tr>
+  <tr>
+    <td><strong>Inihanda ng Guro</strong></td>
+    <td colspan="${sessionsValue}">${teacher}</td>
+  </tr>
+  <tr>
+    <td><strong>Para sa Baitang at Pangkat</strong></td>
+    <td colspan="${sessionsValue}">${grade}</td>
+  </tr>
+  <tr>
+    <td><strong>Bilang ng Sesyon</strong></td>
+    ${sessionColsPh}
+  </tr>
+  <tr>
+    <td><strong>Tagal ng Bawat Sesyon</strong><br><em style="font-size:0.85em; font-weight:normal;">(time allotment kada araw)</em></td>
+    ${durationColsPh}
+  </tr>
+  <tr>
+    <td><strong>Mga Sanggunian</strong><br><em style="font-size:0.85em; font-weight:normal;">(mga aklat, websites, toolkits, atbp.)</em></td>
+    <td colspan="${sessionsValue}">(Mga Sanggunian)</td>
+  </tr>
+  <tr>
+    <td><strong>Deklarasyon sa Paggamit ng AI</strong><br><em style="font-size:0.85em; font-weight:normal;">Tukuyin kung paano ginamit ang AI sa pagbuo ng lesson plan.<br>Tingnan ang DO 3, 2026 Annex A.</em></td>
+    <td colspan="${sessionsValue}">Ang AI ay ginamit upang buuin at i-format ang lesson plan na ito.</td>
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Mga Layunin.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Ang makabuluhang pagkatuto ay naka-angkla sa kung paano natin ito binabalangkas. Magsimula sa pagpapasya kung ano ang gusto mong matutunan ng mga mag-aaral pagkatapos ng aralin - panatilihin itong malinaw at simple.<br>Tandaan: Ang pag-unawa sa umuunlad na konteksto ng iyong mga mag-aaral at pagdidisenyo batay dito ay nakakatulong upang matiyak na ang iyong mga aralin ay konektado at makabuluhan sa kanila.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Mga Pamantayan at Kasanayan:</strong><br><em style="font-size:0.85em; font-weight:normal;">Isulat ang kasanayan mula sa curriculum na nilalayon nating makamit, at ang content o performance standards na naaangkop sa sesyon.</em></td>
+    <td colspan="${sessionsValue}">${combinedCompetencyHtml}</td>
+  </tr>
+  <tr>
+    <td><strong>Mga Tiyak na Layunin:</strong><br><em style="font-size:0.85em; font-weight:normal;">Isulat ang mga tiyak na kaalaman, kasanayan, o gawain mula sa kasanayang pampagkatuto na gagawin at maipapakita ng mga mag-aaral sa pagtatapos ng mga sesyon.</em></td>
+    ${objColsPh}
+  </tr>
+  <tr>
+    <td><strong>Konteksto ng Mag-aaral:</strong><br><em style="font-size:0.85em; font-weight:normal;">Isulat ang iyong mga obserbasyon sa iyong mga mag-aaral, at kung paano sila tumutugon sa mga karanasan sa pagkatuto kamakailan. Isama ang kanilang kalakasan, interes, at mga posibleng hadlang sa pagkatuto.</em></td>
+    <td colspan="${sessionsValue}">(Realistic context base sa kakayahan ng mag-aaral)</td>
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Karanasan sa Pagkatuto.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Ang karanasan sa pagkatuto ay tulad ng isang pinag-isipang paglalakbay. Bawat aktibidad at interaksyon ay nagbubuo tungo sa makabuluhang pag-unawa at pag-unlad. Tukuyin ang mga aktibidad at interaksyon upang matulungan ang mga mag-aaral na magkaroon ng kaalaman, kasanayan, o pag-unawa sa isang makabuluhang paraan.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Bago ang Aralin:</strong><br><em style="font-size:0.85em; font-weight:normal;">Ilarawan kung paano mo tutulungan ang mga mag-aaral na maging handa para sa aralin.</em></td>
+    ${preLessonColsPh}
+  </tr>
+  <tr>
+    <td><strong>Daloy ng Aralin:</strong><br><em style="font-size:0.85em; font-weight:normal;">Ilarawan ang mga aktibidad na maaari mong ipatupad sa isa o higit pang sesyon upang makamit ang mga layunin sa pagkatuto.<br><br><b>Gamitin ang napiling lesson sequence ng user para sa bahaging ito at panatilihing malinaw ang headings gamit ang bold text at bullet points.</b></em></td>
+    ${flowColsPh}
+  </tr>
+  <tr>
+    <td><strong>Mga Kagamitang Panturo:</strong><br><em style="font-size:0.85em; font-weight:normal;">Ilista ang mga kagamitang panturo na makakatulong sa pagkamit ng iyong mga layunin. Siguraduhing ang mga ito ay available at inklusibo.<br><br>Maglakip ng mga opsyon at alternatibo sa oras ng emergency.</em></td>
+    ${resourcesColsPh}
+  </tr>
+  <tr>
+    <td><strong>Oportunidad para sa Integrasyon:</strong><br><em style="font-size:0.85em; font-weight:normal;">Isulat ang anumang posibilidad upang makabuluhang iugnay ang iba pang learning areas, espesyal na paksa, o teknolohiya. Isulat ang N/A kung wala.</em></td>
+    ${integrationColsPh}
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Pagtataya.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Ipinapakita ng mga pagtataya kung ano ang natutunan ng mga mag-aaral at kung saan pa nila kailangan ng tulong. Nakakatulong ang mga ito upang mabigyan ka ng impormasyong magagamit sa susunod mong pagtuturo.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Formative na Pagtataya:</strong><br><em style="font-size:0.85em; font-weight:normal;">Bumuo ng gawain, aktibidad, o mga tanong upang suriin ang pagkatuto at magbigay ng feedback. Isama ang mga paraan upang makahingi ng gabay o tulong ang mga mag-aaral.<br><br>Tandaang magbigay ng angkop na akomodasyon upang maipakita ng lahat ng mag-aaral ang kanilang pag-unawa (hal., iba't ibang format ng pagsagot, small group options, visual o auditory supports).</em></td>
+    ${assessmentColsPh}
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Mga Susunod na Hakbang.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Ang makabuluhang pagkatuto ay nangyayari rin sa labas ng silid-aralan - para sa mga mag-aaral at sa guro.<br>Huminto at magnilay sa mga nangyari ngayon.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Mga Karagdagang Gawain:</strong><br><em style="font-size:0.85em; font-weight:normal;">Magmungkahi ng iba pang karanasan sa pagkatuto sa labas ng silid-aralan/oras ng klase na maaaring ma-access ng mga mag-aaral upang mas mapatibay ang kanilang natutunan, mas mapukaw ang kanilang kuryusidad, o mabigyan sila ng suporta sa mga araling nahihirapan sila.</em></td>
+    ${extensionColsPh}
+  </tr>
+  <tr>
+    <td><strong>Mga Pagninilay:</strong><br><em style="font-size:0.85em; font-weight:normal;">Pag-isipan kung ano ang kailangan mong baguhin para sa susunod na sesyon batay sa nangyari ngayon. Mayroon bang bagay na interesadong tuklasin ang mga mag-aaral?<br><br>Mayroon ka bang gustong ibahagi sa iyong mga co-teachers, magulang, o school leaders tungkol sa karanasan sa iyong klase? Saan mo gustong humingi ng tulong sa iyong instructional coach?</em></td>
+    ${reflectionColsPh}
+  </tr>
+</table>
+
+<br>
+<table class="signature-table">
+    <tr>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Inihanda ni:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${teacher}</strong><br>
+            ${teacherRole}
+        </td>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Sinuri ni:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${checkerName}</strong><br>
+            ${checkerRole}
+        </td>
+    </tr>
+</table>
+`;
+            } else {
+                systemPrompt = `You are an expert Master Teacher in the Philippines. Your task is to generate highly detailed and engaging Daily Lesson Plans based on the new DepEd Guidelines, the 8 Learning Design Principles, and the MATATAG Instructional Design Frameworks (4Is, 4Cs, 4Es). Output ONLY the requested format. Do not add conversational text. IMPORTANT: YOU MUST RESPOND ENTIRELY IN ENGLISH. ALL CONTENT, DESCRIPTIONS, ASSESSMENTS, AND ACTIVITIES MUST BE WRITTEN IN ENGLISH. If the user provides any input in Tagalog/Filipino, you must translate it and generate the lesson plan strictly in English.`;
+                
+                let fileInstruction = "";
+                if (selectedMode === 'exemplar' && referenceFileData) {
+                    let day5InstructionEn = sessionsValue === 5 ? `\nCRITICAL FOR SESSION 5: Since 5 sessions were selected and exemplars typically cover only 4 days, SESSION 5 MUST be dedicated strictly to a 'Review or Summary' of all topics from Sessions 1 to 4, followed by a final Assessment.` : "";
+                    
+                    fileInstruction = `\n[IMPORTANT INSTRUCTION: The user has uploaded a Lesson Exemplar. Use this document as the primary REFERENCE for content, topics, activities, and lesson flow. HOWEVER, IT IS STRICTLY PROHIBITED to use the format of the exemplar. YOU MUST FOLLOW AND GENERATE THE STRICT SEQUENCE AND FORMAT OF THE HTML TABLE PROVIDED BELOW.
+                    
+                    CONGRUENCY RULE: Carefully analyze the Learning Objectives in the uploaded Lesson Exemplar. There MUST BE CONGRUENCY between the exemplar and your output. The objectives for Day 1 in the exemplar MUST MATCH the objectives for Session 1 in your generated plan, Day 2 to Session 2, and so on.${day5InstructionEn}]\n`;
+                } else if (selectedMode === 'others' && referenceFileData) {
+                    fileInstruction = `\n[IMPORTANT INSTRUCTION: The user has uploaded Other Sources (e.g. readings, modules, activity sheets). Use the information in this document as an additional REFERENCE for content, topics, and concepts when building the lesson. YOU MUST STRICTLY FOLLOW THE SEQUENCE AND FORMAT OF THE HTML TABLE PROVIDED BELOW.]\n`;
+                }
+
+                const sequenceInstructionEn = lessonSequence === '5es'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: 5E's Sequence.
+CRITICAL: In the "Before the Lesson" row, include ONLY the <b>Engage:</b> part for each session.
+In the "Lesson Flow" row, use ONLY these headings and this order: <b>Explore:</b>, <b>Explain:</b>, and <b>Elaborate:</b>.
+Do not add Review, Motivation, Discussion, Independent Activity, Group Activity, Generalization, Application, or Valuing inside Pre-Lesson/Flow when this option is selected.`
+                    : lessonSequence === '7es'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: 7E's Sequence.
+CRITICAL: In the "Before the Lesson" row, include ONLY the <b>1. Elicit:</b> and <b>2. Engage:</b> parts.
+In the "Lesson Flow" row, use ONLY these headings and this order: <b>3. Explore:</b>, <b>4. Explain:</b>, <b>5. Elaborate:</b>, <b>6. Evaluate:</b>, and <b>7. Extend:</b>.
+Do not add other standard headings inside Pre-Lesson/Flow when this option is selected.`
+                    : lessonSequence === 'matatag'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: MATATAG Sequence.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings in this exact order: <b>Drill:</b> and <b>Review:</b>.
+In the "Lesson Flow" row, use ONLY these headings in this exact order: <b>Motivation:</b>, <b>Motive question:</b>, <b>Unlocking:</b>, <b>Presentation:</b>, <b>Discussion:</b>, <b>Analysis (Group Activity):</b>, and <b>Application (Individual Task) / Wrap up:</b>.
+Do not rename, reorder, add, or remove any heading in this sequence.`
+                    : lessonSequence === '4as'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: 4A's Format.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings in this exact order: <b>Drill:</b>, <b>Review:</b>, and <b>Motivation:</b>.
+In the "Lesson Flow" row, use ONLY these headings in this exact order: <b>1. Activity (The Experience):</b>, <b>2. Analysis (The Processing):</b>, <b>3. Abstraction (The Concept):</b>, and <b>4. Application (The Practice):</b>.
+Do not rename, reorder, add, or remove any heading in this sequence.`
+                    : lessonSequence === 'deped'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: DepEd DLL/DLP Standard Flow.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings: <b>Preliminary Activities:</b>, <b>Review:</b>, and <b>Motivation:</b>.
+In the "Lesson Flow" row, use ONLY these headings: <b>Presentation of the Lesson:</b>, <b>Discussion:</b>, <b>Guided Practice:</b>, <b>Independent Practice:</b>, <b>Generalization:</b>, <b>Assessment:</b>, and <b>Assignment/Agreement:</b>.
+This is the common Philippine classroom flow; make it clear, practical, and classroom-ready.`
+                    : lessonSequence === 'ilaw'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: ILAW Format.
+CRITICAL: In the "Before the Lesson" row, use these headings: <b>1. Prepare the Learner (Ihanda):</b>, <b>2. Review (Balikan):</b>, and <b>3. Connect (Iugnay):</b>.
+In the "Lesson Flow" row, use these headings: <b>4. Develop Knowledge (Linangin):</b>, <b>5. Active Practice (Aktibong Pagsasanay):</b>, <b>6. Proper Application (Wastong Paglalapat):</b>, <b>7. Generalization (Paglalahat):</b>, <b>8. Assessment (Pagtataya):</b>, and <b>9. Enrichment (Pagpapayaman):</b>.
+Keep the ILAW sequence practical and strictly in English content.`
+                    : lessonSequence === 'idwdyd'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: I Do–We Do–You Do Sequence.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings: <b>Review:</b>, <b>Motivation:</b>, and <b>Lesson Purpose:</b>.
+In the "Lesson Flow" row, use ONLY these headings: <b>I Do (Teacher Modeling):</b>, <b>We Do (Guided Practice):</b>, <b>You Do Together (Pair/Group Practice):</b>, <b>You Do Alone (Independent Practice):</b>, and <b>Checking for Understanding:</b>.
+This is best for Math, grammar, reading skills, and step-by-step lessons.`
+                    : lessonSequence === 'inquiry'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: Inquiry-Based Learning Sequence.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings: <b>Problem/Essential Question:</b> and <b>Prediction:</b>.
+In the "Lesson Flow" row, use ONLY these headings: <b>Investigation/Exploration:</b>, <b>Gathering of Evidence:</b>, <b>Sharing of Findings:</b>, <b>Concept Formation:</b>, and <b>Application:</b>.
+Learners must observe, ask questions, analyze, and form conclusions.`
+                    : lessonSequence === 'collab'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: Collaborative Learning Sequence.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings: <b>Review:</b>, <b>Motivation:</b>, and <b>Group Task Orientation:</b>.
+In the "Lesson Flow" row, use ONLY these headings: <b>Think-Pair-Share:</b>, <b>Group Activity:</b>, <b>Gallery Walk/Reporting:</b>, <b>Peer Feedback:</b>, <b>Synthesis:</b>, and <b>Individual Accountability:</b>.
+Make each learner role clear so group work will not become one student doing all the work.`
+                    : lessonSequence === 'demo'
+                    ? `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: Demonstration–Return Demonstration Flow.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings: <b>Review:</b>, <b>Motivation:</b>, and <b>Safety/Procedure Reminder:</b>.
+In the "Lesson Flow" row, use ONLY these headings: <b>Teacher Demonstration:</b>, <b>Guided Demonstration:</b>, <b>Return Demonstration:</b>, <b>Feedback and Correction:</b>, and <b>Application/Performance Task:</b>.
+This is best for EPP/TLE, MAPEH, Science skills, and performance-based lessons.`
+                    : `
+USER-SELECTED SEQUENCE FOR PRE-LESSON AND FLOW: Review–Motivation–Discussion Sequence.
+CRITICAL: In the "Before the Lesson" row, use ONLY these headings and this order: <b>Review:</b> and <b>Motivation:</b>.
+In the "Lesson Flow" row, use ONLY these headings and this order: <b>Discussion:</b>, <b>Independent Activity:</b>, <b>Group Activity (Differentiated Group Activity):</b>, <b>Generalization:</b>, <b>Application:</b>, and <b>Valuing:</b>.
+Do not use 5E headings inside Pre-Lesson/Flow when this option is selected.`;
+
+                // Table Layout Variables for English
+                let sessionColsEn = Array.from({length: sessionsValue}, (_, i) => `<td style="font-weight:bold; text-align:center;">Session ${i+1}</td>`).join('\n');
+                let durationColsEn = Array.from({length: sessionsValue}, () => `<td style="text-align:center;">${sessionDuration} minutes</td>`).join('\n');
+                let objColsEn = Array.from({length: sessionsValue}, (_, i) => `<td>(SPECIFIC objectives for Session ${i+1})</td>`).join('\n');
+                let preLessonColsEn = Array.from({length: sessionsValue}, (_, i) => {
+                    if (lessonSequence === '5es') return `<td>(Before the Lesson for Session ${i+1}. Use only the heading <b>Engage:</b>. Provide a short hook, question, picture/situation, or activity that activates prior knowledge and interest.)</td>`;
+                    if (lessonSequence === '7es') return `<td>(Before the Lesson for Session ${i+1}. Use only the headings <b>1. Elicit:</b> and <b>2. Engage:</b> to draw out prior knowledge and spark interest.)</td>`;
+                    if (lessonSequence === 'matatag') return `<td>(Before the Lesson for Session ${i+1}. Use ONLY these headings in this exact order: <b>Drill:</b> and <b>Review:</b>.)</td>`;
+                    if (lessonSequence === '4as') return `<td>(Before the Lesson for Session ${i+1}. Use ONLY these headings in this exact order: <b>Drill:</b>, <b>Review:</b>, and <b>Motivation:</b>.)</td>`;
+                    if (lessonSequence === 'deped') return `<td>(Before the Lesson for Session ${i+1}. Use the headings <b>Preliminary Activities:</b>, <b>Review:</b>, and <b>Motivation:</b>. Prepare the class, recall prior learning, and spark interest.)</td>`;
+                    if (lessonSequence === 'ilaw') return `<td>(Before the Lesson for Session ${i+1}. Use the headings <b>1. Prepare the Learner:</b>, <b>2. Review:</b>, and <b>3. Connect:</b>. Ensure all content is in English.)</td>`;
+                    if (lessonSequence === 'idwdyd') return `<td>(Before the Lesson for Session ${i+1}. Use the headings <b>Review:</b>, <b>Motivation:</b>, and <b>Lesson Purpose:</b>. Connect prior knowledge to the new skill.)</td>`;
+                    if (lessonSequence === 'inquiry') return `<td>(Before the Lesson for Session ${i+1}. Use the headings <b>Problem/Essential Question:</b> and <b>Prediction:</b>. Present a question or problem that learners will investigate.)</td>`;
+                    if (lessonSequence === 'collab') return `<td>(Before the Lesson for Session ${i+1}. Use the headings <b>Review:</b>, <b>Motivation:</b>, and <b>Group Task Orientation:</b>. Prepare learners for the collaborative task and roles.)</td>`;
+                    if (lessonSequence === 'demo') return `<td>(Before the Lesson for Session ${i+1}. Use the headings <b>Review:</b>, <b>Motivation:</b>, and <b>Safety/Procedure Reminder:</b>. Remind learners of proper steps and safety before demonstration.)</td>`;
+                    return `<td>(Before the Lesson for Session ${i+1}. Use only the headings <b>Review:</b> and <b>Motivation:</b>. Review recalls prior learning; Motivation sparks interest connected to the lesson.)</td>`;
+                }).join('\n');
+                let flowColsEn = Array.from({length: sessionsValue}, (_, i) => {
+                    if (lessonSequence === '5es') return `<td>(Lesson Flow for Session ${i+1}. Use only the headings <b>Explore:</b>, <b>Explain:</b>, and <b>Elaborate:</b>. Make it detailed, sequential, and suitable to the learner level.)</td>`;
+                    if (lessonSequence === '7es') return `<td>(Lesson Flow for Session ${i+1}. Use only the headings <b>3. Explore:</b>, <b>4. Explain:</b>, <b>5. Elaborate:</b>, <b>6. Evaluate:</b>, and <b>7. Extend:</b>. Make it detailed and sequential.)</td>`;
+                    if (lessonSequence === 'matatag') return `<td>(Lesson Flow for Session ${i+1}. Use ONLY these headings in this exact order: <b>Motivation:</b>, <b>Motive question:</b>, <b>Unlocking:</b>, <b>Presentation:</b>, <b>Discussion:</b>, <b>Analysis (Group Activity):</b>, and <b>Application (Individual Task) / Wrap up:</b>. Make it detailed and suitable to the learner level.)</td>`;
+                    if (lessonSequence === '4as') return `<td>(Lesson Flow for Session ${i+1}. Use ONLY these headings in this exact order: <b>1. Activity (The Experience):</b>, <b>2. Analysis (The Processing):</b>, <b>3. Abstraction (The Concept):</b>, and <b>4. Application (The Practice):</b>. Make it detailed and suitable to the learner level.)</td>`;
+                    if (lessonSequence === 'deped') return `<td>(Lesson Flow for Session ${i+1}. Use the headings <b>Presentation of the Lesson:</b>, <b>Discussion:</b>, <b>Guided Practice:</b>, <b>Independent Practice:</b>, <b>Generalization:</b>, <b>Assessment:</b>, and <b>Assignment/Agreement:</b>. Make it practical and classroom-ready.)</td>`;
+                    if (lessonSequence === 'ilaw') return `<td>(Lesson Flow for Session ${i+1}. Use the headings <b>4. Develop Knowledge:</b>, <b>5. Active Practice:</b>, <b>6. Proper Application:</b>, <b>7. Generalization:</b>, <b>8. Assessment:</b>, and <b>9. Enrichment:</b>. Ensure all content is in English.)</td>`;
+                    if (lessonSequence === 'idwdyd') return `<td>(Lesson Flow for Session ${i+1}. Use the headings <b>I Do (Teacher Modeling):</b>, <b>We Do (Guided Practice):</b>, <b>You Do Together (Pair/Group Practice):</b>, <b>You Do Alone (Independent Practice):</b>, and <b>Checking for Understanding:</b>. Show the transition from teacher support to independent work.)</td>`;
+                    if (lessonSequence === 'inquiry') return `<td>(Lesson Flow for Session ${i+1}. Use the headings <b>Investigation/Exploration:</b>, <b>Gathering of Evidence:</b>, <b>Sharing of Findings:</b>, <b>Concept Formation:</b>, and <b>Application:</b>. Show how learners investigate and form conclusions.)</td>`;
+                    if (lessonSequence === 'collab') return `<td>(Lesson Flow for Session ${i+1}. Use the headings <b>Think-Pair-Share:</b>, <b>Group Activity:</b>, <b>Gallery Walk/Reporting:</b>, <b>Peer Feedback:</b>, <b>Synthesis:</b>, and <b>Individual Accountability:</b>. Make roles, output, and criteria clear.)</td>`;
+                    if (lessonSequence === 'demo') return `<td>(Lesson Flow for Session ${i+1}. Use the headings <b>Teacher Demonstration:</b>, <b>Guided Demonstration:</b>, <b>Return Demonstration:</b>, <b>Feedback and Correction:</b>, and <b>Application/Performance Task:</b>. Include step-by-step procedure and performance criteria.)</td>`;
+                    return `<td>(Lesson Flow for Session ${i+1}. Use only the headings <b>Discussion:</b>, <b>Independent Activity:</b>, <b>Group Activity (Differentiated Group Activity):</b>, <b>Generalization:</b>, <b>Application:</b>, and <b>Valuing:</b>. Make it detailed, sequential, and suitable to the learner level.)</td>`;
+                }).join('\n');
+                let resourcesColsEn = Array.from({length: sessionsValue}, (_, i) => `<td>(Resources for Session ${i+1})</td>`).join('\n');
+                let integrationColsEn = Array.from({length: sessionsValue}, (_, i) => `<td>(Integration for Session ${i+1})</td>`).join('\n');
+                let assessmentColsEn = Array.from({length: sessionsValue}, (_, i) => `<td>(Provide the ACTUAL 5-item formative assessment questions/test here for Session ${i+1}. E.g., 1. What is... 2. Who is... Do not just give instructions.)</td>`).join('\n');
+                let extensionColsEn = Array.from({length: sessionsValue}, (_, i) => `<td>(Homework/extension for Session ${i+1})</td>`).join('\n');
+                let reflectionColsEn = Array.from({length: sessionsValue}, (_, i) => `<td>*(To be filled out after the lesson)* <br><br>**Reflection Prompt:** (Question for Session ${i+1})</td>`).join('\n');
+
+                let contextInstructionEn = contextualization ? `\n- Local Context (Contextualization): ${contextualization}\n(CRITICAL: Integrate this information into the activities and examples to make the lesson culturally and locally relevant to the learners without changing the overall table format.)` : "";
+
+                let manualObjEn = selectedMode === 'manual' ? `\n\nCRITICAL FOR OBJECTIVES (MANUAL INPUT): Since manual input is used, the "Learning Objectives" for EACH session MUST explicitly contain and clearly label the three domains: 1. Knowledge, 2. Skills, and 3. Attitudes.` : "";
+
+                userQuery = `
+The user requires a weekly lesson plan covering ${sessionsValue} session(s) / day(s) of classes.
+${fileInstruction}
+Details:
+- Learning Area: ${area}
+- Designed by: ${teacher}
+- Grade Level and Section: ${grade}
+- Level of the Learners: ${learnerLevel}
+- Formative Assessment Type: ${assessmentTypeText}
+- Learning Competency/ies: \n${competencyPromptText}
+- Learning Objectives: ${objectives || 'Generate EXACTLY THREE (3) specific and progressive objectives for each day in English.'}${contextInstructionEn}${manualObjEn}
+${sequenceInstructionEn}
+
+CRITICAL INSTRUCTION FOR OBJECTIVES:
+You MUST generate EXACTLY THREE (3) Specific Learning Objectives for EACH SESSION/DAY. Ensure there are always exactly 3 objectives (e.g., Knowledge, Skills, and Attitude) present in the objectives cell for every session, no matter what.
+
+CRITICAL INSTRUCTION FOR WEEKLY PLAN:
+The level of the learners is "${learnerLevel}". Please adjust the difficulty, pacing, scaffolding, and vocabulary of the activities and assessments to suit this level. DO NOT change the format or sequence of the lesson plan.
+TIME ALLOTMENT (CRITICAL): Each session lasts EXACTLY ${sessionDuration} minutes. Keep the "Time Allotment per Session" row exactly as filled ("${sessionDuration} minutes" for every session) and pace the activities under "Flow" so the whole lesson fits within ${sessionDuration} minutes. Add rough minute guidance inside the Flow steps where it helps the teacher pace the class (e.g. 10 min warm-up, 20 min discussion).
+DO NOT generate separate tables for each day. 
+You must generate ONLY ONE FULL HTML TABLE. The columns will correspond to the consecutive sessions/days.
+DO NOT wrap the output in markdown code blocks (\`\`\`html). Output the raw HTML code directly.
+Fill out the placeholders "(...)" with the actual lesson plan content.
+CRITICAL LANGUAGE RULE: EVERYTHING MUST BE IN STRICTLY ENGLISH. If the provided competency, topic, or context is in Tagalog/Filipino, you MUST translate it and write all activities, questions, objectives, and discussions in English. Do not leave any Tagalog sentences except for untranslatable local terms or proper nouns.
+FOR FORMATIVE ASSESSMENT: YOU MUST generate EXACTLY 5 ACTUAL test questions/items for each session. DO NOT just write instructions like "Give a 5-item quiz".
+CRITICAL FOR MATH FORMULAS: DO NOT use LaTeX formatting (like $x^2$ or \\[ \\]). You MUST use standard HTML tags (like <sup> for exponents, <sub> for subscripts) and Unicode math symbols (like √, π, ×, ÷, ½, ≠, ≤, ≥). Example: write x<sup>2</sup> + y<sup>2</sup> = z<sup>2</sup> instead of $x^2 + y^2 = z^2$. This ensures the math equations format properly and do not break when exported to Word format.
+
+LESSON SEQUENCE RULE FOR PRE-LESSON AND FLOW (CRITICAL):
+Strictly follow the user-selected sequence for the rows "Pre-Lesson" and "Flow". That selected sequence alone should determine the headings and content inside those two rows. DO NOT change the other rows or the overall table format.
+
+FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
+
+<div style="text-align: center; font-family: Arial, sans-serif; margin-bottom: 20px; line-height: 1.3;">
+    <p style="margin: 0; font-size: 11pt;">Republic of the Philippines</p>
+    <p style="margin: 0; font-size: 13pt; font-weight: bold; font-family: 'Times New Roman', serif;">Department of Education</p>
+    ${lessonSchoolHeaderHtml()}
+</div>
+
+<h1 style="text-align: center; color: #1e40af; font-size: 1.5rem; font-weight: bold; text-transform: uppercase;">WEEKLY LESSON PLAN</h1>
+
+<table>
+  <tr>
+    <td><strong>Name of Lesson</strong></td>
+    <td colspan="${sessionsValue}">(Specific lesson name/s for the week)</td>
+  </tr>
+  <tr>
+    <td><strong>Learning Area/s</strong></td>
+    <td colspan="${sessionsValue}">${area}</td>
+  </tr>
+  <tr>
+    <td><strong>Designed by Teacher/s</strong></td>
+    <td colspan="${sessionsValue}">${teacher}</td>
+  </tr>
+  <tr>
+    <td><strong>Designed for which Grade Level and Section</strong></td>
+    <td colspan="${sessionsValue}">${grade}</td>
+  </tr>
+  <tr>
+    <td><strong>No. of Sessions</strong></td>
+    ${sessionColsEn}
+  </tr>
+  <tr>
+    <td><strong>Time Allotment per Session</strong><br><em style="font-size:0.85em; font-weight:normal;">(how long each day\'s lesson lasts)</em></td>
+    ${durationColsEn}
+  </tr>
+  <tr>
+    <td><strong>References</strong><br><em style="font-size:0.85em; font-weight:normal;">(books, websites, toolkits, etc.)</em></td>
+    <td colspan="${sessionsValue}">(References used for the week)</td>
+  </tr>
+  <tr>
+    <td><strong>Declaration of AI use</strong><br><em style="font-size:0.85em; font-weight:normal;">Cite how AI was used in the formulation of the lesson plan.<br>See DO 3, 2026 Annex A.</em></td>
+    <td colspan="${sessionsValue}">AI was utilized to format the lesson plan and generate evidence-based instructional scaffolding.</td>
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Intentions.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Meaningful learning experiences are anchored in how we frame them. Start by deciding what you want learners to master by the end of the lesson - keep it clear and simple.<br>Remember: Understanding your learners' evolving context and designing around it help ensure that your lessons connect with and are relevant to them.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Standards and Competency:</strong><br><em style="font-size:0.85em; font-weight:normal;">Write the competency/ies from the curriculum that we are targeting, along with the content and performance standards.</em></td>
+    <td colspan="${sessionsValue}">${combinedCompetencyHtml}</td>
+  </tr>
+  <tr>
+    <td><strong>Learning Objectives:</strong><br><em style="font-size:0.85em; font-weight:normal;">Write the smaller knowledge, skills, or tasks from the competency that the learners will work on and be able to show by the end of the sessions.</em></td>
+    ${objColsEn}
+  </tr>
+  <tr>
+    <td><strong>Learner Context:</strong><br><em style="font-size:0.85em; font-weight:normal;">Write your observations of your learners, and how they have been performing or responding to learning experiences recently. Include strengths, interests, and possible barriers to learning.</em></td>
+    <td colspan="${sessionsValue}">(Realistic learner context for the week)</td>
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Learning Experience.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">A learning experience is like a thoughtfully designed journey. Each activity and interaction builds towards meaningful understanding and growth. Identify activities and interactions to help learners gain knowledge, skills, or understanding in purposeful way.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Pre-Lesson:</strong><br><em style="font-size:0.85em; font-weight:normal;">Describe how you will help the learners get ready for the lesson.</em></td>
+    ${preLessonColsEn}
+  </tr>
+  <tr>
+    <td><strong>Flow:</strong><br><em style="font-size:0.85em; font-weight:normal;">Describe the activities that you can implement in 1 or more sessions to meet the learning objectives.<br><br><b>Use the user-selected lesson sequence for this section and keep the headings clear using bold text and bullet points.</b></em></td>
+    ${flowColsEn}
+  </tr>
+  <tr>
+    <td><strong>Learning Resources:</strong><br><em style="font-size:0.85em; font-weight:normal;">List down the learning resources that will help you reach your objectives. Ensure that they are available and inclusive.<br><br>Include options and alternatives in case of emergencies.</em></td>
+    ${resourcesColsEn}
+  </tr>
+  <tr>
+    <td><strong>Opportunities for integration:</strong><br><em style="font-size:0.85em; font-weight:normal;">Write down any possibilities to meaningfully anchor learning areas, special topic, or technology. Write N/A if none.</em></td>
+    ${integrationColsEn}
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Assessment.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Assessments reveal what learners have gained and what they still need help with. These are helpful in providing you with information to guide your future instruction.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Formative Assessment:</strong><br><em style="font-size:0.85em; font-weight:normal;">Create a task, activity, or questions to evaluate learning and provide feedback. Include ways for learners to ask for guidance or support.<br><br>Remember to provide appropriate accommodations so all learners can demonstrate their understanding (e.g., varied response formats, small group options, visual or auditory supports).</em></td>
+    ${assessmentColsEn}
+  </tr>
+  <tr style="background-color: #e5e7eb;">
+    <td><h2 style="margin:0; font-size:1.5em; font-weight:bold;">Ways Forward.</h2></td>
+    <td colspan="${sessionsValue}"><em style="font-size:0.9em;">Meaningful learning can also happen beyond the classroom - for both the learners and the teacher.<br>Pause and reflect on what happened today.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Extended learning opportunities:</strong><br><em style="font-size:0.85em; font-weight:normal;">Suggest other learning experiences outside the classroom/class hours that learners may want to access to reinforce what they have learned, to spark their curiosities further, or that may provide them support in their areas of difficulty.</em></td>
+    ${extensionColsEn}
+  </tr>
+  <tr>
+    <td><strong>Reflections:</strong><br><em style="font-size:0.85em; font-weight:normal;">Think about what you need to change for the next session based on what happened today. Is there something the learners are interested in exploring?<br><br>Are there some things you would like to share with your co-teachers, parents, or school leaders about your classroom experience? What would you like your instructional coach to help you with?</em></td>
+    ${reflectionColsEn}
+  </tr>
+</table>
+
+<br>
+<table class="signature-table">
+    <tr>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Prepared by:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${teacher}</strong><br>
+            ${teacherRole}
+        </td>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Checked by:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${checkerName}</strong><br>
+            ${checkerRole}
+        </td>
+    </tr>
+</table>
+`;
+            }
+
+            const opts = {
+                prompt: userQuery,
+                systemPrompt: systemPrompt
+            };
+            if (referenceFileData) {
+                opts.inlineData = { mimeType: referenceMimeType, data: referenceFileData };
+            }
+
+            try {
+                let generatedText = await window.SilidAPI.callGemini(opts);
+
+                // Strip markdown codeblocks if AI accidentally adds them
+                generatedText = generatedText.replace(/^```html\s*/i, '').replace(/```$/i, '');
+
+                // Validate output
+                const v = window.SilidValidate.validateLessonHtml(generatedText);
+                if (v.warnings.length > 0) {
+                    validationWarning.innerHTML = v.warnings.map(w => '<p>' + w + '</p>').join('');
+                    validationWarning.classList.remove('hidden');
+                } else {
+                    validationWarning.classList.add('hidden');
+                }
+
+                // We inject it directly since it is raw HTML
+                outputContent.innerHTML = generatedText;
+                
+                loadingState.classList.add('hidden');
+                outputContent.classList.remove('hidden');
+                copyBtn.classList.remove('hidden');
+                downloadBtn.classList.remove('hidden');
+            downloadDocBtn.classList.remove('hidden');
+            printSheetBtn.classList.remove('hidden');
+                activityBtn.classList.remove('hidden');
+                pptBtn.classList.remove('hidden');
+                saveLessonOutput();
+                if (window.SilidDocsUI) {
+                    window.SilidDocsUI.save({
+                        name: [gradeSectionInput.value.trim(), learningAreaInput.value.trim()].filter(Boolean).join(' · ') || 'Lesson Plan',
+                        content: generatedText,
+                        summary: [learningAreaInput.value.trim(), gradeSectionInput.value.trim()].filter(Boolean).join(' · '),
+                        meta: {
+                            lang: currentLang,
+                            sessions: sessionsSelect.value,
+                            grade: gradeSectionInput.value.trim(),
+                            subject: learningAreaInput.value.trim()
+                        }
+                    });
+                }
+
+            } catch (error) {
+                console.error("API Error:", error);
+                loadingState.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                showError("Failed to generate the lesson plan. Please ensure your connection is stable and try again. (API Error: " + error.message + ")");
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<span id="ui-gen-btn">' + i18n[currentLang].genBtn + '</span>';
+                generateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(outputContent);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            try {
+                document.execCommand('copy');
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '✔ Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Copy failed:', err);
+                showError("Failed to copy text. Please select the text manually and press Ctrl+C.");
+            }
+            
+            selection.removeAllRanges();
+        });
+
+        /* The markup behind both Word downloads. Word opens this HTML as-is; the
+           .docx export merely wraps the very same HTML in a zip archive. */
+        function buildLessonWordHtml() {
+            const exportContainer = document.createElement('div');
+            exportContainer.innerHTML = document.getElementById('output-content').innerHTML;
+            
+            const tables = exportContainer.querySelectorAll('table');
+            tables.forEach(table => {
+                if (!table.classList.contains('signature-table')) {
+                    table.setAttribute('border', '1');
+                    table.style.borderCollapse = 'collapse';
+                    table.style.width = '100%';
+                    table.style.border = '1px solid black';
+                    
+                    const cells = table.querySelectorAll('th, td');
+                    cells.forEach(cell => {
+                        cell.style.border = '1px solid black';
+                        cell.style.padding = '10px';
+                        cell.style.textAlign = 'left';
+                        cell.style.verticalAlign = 'top';
+                    });
+                } else {
+                    table.setAttribute('border', '0');
+                    table.style.border = 'none';
+                    table.style.width = '100%';
+                    table.style.marginTop = '40px';
+                    const cells = table.querySelectorAll('td');
+                    cells.forEach(cell => {
+                        cell.style.border = 'none';
+                        cell.style.padding = '10px';
+                    });
+                }
+            });
+
+            const content = exportContainer.innerHTML;
+            
+            const htmlString = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <style>
+                        @page {
+                            size: A4 landscape;
+                            margin: 0.8in;
+                        }
+                        table:not(.signature-table) { width: 100%; border-collapse: collapse; border: 2px solid black; }
+                        table.signature-table { width: 100%; border: none; margin-top: 40px; }
+                        table:not(.signature-table) th, table:not(.signature-table) td { border: 1px solid black; padding: 10px; vertical-align: top; text-align: left; }
+                        table.signature-table td { border: none; padding: 10px; vertical-align: top; text-align: left; }
+                        table:not(.signature-table) td:first-child { background-color: #f8fafc; }
+                        h1 { text-align: center; color: #1e40af; font-size: 1.5em; font-weight: bold; margin-top: 30px; }
+                        h2 { margin: 0; font-size: 1.5em; font-weight: bold; padding-top: 10px;}
+                        em { font-style: italic; color: #4b5563; }
+                        .page-break { page-break-before: always; clear: both; } 
+                    </style>
+                </head>
+                <body>
+                    ${content}
+                </body>
+                </html>
+            `;
+            return htmlString;
+        }
+
+        /* Flat .doc: one HTML file Word opens straight away — nothing to unzip, and
+           it needs no external library, so it also works while a CDN is unreachable. */
+        function downloadLessonDoc() {
+            const blob = new Blob(['\ufeff', buildLessonWordHtml()], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'Master_Teacher_Weekly_Lesson_Plan.doc';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            try {
+                const converted = htmlDocx.asBlob(buildLessonWordHtml(), { orientation: 'landscape' });
+                saveAs(converted, 'Master_Teacher_Weekly_Lesson_Plan.docx');
+
+                const originalText = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '✔ Downloaded!';
+                setTimeout(() => {
+                    downloadBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error("DOCX generation error:", err);
+                showError("Failed to generate DOCX: " + ((err && err.message) || 'unknown error') + ". Try the Word (.doc) button or the Copy button instead.");
+            }
+        });
+
+        printSheetBtn.addEventListener('click', () => {
+            try { window.print(); }
+            catch (err) {
+                console.error("Print failed:", err);
+                showError("Could not open the print dialog: " + ((err && err.message) || 'unknown error') + ".");
+            }
+        });
+
+        downloadDocBtn.addEventListener('click', () => {
+            try {
+                downloadLessonDoc();
+                const originalText = downloadDocBtn.innerHTML;
+                downloadDocBtn.innerHTML = '✔ Downloaded!';
+                setTimeout(() => { downloadDocBtn.innerHTML = originalText; }, 2000);
+            } catch (err) {
+                console.error("Word export error:", err);
+                showError("Failed to generate the Word file: " + ((err && err.message) || 'unknown error') + ". Try using the Copy button instead.");
+            }
+        });
+
+        /* ── Turn into Activity Sheet ───────────────────────────── */
+        const activityBtn = document.getElementById('activity-btn');
+        const pptBtn = document.getElementById('ppt-btn');
+        const sessionModal = document.getElementById('session-modal');
+        const sessionSelect = document.getElementById('session-select');
+        const sessionCancel = document.getElementById('session-cancel');
+        const sessionConfirm = document.getElementById('session-confirm');
+        const sessionModalBackdrop = document.getElementById('session-modal-backdrop');
+
+        function openSessionModal() {
+            if (!outputContent || outputContent.classList.contains('hidden') || !outputContent.innerHTML.trim()) {
+                showError('Generate the lesson plan first, then you can turn it into an activity sheet.');
+                return;
+            }
+            const total = parseInt(sessionsSelect.value, 10) || 4;
+            const isPh = currentLang === 'ph';
+            const modalTitle = document.getElementById('ui-modal-title');
+            const modalDesc = document.getElementById('ui-modal-desc');
+            const modalLabel = document.getElementById('ui-modal-label');
+            const modalConfirm = document.getElementById('ui-modal-confirm');
+            const cancelBtn = document.getElementById('session-cancel');
+            modalTitle.textContent = isPh ? 'Gawing Activity Sheet' : 'Turn into Activity Sheet';
+            modalDesc.textContent = isPh
+                ? 'Piliin kung aling sesyon/araw ng lesson plan na ito ang gagawing activity sheet para sa mga mag-aaral.'
+                : 'Choose which session/day of this lesson plan to turn into a student activity sheet.';
+            modalLabel.textContent = isPh ? 'Sesyon / Araw' : 'Session / Day';
+            modalConfirm.textContent = isPh ? 'Gawing Activity Sheet' : 'Turn into Activity Sheet';
+            cancelBtn.textContent = isPh ? 'Kanselahin' : 'Cancel';
+            let opts = '';
+            for (let i = 1; i <= total; i++) {
+                opts += '<option value="' + i + '">' + (isPh ? 'Sesyon ' : 'Session ') + i + '</option>';
+            }
+            opts += '<option value="all">' + (isPh ? 'Buong Linggo (Lahat ng Sesyon)' : 'Whole Week (All Sessions)') + '</option>';
+            sessionSelect.innerHTML = opts;
+            sessionModal.classList.remove('hidden');
+            sessionModal.classList.add('flex');
+        }
+        function closeSessionModal() {
+            sessionModal.classList.add('hidden');
+            sessionModal.classList.remove('flex');
+        }
+
+        activityBtn.addEventListener('click', openSessionModal);
+        sessionCancel.addEventListener('click', closeSessionModal);
+        sessionModalBackdrop.addEventListener('click', closeSessionModal);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSessionModal(); });
+
+        sessionConfirm.addEventListener('click', () => {
+            const chosen = sessionSelect.value || 'all';
+            const total = parseInt(sessionsSelect.value, 10) || 4;
+            const payload = {
+                html: outputContent.innerHTML,
+                grade: gradeSectionInput.value.trim(),
+                subject: learningAreaInput.value.trim(),
+                session: chosen,
+                sessions: total
+            };
+            try {
+                localStorage.setItem('lesson_activity_sheet', JSON.stringify(payload));
+            } catch (err) {
+                console.error('Could not hand the lesson plan to the Activity Sheet Maker:', err);
+                showError('Could not hand the lesson plan to the Activity Sheet Maker: ' + ((err && err.message) || 'unknown error') + '. Please try again.');
+                return;
+            }
+            window.location.href = 'activity.html';
+        });
+
+        /* ── Turn into PPT ──────────────────────────────── */
+        pptBtn.addEventListener('click', () => {
+            if (!outputContent || outputContent.classList.contains('hidden') || !outputContent.innerHTML.trim()) {
+                showError('Generate the lesson plan first, then you can turn it into a presentation.');
+                return;
+            }
+            const payload = {
+                html: outputContent.innerHTML,
+                grade: gradeSectionInput.value.trim(),
+                subject: learningAreaInput.value.trim(),
+                sessions: parseInt(sessionsSelect.value, 10) || 4
+            };
+            try {
+                localStorage.setItem('lesson_ppt_import', JSON.stringify(payload));
+            } catch (err) {
+                console.error('Could not hand the lesson plan to the PPT Maker:', err);
+                showError('Could not hand the lesson plan to the PPT Maker: ' + ((err && err.message) || 'unknown error') + '. Please try again.');
+                return;
+            }
+            window.location.href = 'powerpoint.html';
+        });
+
+        /* ── Persist the last generated lesson plan across pages ── */
+        const SAVED_LESSON_KEY = 'saved_lesson_output';
+        function saveLessonOutput() {
+            if (!outputContent || outputContent.classList.contains('hidden') || !outputContent.innerHTML.trim()) return;
+            try {
+                localStorage.setItem(SAVED_LESSON_KEY, JSON.stringify({
+                    html: outputContent.innerHTML,
+                    lang: currentLang,
+                    sessions: sessionsSelect.value,
+                    grade: gradeSectionInput.value.trim(),
+                    subject: learningAreaInput.value.trim(),
+                    savedAt: Date.now()
+                }));
+            } catch (e) { /* storage full — ignore */ }
+        }
+        function clearSavedLessonOutput() {
+            try { localStorage.removeItem(SAVED_LESSON_KEY); } catch (e) {}
+        }
+        function restoreLessonOutput() {
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem(SAVED_LESSON_KEY)); } catch (e) {}
+            if (!saved || !saved.html || !saved.html.trim()) return;
+            outputContent.innerHTML = saved.html;
+            emptyState.classList.add('hidden');
+            loadingState.classList.add('hidden');
+            outputContent.classList.remove('hidden');
+            copyBtn.classList.remove('hidden');
+            downloadBtn.classList.remove('hidden');
+            downloadDocBtn.classList.remove('hidden');
+            printSheetBtn.classList.remove('hidden');
+            activityBtn.classList.remove('hidden');
+            pptBtn.classList.remove('hidden');
+        }
+        restoreLessonOutput();
+
+        /* ── Document history (shared-docs-ui.js + shared-docs.js) ── */
+        (function () {
+            if (!window.SilidDocsUI) return;
+            window.SilidDocsUI.mount({ tool: 'lesson-plan', label: 'Lesson Plan' });
+            window.SilidDocsUI.onOpen(function (doc) {
+                if (!doc || !doc.content) return;
+                var m = doc.meta || {};
+                outputContent.innerHTML = doc.content;
+                emptyState.classList.add('hidden');
+                loadingState.classList.add('hidden');
+                outputContent.classList.remove('hidden');
+                copyBtn.classList.remove('hidden');
+                downloadBtn.classList.remove('hidden');
+            downloadDocBtn.classList.remove('hidden');
+            printSheetBtn.classList.remove('hidden');
+                activityBtn.classList.remove('hidden');
+                pptBtn.classList.remove('hidden');
+                if (m.lang && i18n[m.lang]) { currentLang = m.lang; }
+                if (m.sessions) sessionsSelect.value = m.sessions;
+                if (m.grade) gradeSectionInput.value = m.grade;
+                if (m.subject) learningAreaInput.value = m.subject;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        })();
+    </script>
+    <script>
+        (function() {
+            function updateSettingsDot() {
+                var dot = document.getElementById('api-status-dot');
+                if (dot) dot.style.background = (window.SilidKeys ? window.SilidKeys.get('primary') : localStorage.getItem('gemini_api_key')) ? '#34d399' : '#f87171';
+            }
+            function setSettingsMsg(kind, text) {
+                var msgEl = document.getElementById('settings-test-msg');
+                if (!msgEl) return;
+                msgEl.textContent = text;
+                msgEl.classList.remove('hidden');
+                msgEl.className = 'text-[10px] mt-1.5 px-1 ' + (kind === 'ok' ? 'text-emerald-600' : 'text-red-500');
+            }
+            function pingGeminiKey(k) {
+                return window.SilidAPI.pingKey(k);
+            }
+            function testApiKeyNow() {
+                var btn = document.getElementById('settings-test-btn');
+                var i1 = document.getElementById('settings-key-input');
+                var i2 = document.getElementById('settings-key-input-2');
+                var k1 = (i1 ? i1.value : '').trim();
+                var k2 = (i2 ? i2.value : '').trim();
+                if (!k1) { setSettingsMsg('fail', 'Please paste your primary API key first.'); return; }
+                if (k1.length < 20) { setSettingsMsg('fail', 'This primary key looks too short. Please copy the full key from Google AI Studio.'); return; }
+                if (k2 && k2.length < 20) { setSettingsMsg('fail', 'The backup key looks too short. Please copy the full key from Google AI Studio.'); return; }
+                btn.disabled = true;
+                btn.textContent = 'Testing…';
+                window.SilidAPI.pingKey(k1).then(function (r1) {
+                    if (!r1.ok) {
+                        btn.disabled = false;
+                        btn.textContent = 'Test API Key';
+                        setSettingsMsg('fail', 'Primary key: ' + r1.friendly);
+                        return;
+                    }
+                    if (!k2) {
+                        btn.disabled = false;
+                        btn.textContent = '✓ API Key Working';
+                        setSettingsMsg('ok', 'Your API key is working! You\'re all set to plan lessons.');
+                        return;
+                    }
+                    window.SilidAPI.pingKey(k2).then(function (r2) {
+                        btn.disabled = false;
+                        if (r2.ok) {
+                            btn.textContent = '✓ Keys Working';
+                            setSettingsMsg('ok', 'Primary and backup keys are both working!');
+                        } else {
+                            btn.textContent = 'Test API Key';
+                            setSettingsMsg('fail', 'Primary key works, but the backup failed: ' + r2.friendly);
+                        }
+                    }, function () {
+                        btn.disabled = false;
+                        btn.textContent = 'Test API Key';
+                        setSettingsMsg('fail', 'Primary key works, but cannot reach Google to test the backup.');
+                    });
+                }, function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Test API Key';
+                    setSettingsMsg('fail', 'Cannot reach Google. Check your internet connection and try again.');
+                });
+            }
+            function bindSettingsDropdown() {
+                var gear = document.getElementById('settings-btn');
+                var dd = document.getElementById('settings-dropdown');
+                var input = document.getElementById('settings-key-input');
+                var testBtn = document.getElementById('settings-test-btn');
+                if (!gear || !dd) return;
+                function close() { dd.classList.add('hidden'); }
+                gear.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var wasHidden = dd.classList.contains('hidden');
+                    close();
+                    if (wasHidden) {
+                        dd.classList.remove('hidden');
+                        if (input && !input.value) input.value = window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || '');
+                        if (input) input.focus();
+                    }
+                });
+                document.addEventListener('mousedown', function (e) {
+                    if (dd.classList.contains('hidden')) return;
+                    if (dd.contains(e.target) || gear.contains(e.target)) return;
+                    close();
+                });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') close();
+                });
+                if (input) input.addEventListener('input', function () {
+                    var v = input.value.trim();
+                    if (window.SilidKeys) window.SilidKeys.set('primary', v);
+                    else if (v) localStorage.setItem('gemini_api_key', v);
+                    else localStorage.removeItem('gemini_api_key');
+                    apiKey = v; // keep the page's live key in sync without reload
+                    updateSettingsDot();
+                    if (testBtn) { testBtn.textContent = 'Test API Key'; testBtn.disabled = false; }
+                    var msgEl = document.getElementById('settings-test-msg');
+                    if (msgEl) msgEl.classList.add('hidden');
+                });
+                var input2 = document.getElementById('settings-key-input-2');
+                if (input2) {
+                    if (!input2.value) input2.value = window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || '');
+                    input2.addEventListener('input', function () {
+                        var v = input2.value.trim();
+                        if (window.SilidKeys) window.SilidKeys.set('backup', v);
+                        else if (v) localStorage.setItem('gemini_api_key_2', v);
+                        else localStorage.removeItem('gemini_api_key_2');
+                        apiKey2 = v; // live sync without reload
+                        if (testBtn) { testBtn.textContent = 'Test API Key'; testBtn.disabled = false; }
+                        var msgEl = document.getElementById('settings-test-msg');
+                        if (msgEl) msgEl.classList.add('hidden');
+                    });
+                }
+                var remember = document.getElementById('remember-keys');
+                var rememberHintEl = document.getElementById('remember-keys-hint');
+                if (remember) {
+                    remember.checked = !!(window.SilidKeys && window.SilidKeys.isRemembered());
+                    if (rememberHintEl && window.SilidKeys) rememberHintEl.textContent = window.SilidKeys.rememberHint(remember.checked);
+                    remember.addEventListener('change', function () {
+                        if (!window.SilidKeys) return;
+                        var hint = window.SilidKeys.rememberHint(remember.checked);
+                        window.SilidKeys.setRemembered(remember.checked);
+                        if (rememberHintEl) rememberHintEl.textContent = hint;
+                        if (window.SilidToast) window.SilidToast.info(hint);
+                    });
+                }
+                if (testBtn) testBtn.addEventListener('click', testApiKeyNow);
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+                updateSettingsDot();
+                bindSettingsDropdown();
+            });
+        })();
+    </script>
+</body>
+</html>

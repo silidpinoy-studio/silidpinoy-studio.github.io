@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Sheet Maker — SilidPinoy</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            display: ['"Fraunces"', 'serif'],
+          },
+          colors: {
+            ink: '#0B0A12',
+            canvas: '#F7F6F3',
+            mist: '#EEEDF8',
+            iris: { 50:'#F1EEFE',100:'#E7E2FD',200:'#D2C9FB',500:'#6D5BF5',600:'#5B46E8',700:'#4632C9' },
+          },
+          transitionTimingFunction: {
+            spring: 'cubic-bezier(0.32,0.72,0,1)',
+            soft: 'cubic-bezier(0.22,1,0.36,1)',
+          },
+        },
+      },
+    };
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="deped-options.js"></script>
+    <script src="shared-api.js"></script>
+    <script src="shared-keys.js"></script>
+    <script src="shared-validate.js"></script>
+    <script src="shared-docs.js"></script>
+    <script src="shared-docs-ui.js"></script>
+    <script src="shared-file-utils.js"></script>
+    <script src="shared-toast.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&display=swap" rel="stylesheet">
+    <style>
+        * { -webkit-font-smoothing: antialiased; }
+        body { margin:0; background:#F7F6F3; }
+        body::before {
+          content:""; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0.035;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+        .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.14) 0%,transparent 70%); }
+        .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1); }
+        .btn-spring:hover { transform:translateY(-2px); }
+        .card-bezel { border-radius:1.75rem; padding:6px; background:white; box-shadow:0 24px 70px -34px rgba(11,10,18,0.3); }
+        .card-inner { border-radius:calc(1.75rem - 6px); background:#F7F6F3; }
+        .pill-group { display:flex; background:white; padding:4px; border-radius:12px; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05); }
+        .pill-group button { flex:1; padding:8px 12px; border-radius:10px; font-size:13px; font-weight:600; transition: all .2s; color:rgba(11,10,18,0.5); display:flex; align-items:center; justify-content:center; gap:6px; }
+        .pill-group button.active { background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3); }
+        .section-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+        .section-header .icon-circle { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; background:rgba(91,70,232,0.1); color:#5B46E8; flex-shrink:0; }
+        .section-header h3 { font-size:14px; font-weight:700; letter-spacing:-0.01em; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+        .animate-fade-in { animation:fadeIn .2s ease-out forwards; }
+        .reveal { opacity:0; transform:translateY(24px); transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+        .reveal.visible { opacity:1; transform:translateY(0); }
+        .loader { border-top-color: #5B46E8; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        .style-toggle, .diff-toggle { padding:7px 12px; border-radius:10px; font-size:12px; font-weight:600; background:white; color:rgba(11,10,18,0.6); transition:all .2s; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06); }
+        .style-toggle:hover, .diff-toggle:hover { color:#0B0A12; }
+        .style-toggle.active, .diff-toggle.active { background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3); }
+        .autocomplete-wrap { position:relative; }
+        .autocomplete-list {
+          position:absolute; top:100%; left:0; right:0; z-index:50;
+          background:white; border-radius:12px; margin-top:4px;
+          box-shadow:0 12px 40px -8px rgba(11,10,18,0.18);
+          max-height:200px; overflow-y:auto;
+          border:1px solid rgba(0,0,0,0.06); display:none;
+        }
+        .autocomplete-list.show { display:block; }
+        .autocomplete-item { padding:8px 14px; cursor:pointer; font-size:13px; font-weight:500; color:#0B0A12; transition: background .15s; }
+        .autocomplete-item:first-child { border-radius:12px 12px 0 0; }
+        .autocomplete-item:last-child { border-radius:0 0 12px 12px; }
+        .autocomplete-item:hover { background:#F1EEFE; }
+        .scroll-thin::-webkit-scrollbar { width:6px; }
+        .scroll-thin::-webkit-scrollbar-thumb { background:rgba(11,10,18,0.12); border-radius:99px; }
+        /* A4 page canvas */
+        .page-canvas {
+          background-color:white; box-shadow:0 0 15px rgba(0,0,0,0.1);
+          min-height:297mm; max-width:210mm; margin:0 auto; padding:1.6cm 1.7cm;
+          transition: opacity .3s ease-in-out;
+        }
+        @media (max-width:768px) {
+          .page-canvas { max-width:100%; padding:1rem; min-height:auto; }
+        }
+        @media print {
+          @page { size: A4 portrait; margin: 0; }
+          body::before{display:none!important;}
+          .no-print{display:none!important;}
+          #silid-toast-container{display:none!important;}
+          #silid-docs-root{display:none!important;}
+          .print-full{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important;}
+          .print-full>div{border-radius:0!important;box-shadow:none!important;min-height:0!important;padding:0!important;}
+          .page-canvas { box-shadow:none; margin:0; padding:0.5in; min-height:0; max-width:100%; border-radius:0!important; }
+        }
+    </style>
+</head>
+<body class="font-sans text-ink antialiased min-h-screen flex flex-col">
+
+    <!-- Premium Header Nav -->
+    <header class="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+        <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
+            <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer">
+                <span class="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
+                    <span class="text-[15px] font-extrabold leading-none">S</span>
+                </span>
+                <span class="font-semibold tracking-tight text-base">Silid<span class="text-iris-600">Pinoy</span></span><span class="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
+            </a>
+            <a href="index.html#test-maker" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Test Maker</a>
+            <a href="tos.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
+            <a href="lesson.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
+            <a href="powerpoint.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
+            <span class="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">Activity Sheet</span>
+            <span data-silid-docs-slot class="ml-1 flex items-center"></span>
+            <button id="settings-btn" type="button" class="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span id="api-status-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>
+            </button>
+        </nav>
+
+        <!-- Inline Settings dropdown (API key) -->
+        <div id="settings-dropdown" class="hidden absolute top-full right-4 mt-3 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50">
+            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Primary API Key</label>
+            <input type="password" id="settings-key-input" placeholder="Paste your API key..." autocomplete="off"
+                class="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-2">Backup API Key <span class="normal-case font-medium text-ink/35">(optional)</span></label>
+            <input type="password" id="settings-key-input-2" placeholder="Paste a key from another account..." autocomplete="off"
+                class="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+            <label class="flex items-start gap-2 mt-3 text-[11px] text-ink/70 cursor-pointer select-none">
+                <input type="checkbox" id="remember-keys" class="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
+                <span>Remember my API key on this device</span>
+            </label>
+            <p id="remember-keys-hint" class="text-[10px] text-ink/40 mt-1.5">Off — your key is kept for this browser session only and is never written to your device.</p>
+            <p class="text-[10px] text-ink/40 mt-1">Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-iris-600 underline">Get keys</a></p>
+            <button id="settings-test-btn" type="button"
+                class="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100">
+                Test API Key
+            </button>
+            <p id="settings-test-msg" class="hidden text-[10px] mt-1.5 px-1"></p>
+            <div class="border-t border-black/5 mt-3 pt-3">
+                <a href="index.html#settings" class="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    School &amp; Personal Info
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full pt-28 pb-16 print-full">
+        <div class="max-w-6xl mx-auto px-4 md:px-6">
+
+            <!-- Page heading -->
+            <div class="text-center mb-8 reveal visible">
+                <span class="text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600">Activity Sheet Maker</span>
+                <h1 class="font-display text-4xl md:text-5xl font-light tracking-tight mt-2">Turn any lesson into a beautiful worksheet.</h1>
+                <p class="text-ink/55 mt-3 max-w-xl mx-auto text-sm">Upload an iLaw lesson plan and the AI turns every activity into a module-style sheet — or build your own with the activity types and item counts you want.</p>
+            </div>
+
+            <!-- Mode tabs -->
+            <div class="max-w-3xl mx-auto mb-8">
+                <div class="pill-group" id="mode-tabs">
+                    <button type="button" data-mode="lesson" class="active">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        From Lesson Plan
+                    </button>
+                    <button type="button" data-mode="custom">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Custom Builder
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:flex lg:gap-6 items-start">
+
+                <!-- ============ INPUT PANEL ============ -->
+                <section class="no-print lg:w-2/5 flex-shrink-0 space-y-4">
+
+                    <!-- Card: From Lesson Plan -->
+                    <div id="card-lesson" class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+                            <h3>Upload iLaw Lesson Plan</h3>
+                        </div>
+                        <div class="space-y-4">
+                            <p class="text-xs text-ink/50 leading-relaxed">Upload the <strong>.docx</strong> lesson plan you made with the iLaw Lesson Plan tool. The AI reads the lesson flow and turns every activity — motivation, discussion, application, assessment — into an engaging worksheet with puzzles, tables, and icons.</p>
+                            <div>
+                                <label class="block cursor-pointer">
+                                    <div class="rounded-xl border-2 border-dashed border-iris-200 bg-iris-50/40 hover:bg-iris-50 p-6 text-center transition">
+                                        <p class="text-sm font-semibold text-iris-600" id="lesson-file-label">Click to choose a .docx lesson plan</p>
+                                        <p class="text-xs text-ink/40 mt-1">Word documents (.docx) supported</p>
+                                    </div>
+                                    <input type="file" id="lesson-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden">
+                                </label>
+                            </div>
+                            <div id="lesson-file-status" class="hidden text-xs text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2 font-medium"></div>
+                            <div id="lesson-from-chip" class="hidden items-center justify-between gap-2 rounded-xl bg-iris-50 ring-1 ring-iris-200 px-3 py-2.5">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="text-base">📋</span>
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-bold text-iris-700 truncate" id="lesson-from-chip-title">Loaded from Lesson Plan</p>
+                                        <p class="text-[10px] text-ink/50 truncate" id="lesson-from-chip-sub"></p>
+                                    </div>
+                                </div>
+                                <button type="button" id="lesson-from-clear" class="flex-shrink-0 text-[10px] font-semibold text-red-500 hover:bg-red-50 rounded-lg px-2 py-1 transition">✕ Use a different file</button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Grade Level <span class="text-ink/25">(auto)</span></label>
+                                    <input type="text" id="lesson-grade" placeholder="Detected from file…" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Subject <span class="text-ink/25">(auto)</span></label>
+                                    <input type="text" id="lesson-subject" placeholder="Detected from file…" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Extra Instructions <span class="text-ink/25">(optional)</span></label>
+                                <textarea id="lesson-extra" rows="2" placeholder="e.g. Focus on the group activity, make it fun for Grade 3…" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                            </div>
+                            <button id="btn-lesson-generate" class="w-full bg-iris-600 hover:bg-iris-700 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 shadow-lg shadow-iris-200 btn-spring">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+                                Generate Activity Sheet
+                            </button>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: Custom Builder -->
+                    <div id="card-custom" class="card-bezel hidden"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+                            <h3>Build Your Own Sheet</h3>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Topic / Lesson Title <span class="text-red-500">*</span></label>
+                                <input type="text" id="custom-topic" placeholder="e.g. Photosynthesis, Mga Bahagi ng Katawan, Fractions" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="autocomplete-wrap">
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Grade Level <span class="text-red-500">*</span></label>
+                                    <input type="text" id="custom-grade" placeholder="e.g. Grade 7" autocomplete="off" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    <div class="autocomplete-list" id="custom-grade-list"></div>
+                                </div>
+                                <div class="autocomplete-wrap">
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Subject <span class="text-red-500">*</span></label>
+                                    <input type="text" id="custom-subject" placeholder="e.g. Science" autocomplete="off" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    <div class="autocomplete-list" id="custom-subject-list"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Difficulty</label>
+                                <div class="flex gap-2" id="diff-pills">
+                                    <button type="button" data-diff="Easy" class="diff-toggle">Easy</button>
+                                    <button type="button" data-diff="Moderate" class="diff-toggle active">Moderate</button>
+                                    <button type="button" data-diff="Challenging" class="diff-toggle">Challenging</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Source Material <span class="text-ink/25">(optional)</span></label>
+                                <textarea id="custom-source" rows="3" placeholder="Paste notes, module excerpts, or textbook text here so items match your lessons…" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider">Activity Sections</label>
+                                    <span id="custom-total" class="text-[11px] font-bold text-iris-600 bg-iris-50 ring-1 ring-iris-200 rounded-full px-2.5 py-0.5">0 items</span>
+                                </div>
+                                <div id="sections-list" class="space-y-3"></div>
+                                <button id="btn-add-section" type="button" class="w-full mt-1 py-2 rounded-xl text-xs font-semibold text-iris-700 bg-iris-50 ring-1 ring-iris-200 hover:bg-iris-100 transition flex items-center justify-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                    Add Section
+                                </button>
+                            </div>
+
+                            <button id="btn-custom-generate" class="w-full bg-iris-600 hover:bg-iris-700 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 shadow-lg shadow-iris-200 btn-spring">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+                                Generate Activity Sheet
+                            </button>
+                        </div>
+                    </div></div>
+
+                    <div id="error-box" class="hidden p-3 text-sm text-red-800 rounded-xl bg-red-50 ring-1 ring-red-200"></div>
+                </section>
+
+                <!-- ============ OUTPUT PANEL ============ -->
+                <section class="flex-1 min-w-0 mt-6 lg:mt-0 space-y-4">
+                    <!-- Action bar -->
+                    <div id="actions-bar" class="no-print hidden flex-wrap items-center justify-center gap-3">
+                        <button id="btn-download" class="bg-ink hover:bg-black text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download Word
+                        </button>
+                        <button id="btn-download-doc" title="One flat file — opens straight in Word, Google Docs, WPS or LibreOffice. Nothing to unzip." class="bg-white ring-1 ring-black/10 hover:ring-black/25 text-ink px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Word (.doc)
+                        </button>
+                        <button id="btn-print" class="bg-white ring-1 ring-black/10 hover:ring-black/25 text-ink px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            Print / PDF
+                        </button>
+                        <button id="btn-answer-key" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring shadow-lg shadow-emerald-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                            Generate Answer Key
+                        </button>
+                        <button id="btn-rubric" class="bg-rose-500 hover:bg-rose-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring shadow-lg shadow-rose-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg>
+                            Generate Rubric
+                        </button>
+                        <div id="loading-indicator" class="hidden items-center gap-2 text-sm text-ink/60 px-3 py-2">
+                            <div class="loader rounded-full w-4 h-4 border-2 border-black/10"></div>
+                            <span id="loading-text">Working…</span>
+                        </div>
+                    </div>
+
+                    <!-- Preview -->
+                    <div id="output-wrap" class="hidden">
+                        <div class="page-canvas rounded-xl" id="output-canvas">
+                            <div id="output-content" class="text-[13px] leading-relaxed"></div>
+                        </div>
+                    </div>
+
+                    <!-- Activity review (extraction stage) -->
+                    <div id="review-panel" class="hidden">
+                        <div class="rounded-2xl bg-white ring-1 ring-black/5 shadow-sm overflow-hidden">
+                            <div class="px-5 py-4 border-b border-black/5 bg-iris-600/5">
+                                <h3 class="font-bold text-ink flex items-center gap-2 text-[15px]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B46E8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    Activities found in your lesson plan
+                                </h3>
+                                <p class="text-xs text-ink/50 mt-1">These were extracted from your plan. Edit the wording, uncheck any you don't want, then generate — the sheet will be built from exactly this list.</p>
+                            </div>
+                            <div id="review-activities-list" class="divide-y divide-black/5 max-h-80 overflow-y-auto"></div>
+                            <div class="px-5 py-4 flex flex-wrap items-center gap-3 border-t border-black/5">
+                                <button id="btn-confirm-review" class="bg-iris-600 hover:bg-iris-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring shadow-lg shadow-iris-200">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                    Generate Activity Sheet
+                                </button>
+                                <button id="btn-cancel-review" class="bg-white ring-1 ring-black/10 hover:ring-black/25 text-ink px-5 py-2.5 rounded-xl font-semibold transition text-sm btn-spring">Cancel</button>
+                                <span id="review-count" class="text-xs text-ink/45 ml-auto font-medium"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loading panel (official PPT-style card) -->
+                    <div id="loading-panel" class="hidden flex-col items-center justify-center text-center py-16 px-6">
+                        <div class="relative mb-8">
+                            <div class="absolute inset-0 bg-iris-500 rounded-full animate-ping opacity-20"></div>
+                            <div class="w-24 h-24 bg-white rounded-full shadow-xl flex items-center justify-center relative z-10 ring-1 ring-black/5">
+                                <div class="loader border-4 border-slate-200 rounded-full w-10 h-10"></div>
+                            </div>
+                        </div>
+                        <h3 id="loading-panel-title" class="text-lg font-bold text-ink">Working…</h3>
+                        <p class="text-ink/45 text-sm mt-2 max-w-sm">This usually takes a few seconds — please don't close the tab.</p>
+                    </div>
+
+                    <!-- Validation Warning -->
+                    <div id="validation-warning" class="hidden bg-amber-50 border-l-4 border-amber-400 text-amber-800 p-3 rounded text-sm mb-4"></div>
+
+                    <!-- Empty state -->
+                    <div id="empty-state" class="text-center py-20">
+                        <div class="mx-auto w-16 h-16 rounded-2xl bg-white ring-1 ring-black/5 grid place-items-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5B46E8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        </div>
+                        <p class="text-sm text-ink/45 max-w-sm mx-auto">Your activity sheet will appear here as a clean, printable A4 page — ready to download as Word or print to PDF.</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+<script>
+(function () {
+    'use strict';
+
+    var $ = function (id) { return document.getElementById(id); };
+    var state = {
+        mode: 'lesson',
+        apiKey: window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || ''),
+        apiKey2: window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || ''),
+        difficulty: 'Moderate',
+        sections: [{ type: 'Scrambled Words', count: 5, instruction: '' }],
+        lessonText: '',
+        lessonSession: '',   /* '1'..'5' or 'all' — set when coming from the Lesson Plan tool */
+        lessonSessions: 0,
+        sheetLang: '',        /* 'filipino' | 'english' — auto-detected from the lesson plan */
+        fromLessonPlan: false,
+        lessonStructured: false,   /* true when the lesson plan table was parsed into per-session blocks */
+        sheetHtml: '',
+        sheetMeta: { grade: '', subject: '', quarter: '', topic: '' },
+        answerKeyHtml: '',
+        hasKey: false,
+        rubricHtml: '',
+        hasRubric: false,
+        pendingActivities: null   /* extracted activity list awaiting teacher review */
+    };
+
+    var ACTIVITY_TYPES = [
+        'Scrambled Words', '3 Pics 1 Word', 'Identification', 'Multiple Choice',
+        'True or False', 'Matching Type', 'Fill in the Blanks', 'Word Search',
+        'Crossword Puzzle', 'Acrostic / Slogan', 'Analogy', 'Enumeration',
+        'Short Answer', 'Essay / Reflection', 'Problem Solving', 'Sequencing / Arrange'
+    ];
+
+    var CATEGORY_BADGES = {
+        motivation:     { label: '🎯 Motivation',      cls: 'bg-orange-100 text-orange-700' },
+        unlocking:      { label: '🔑 Unlocking',       cls: 'bg-amber-100 text-amber-700' },
+        discussion:     { label: '💬 Discussion',      cls: 'bg-blue-100 text-blue-700' },
+        group_activity: { label: '👥 Group Activity',  cls: 'bg-violet-100 text-violet-700' },
+        application:    { label: '🛠️ Application',     cls: 'bg-teal-100 text-teal-700' },
+        assessment:     { label: '✅ Assessment',      cls: 'bg-emerald-100 text-emerald-700' },
+        evaluation:     { label: '📊 Evaluation',      cls: 'bg-rose-100 text-rose-700' },
+        assignment:     { label: '📝 Assignment',      cls: 'bg-slate-100 text-slate-600' },
+        other:          { label: '📋 Activity',        cls: 'bg-ink/5 text-ink/60' }
+    };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /* ============================================================
+       UI helpers
+       ============================================================ */
+    function setError(msg) {
+        var el = $('error-box');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+    function clearError() { $('error-box').classList.add('hidden'); }
+    function setLoading(on, text) {
+        var ind = $('loading-indicator');
+        if (on) { ind.classList.remove('hidden'); ind.classList.add('flex'); if (text) $('loading-text').textContent = text; }
+        else { ind.classList.add('hidden'); ind.classList.remove('flex'); }
+    }
+    function showLoadingPanel(on, text) {
+        var p = $('loading-panel');
+        if (!p) return;
+        if (on) {
+            p.classList.remove('hidden');
+            p.classList.add('flex');
+            $('empty-state').classList.add('hidden');
+            if (text) $('loading-panel-title').textContent = text;
+        } else {
+            p.classList.add('hidden');
+            p.classList.remove('flex');
+        }
+    }
+
+    function updateApiDot() {
+        var dot = $('api-status-dot');
+        if (dot) dot.style.background = state.apiKey ? '#34d399' : '#f87171';
+    }
+
+    /* ============================================================
+       DepEd autocomplete (reuses shared deped-options.js)
+       ============================================================ */
+    function bindAutocomplete(input, listEl, source) {
+        function render() {
+            var val = input.value.trim().toLowerCase();
+            var list = (source || []).filter(function (s) { return !val || String(s).toLowerCase().includes(val); }).slice(0, 60);
+            if (!list.length) { listEl.classList.remove('show'); listEl.innerHTML = ''; return; }
+            listEl.innerHTML = list.map(function (s) {
+                return '<div class="autocomplete-item" data-val="' + String(s).replace(/"/g, '&quot;') + '">' + s + '</div>';
+            }).join('');
+            listEl.classList.add('show');
+            listEl.querySelectorAll('.autocomplete-item').forEach(function (item) {
+                item.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    input.value = item.dataset.val;
+                    listEl.classList.remove('show');
+                });
+            });
+        }
+        input.addEventListener('input', render);
+        input.addEventListener('focus', render);
+        input.addEventListener('blur', function () { setTimeout(function () { listEl.classList.remove('show'); }, 150); });
+    }
+
+    /* ============================================================
+       Sections builder (custom mode)
+       ============================================================ */
+    function renderSections() {
+        var wrap = $('sections-list');
+        wrap.innerHTML = '';
+        state.sections.forEach(function (sec, idx) {
+            var div = document.createElement('div');
+            div.className = 'rounded-xl bg-white ring-1 ring-black/5 p-3 space-y-2 animate-fade-in';
+            div.innerHTML =
+                '<div class="flex items-center justify-between gap-2">' +
+                    '<span class="text-[10px] font-bold uppercase tracking-wider text-iris-600 bg-iris-50 rounded-full px-2 py-0.5">Section ' + (idx + 1) + '</span>' +
+                    '<button type="button" class="sec-remove text-red-500 hover:bg-red-50 rounded-lg p-1 transition" title="Remove section">' +
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                    '</button>' +
+                '</div>' +
+                '<div class="grid grid-cols-[1fr_auto] gap-2 items-end">' +
+                    '<div>' +
+                        '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Activity Type</label>' +
+                        '<select class="sec-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">' +
+                            ACTIVITY_TYPES.map(function (t) { return '<option value="' + t + '"' + (t === sec.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
+                        '</select>' +
+                    '</div>' +
+                    '<div>' +
+                        '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Items</label>' +
+                        '<input type="number" min="1" max="40" value="' + sec.count + '" class="sec-count w-16 rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-iris-500">' +
+                    '</div>' +
+                '</div>' +
+                '<input type="text" class="sec-instruction w-full rounded-lg bg-white ring-1 ring-black/10 px-3 py-2 text-xs placeholder:text-ink/35 focus:outline-none focus:ring-2 focus:ring-iris-500" placeholder="Extra instruction (optional)" value="' + (sec.instruction || '').replace(/"/g, '&quot;') + '">';
+            wrap.appendChild(div);
+
+            div.querySelector('.sec-type').addEventListener('change', function (e) { sec.type = e.target.value; });
+            div.querySelector('.sec-count').addEventListener('input', function (e) {
+                var v = parseInt(e.target.value, 10);
+                sec.count = isNaN(v) || v < 1 ? 1 : Math.min(v, 40);
+                updateTotal();
+            });
+            div.querySelector('.sec-instruction').addEventListener('input', function (e) { sec.instruction = e.target.value.trim(); });
+            div.querySelector('.sec-remove').addEventListener('click', function () {
+                state.sections.splice(idx, 1);
+                if (!state.sections.length) state.sections.push({ type: 'Scrambled Words', count: 5, instruction: '' });
+                renderSections();
+            });
+        });
+        updateTotal();
+    }
+    function updateTotal() {
+        var total = state.sections.reduce(function (sum, s) { return sum + (parseInt(s.count, 10) || 0); }, 0);
+        $('custom-total').textContent = total + ' item' + (total === 1 ? '' : 's');
+    }
+
+    /* ============================================================
+       Mode switching
+       ============================================================ */
+    function setMode(mode) {
+        state.mode = mode;
+        document.querySelectorAll('#mode-tabs button').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.mode === mode);
+        });
+        $('card-lesson').classList.toggle('hidden', mode !== 'lesson');
+        $('card-custom').classList.toggle('hidden', mode !== 'custom');
+    }
+
+    /* ============================================================
+       File handling — iLaw lesson plan .docx
+       ============================================================ */
+    function bindFileInput() {
+        var input = $('lesson-file');
+        var label = $('lesson-file-label');
+        var status = $('lesson-file-status');
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file) return;
+            clearFromLesson();
+            var ext = file.name.split('.').pop().toLowerCase();
+            if (ext !== 'docx') {
+                setError('Please upload a .docx lesson plan file (the one exported from the iLaw Lesson Plan tool).');
+                return;
+            }
+            clearError();
+            label.textContent = file.name;
+            status.textContent = 'Reading file…';
+            status.classList.remove('hidden');
+            file.arrayBuffer().then(function (buf) {
+                return extractDocxText(buf);
+            }).then(function (res) {
+                var text = res ? res.text : '';
+                state.lessonText = text;
+                state.lessonStructured = false;
+                if (state.lessonText.trim().length < 30) {
+                    status.textContent = 'The file looks empty — please check the document.';
+                    status.className = 'text-xs text-red-600 bg-red-50 ring-1 ring-red-200 rounded-lg px-3 py-2 font-medium';
+                    return;
+                }
+                if (window.SilidFileUtils) window.SilidFileUtils.warnAboutSource(state.lessonText, 'activity-sheet');
+                var parsed = res && res.html ? parseLessonPlanHtml(res.html) : null;
+                if (parsed) {
+                    state.lessonStructured = true;
+                    state.lessonText = parsed.structuredText;
+                    state.lessonSessions = parsed.numSessions;
+                }
+                var meta = parsed ? parsed.meta : detectMetaFromText(state.lessonText);
+                state.sheetLang = detectLanguage(state.lessonText);
+                // Only auto-fill a field when the detected value actually looks valid —
+                // otherwise leave it blank instead of silently filling in garbage text
+                // the user has to notice and delete.
+                var grade = looksLikeGrade(meta.grade) ? meta.grade : '';
+                var subject = looksLikeSubject(meta.subject) ? meta.subject : '';
+                state.sheetMeta = { grade: grade, subject: subject, quarter: meta.quarter, topic: meta.topic };
+                if (grade) $('lesson-grade').value = grade;
+                if (subject) $('lesson-subject').value = subject;
+                var words = state.lessonText.trim().split(' ').filter(function (w) { return w; }).length;
+                var langName = state.sheetLang === 'filipino' ? 'Filipino' : 'English';
+                var det = [grade, subject].filter(Boolean).join(' · ');
+                var lines = ['✓ Loaded ' + words + ' words — ready to generate.'];
+                if (parsed && parsed.numSessions) {
+                    lines.push('✓ Parsed the lesson-plan table — ' + parsed.numSessions + ' session' + (parsed.numSessions === 1 ? '' : 's') + ' (' + parsed.sessionNames.join(', ') + ').');
+                }
+                if (det) {
+                    lines.push('Detected: ' + det + ' · Language: ' + langName + ' — auto-filled above, you can edit.');
+                    var missing = [];
+                    if (!grade) missing.push('grade level');
+                    if (!subject) missing.push('subject');
+                    if (missing.length) lines.push('⚠ Could not confidently detect ' + missing.join(' & ') + ' — please fill it in above.');
+                } else {
+                    lines.push('Language detected: ' + langName + '. No grade/subject found in the file — fill them in above.');
+                }
+                status.innerHTML = lines.map(function (p) { return '<div>' + p + '</div>'; }).join('');
+                status.className = 'text-xs text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2 font-medium';
+            }).catch(function (err) {
+                console.error(err);
+                status.textContent = 'Could not read that file: ' + ((err && err.message) || 'unknown error') + '. Please export the lesson plan as .docx and try again.';
+                status.className = 'text-xs text-red-600 bg-red-50 ring-1 ring-red-200 rounded-lg px-3 py-2 font-medium';
+            });
+        });
+    }
+
+    /* ============================================================
+       Prefill from the Lesson Plan tool ("Turn into Activity Sheet")
+       ============================================================ */
+    function loadFromLessonPlan() {
+        var raw;
+        try { raw = JSON.parse(localStorage.getItem('lesson_activity_sheet')); } catch (e) { raw = null; }
+        if (!raw || !raw.html || !raw.html.trim()) return;
+        var session = raw.session || 'all';
+        var total = parseInt(raw.sessions, 10) || 0;
+        state.fromLessonPlan = true;
+        state.lessonSession = session;
+        state.lessonSessions = total;
+        var header = '<<< ACTIVITY SHEET SOURCE — sent from the Lesson Plan tool >>>\n' +
+            (session === 'all'
+                ? 'This is a weekly lesson plan with ' + total + ' sessions. Build the activity sheet from the activities of ALL sessions (the whole week).\n'
+                : 'This is a weekly lesson plan with ' + total + ' sessions. Build the activity sheet ONLY from the activities of SESSION ' + session + ' (the column labeled "Sesyon ' + session + '" / "Session ' + session + '" in the table below). Ignore the other sessions.\n') +
+            '\n' + raw.html;
+        var parsed = parseLessonPlanHtml(raw.html);
+        if (parsed) {
+            state.lessonStructured = true;
+            state.lessonSessions = parsed.numSessions || total;
+            header += '\n\n' + parsed.structuredText;
+        }
+        state.lessonText = header;
+        setMode('lesson');
+        if (raw.grade) $('lesson-grade').value = raw.grade;
+        if (raw.subject) $('lesson-subject').value = raw.subject;
+        state.sheetLang = detectLanguage(raw.html);
+        var status = $('lesson-file-status');
+        status.textContent = '✓ Loaded from Lesson Plan — ' + (session === 'all' ? 'Whole Week' : 'Session ' + session) + (total ? ' of ' + total : '') + ' — ' + (state.sheetLang === 'filipino' ? 'Filipino' : 'English') + ' · ready to generate.';
+        status.className = 'text-xs text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2 font-medium';
+        var chip = $('lesson-from-chip');
+        chip.classList.remove('hidden');
+        chip.classList.add('flex');
+        $('lesson-from-chip-title').textContent = 'Loaded from Lesson Plan — ' + (session === 'all' ? 'Whole Week' : 'Session ' + session + ' of ' + total);
+        $('lesson-from-chip-sub').textContent = [raw.subject, raw.grade].filter(Boolean).join(' • ') || 'Weekly lesson plan';
+    }
+    function clearFromLesson() {
+        localStorage.removeItem('lesson_activity_sheet');
+        state.fromLessonPlan = false;
+        state.lessonStructured = false;
+        state.lessonSession = '';
+        state.lessonSessions = 0;
+        var chip = $('lesson-from-chip');
+        chip.classList.add('hidden');
+        chip.classList.remove('flex');
+        var status = $('lesson-file-status');
+        status.classList.add('hidden');
+        $('lesson-file-label').textContent = 'Click to choose a .docx lesson plan';
+        $('lesson-grade').value = '';
+        $('lesson-subject').value = '';
+    }
+
+    /* ============================================================
+       DOCX text extraction (mammoth + html-docx fallback)
+       iLaw lesson plans are exported by the Lesson Plan tool which uses
+       html-docx-js — those files store the content in word/afchunk.mht
+       as quoted-printable HTML, which mammoth cannot read. Fall back to
+       reading that chunk with JSZip when mammoth returns too little.
+       ============================================================ */
+    function extractDocxText(buf) {
+        return window.mammoth.extractRawText({ arrayBuffer: buf }).then(function (r) {
+            var text = r.value || '';
+            if (text.trim().length >= 30) return { text: text, html: null };
+            // Fallback for html-docx-js exports
+            if (!window.JSZip) return { text: text, html: null };
+            return window.JSZip.loadAsync(buf).then(function (zip) {
+                var chunk = zip.file('word/afchunk.mht');
+                if (!chunk) return { text: text, html: null };
+                return chunk.async('string').then(function (mht) {
+                    // decode quoted-printable
+                    var htmlPart = mht.replace(/=\r?\n/g, '').replace(/=([0-9A-Fa-f]{2})/g, function (m, h) {
+                        return String.fromCharCode(parseInt(h, 16));
+                    });
+                    var body = htmlPart.replace(/[\s\S]*?<body[^>]*>/i, '').replace(/<\/body>[\s\S]*/i, '');
+                    // html-docx-js exports render the lesson plan as one big table.
+                    // textContent glues adjacent cells together ("Learning Area/sScience")
+                    // and collapses every session column into a single unbroken string,
+                    // which breaks both meta detection and the AI's ability to tell which
+                    // activity belongs to which session. Insert separators so labels,
+                    // values and columns stay distinguishable.
+                    var spaced = body
+                        .replace(/<\/(td|th)>/gi, ' | ')
+                        .replace(/<\/(tr|table)>/gi, '\n')
+                        .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n')
+                        .replace(/<br\s*\/?>/gi, '\n');
+                    var div = document.createElement('div');
+                    div.innerHTML = spaced;
+                    var outText = (div.textContent || '').trim();
+                    // Return both the flattened text AND the decoded HTML body so the
+                    // caller can structurally parse the lesson-plan table (labels × sessions).
+                    return { text: outText.length >= 30 ? outText : text, html: body };
+                });
+            });
+        });
+    }
+
+    /* ============================================================
+       Auto-detection — grade / subject / topic / language
+       ============================================================ */
+    var FILIPINO_MARKERS = [' ang ', ' ng ', ' mga ', ' ay ', ' sa ', 'para sa', 'kay ', 'kina ', 'kailangan', 'mag-aaral', 'mag aaral', 'aralin', 'guro', 'sesyon', 'markahan', 'paksa', 'layunin', 'kasanayan', 'pagtataya', 'pangkat', 'baitang', 'asignatura', 'panuto', 'isulat', 'bilugan', 'itambal', 'punan', 'tukuyin', 'piliin', 'sagutan', 'gawain', 'talakayan', 'pagganyak', 'motibasyon', 'pag-unlock', 'pagninilay', 'antas', 'wikang', 'kagamitan', 'sanggunian', 'inihanda', 'pang-araw-araw', 'araw-araw'];
+    var ENGLISH_MARKERS = [' the ', ' and ', ' for ', ' with ', ' from ', ' learning ', ' lesson ', ' teacher ', ' students ', ' objectives ', ' competency ', ' assessment ', ' activity ', ' activities ', ' grade ', ' section ', ' quarter ', ' session ', ' motivation ', ' discussion ', ' application ', ' instruction ', ' directions ', ' identify ', ' choose ', ' match ', ' write ', ' answer ', ' read ', ' observe ', ' explore ', ' practice ', ' references ', ' designed ', ' weekly '];
+
+    function detectLanguage(text) {
+        var t = ' ' + String(text || '').toLowerCase().replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ') + ' ';
+        var tag = 0, eng = 0;
+        for (var i = 0; i < FILIPINO_MARKERS.length; i++) if (t.indexOf(FILIPINO_MARKERS[i]) !== -1) tag++;
+        for (var j = 0; j < ENGLISH_MARKERS.length; j++) if (t.indexOf(ENGLISH_MARKERS[j]) !== -1) eng++;
+        return tag > eng ? 'filipino' : 'english';
+    }
+
+    function grabField(text, labels, maxLen) {
+        if (!text) return '';
+        var plain = String(text).replace(/<[^>]*>/g, '\n').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+        var lower = plain.toLowerCase();
+        var bestIdx = -1, bestLen = 0;
+        for (var i = 0; i < labels.length; i++) {
+            var idx = lower.indexOf(labels[i].toLowerCase());
+            if (idx !== -1 && (bestIdx === -1 || idx < bestIdx)) { bestIdx = idx; bestLen = labels[i].length; }
+        }
+        if (bestIdx === -1) return '';
+        var after = plain.slice(bestIdx + bestLen).replace(/\s+/g, ' ').trim();
+        var cut = after.search(/(Designed by|Inihanda|References|Sanggunian|Bilang ng Sesyon|No\. of Sessions|Deklarasyon|Declaration of AI|Republic of the Philippines|Department of Education|MGA LAYUNIN|OBJECTIVES|Bago ang Aralin|Pre-Lesson|Daloy ng Aralin|Flow of|PAGTATAYA|ASSESSMENT|Name of Lesson|Pangalan ng Aralin|Learning Area|Asignatura|Grade Level|Baitang|Layunin|Objectives)/i);
+        if (cut > 0) after = after.slice(0, cut);
+        after = after.replace(/^[\s:,;|\u2014\u2013-]+/, '').replace(/\s+/g, ' ').trim();
+        var max = maxLen || 90;
+        if (after.length > max) after = after.slice(0, max).replace(/\s+\S*$/, '');
+        return after;
+    }
+
+    function detectMetaFromText(text) {
+        var meta = { grade: '', subject: '', quarter: '', topic: '' };
+        if (!text) return meta;
+        meta.subject = grabField(text, ['Learning Area/s', 'Learning Area:', 'Learning Area', 'Asignatura'], 60);
+        meta.grade = grabField(text, ['Designed for which Grade Level and Section', 'Grade Level and Section', 'Para sa Baitang at Pangkat', 'Baitang at Pangkat', 'Grade Level:', 'Baitang:'], 60);
+        meta.topic = grabField(text, ['Name of Lesson', 'Pangalan ng Aralin'], 120);
+        var qm = text.match(/(?:Quarter|Markahan)\s*[A-Za-z\s:-]*?([0-9IVX]+|Una|Ikalawa|Ikatlo|Ikaapat)/i);
+        if (qm && qm[1]) meta.quarter = (/markahan/i.test(text) ? 'Markahan ' : 'Quarter ') + qm[1];
+        return meta;
+    }
+
+    /* ---- validation for auto-detected values (refuses garbage) ---- */
+    function looksLikeGrade(v) {
+        v = String(v || '').trim();
+        if (!v || v.length > 60) return false;
+        if (/^(grade|baitang)\s*\d/i.test(v)) return true;   // Grade 7, Baitang 7 - Mabini
+        if (/^(kinder|kindergarten)/i.test(v)) return true;
+        if (/\b(grade|baitang)\s*\d/i.test(v)) return true;  // "for Grade 10 - Rizal"
+        return false;
+    }
+
+    function looksLikeSubject(v) {
+        v = String(v || '').trim();
+        if (!v || v.length > 50) return false;
+        if (/[|\n]/.test(v)) return false;                    // grabField overran into the next column
+        if (/^(Designed by|Inihanda|Bilang ng Sesyon|No\. of Sessions|Grade Level|Baitang|Learning Area|Asignatura|Name of Lesson|Pangalan ng Aralin|Quarter|Markahan|Sesyon|Session)/i.test(v)) return false;
+        if (/^\d+$/.test(v)) return false;                    // just a number, not a subject
+        return true;
+    }
+
+    /* ============================================================
+       Structured lesson-plan table parsing
+       iLaw lesson plans export as one HTML table: a label column on
+       the left and one column per session ("Sesyon 1..N"). Reading
+       the table structurally gives exact label → value pairs (reliable
+       grade/subject detection) and clean per-session activity blocks
+       for the prompt — instead of the flattened mush textContent gives.
+       ============================================================ */
+    var LESSON_TABLE_LABELS = [
+        /name of lesson/i, /pangalan ng aralin/i,
+        /learning area/i, /asignatura/i,
+        /designed by/i, /inihanda/i,
+        /grade level/i, /baitang/i,
+        /no\.?\s*of\s*sessions/i, /bilang ng sesyon/i
+    ];
+
+    function parseLessonPlanHtml(html) {
+        if (!html || typeof DOMParser === 'undefined') return null;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var tables = doc.querySelectorAll('table');
+        if (!tables.length) return null;
+
+        // Pick the lesson-plan table: first whose first row's first cell is a known label;
+        // otherwise the biggest table that contains a "No. of Sessions" row.
+        var table = null;
+        for (var i = 0; i < tables.length; i++) {
+            var first = cellText(lessonRowCells(tables[i].rows[0])[0]);
+            for (var j = 0; j < LESSON_TABLE_LABELS.length; j++) {
+                if (LESSON_TABLE_LABELS[j].test(first)) { table = tables[i]; break; }
+            }
+            if (table) break;
+        }
+        if (!table) {
+            var best = null;
+            for (var k = 0; k < tables.length; k++) {
+                if (!best || tables[k].rows.length > best.rows.length) best = tables[k];
+            }
+            if (best && lessonHasSessionsRow(best)) table = best;
+        }
+        if (!table) return null;
+
+        var meta = { subject: '', grade: '', topic: '', quarter: '' };
+        var sessionNames = [];
+        var sharedRows = [];
+        var sessionRows = [];
+        var beforeHeader = true;
+
+        for (var r = 0; r < table.rows.length; r++) {
+            var cells = lessonRowCells(table.rows[r]);
+            if (!cells.length) continue;
+            // Section banner rows (e.g. <td><h2>Intentions.</h2></td> …) — headings, skip.
+            if (cells[0].querySelector('h1, h2, h3')) continue;
+            var lbl = cellText(cells[0]).replace(/[:.\s]+$/, '');
+            if (!lbl) continue;
+            if (beforeHeader && /^(no\.?\s*of\s*sessions|bilang\s+ng\s+sesyon)/i.test(lbl)) {
+                beforeHeader = false;
+                for (var c = 1; c < cells.length; c++) {
+                    var nm = cellText(cells[c]);
+                    if (nm) sessionNames.push(nm);
+                }
+                continue;
+            }
+            if (beforeHeader) {
+                var val = cellText(cells[1]);
+                if (/learning area|asignatura/i.test(lbl) && !meta.subject) meta.subject = val;
+                else if (/grade level|baitang/i.test(lbl) && !meta.grade) meta.grade = val;
+                else if (/name of lesson|pangalan ng aralin/i.test(lbl) && !meta.topic) meta.topic = val;
+            } else if (sessionNames.length && cells.length === sessionNames.length + 1) {
+                var texts = [];
+                for (var x = 1; x < cells.length; x++) texts.push(cellText(cells[x]));
+                sessionRows.push({ label: lbl, texts: texts });
+            } else {
+                sharedRows.push({ label: lbl, text: cellText(cells[1]) });
+            }
+        }
+
+        var L = [];
+        L.push('<<< LESSON PLAN — STRUCTURED, SESSION BY SESSION >>>');
+        L.push('(Read from the exact table structure: metadata rows first, then each session column separately.)');
+        L.push('');
+        L.push('Name of Lesson: ' + meta.topic);
+        L.push('Learning Area/s: ' + meta.subject);
+        L.push('Grade Level and Section: ' + meta.grade);
+        L.push('No. of Sessions: ' + (sessionNames.length || '?') + (sessionNames.length ? ' (columns: ' + sessionNames.join(', ') + ')' : ''));
+        L.push('');
+        if (sharedRows.length) {
+            L.push('--- WHOLE WEEK (shared content — applies to every session) ---');
+            sharedRows.forEach(function (row) {
+                L.push(row.label + ':');
+                L.push(row.text);
+                L.push('');
+            });
+        }
+        sessionNames.forEach(function (name, idx) {
+            L.push('--- ' + name + ' ---');
+            var wrote = false;
+            sessionRows.forEach(function (row) {
+                var v = (row.texts[idx] || '').trim();
+                if (!v) return;
+                wrote = true;
+                L.push(row.label + ':');
+                L.push(v);
+                L.push('');
+            });
+            if (!wrote) L.push('(no activity content in this column)');
+        });
+        var structuredText = L.join('\n');
+
+        var qm = structuredText.match(/(?:Quarter|Markahan)\s*[A-Za-z\s:-]*?([0-9IVX]+|Una|Ikalawa|Ikatlo|Ikaapat)/i);
+        if (qm && qm[1]) meta.quarter = (/markahan/i.test(structuredText) ? 'Markahan ' : 'Quarter ') + qm[1];
+
+        return { numSessions: sessionNames.length, sessionNames: sessionNames, meta: meta, structuredText: structuredText };
+    }
+
+    function lessonHasSessionsRow(table) {
+        for (var i = 0; i < table.rows.length; i++) {
+            var lbl = cellText(lessonRowCells(table.rows[i])[0]).replace(/[:.\s]+$/, '');
+            if (/^(no\.?\s*of\s*sessions|bilang\s+ng\s+sesyon)/i.test(lbl)) return true;
+        }
+        return false;
+    }
+
+    function lessonRowCells(row) {
+        var out = [];
+        if (!row) return out;
+        for (var i = 0; i < row.children.length; i++) {
+            var tag = row.children[i].tagName;
+            if (tag === 'TD' || tag === 'TH') out.push(row.children[i]);
+        }
+        return out;
+    }
+
+    function cellText(cell) {
+        if (!cell) return '';
+        var clone = cell.cloneNode(true);
+        // drop nested tables so their text doesn't leak into the cell
+        var nested = clone.querySelectorAll('table');
+        for (var i = 0; i < nested.length; i++) nested[i].parentNode.removeChild(nested[i]);
+        var brs = clone.querySelectorAll('br');
+        for (var j = 0; j < brs.length; j++) brs[j].parentNode.replaceChild(document.createTextNode('\n'), brs[j]);
+        var ps = clone.querySelectorAll('p, div, li, h1, h2, h3, h4');
+        for (var k = 0; k < ps.length; k++) ps[k].appendChild(document.createTextNode('\n'));
+        return (clone.textContent || '')
+            .replace(/\u00a0/g, ' ')
+            .replace(/[ \t]+/g, ' ')
+            .replace(/ *\n */g, '\n')
+            .replace(/\n{2,}/g, '\n')
+            .trim();
+    }
+
+    /* ============================================================
+       Gemini
+       ============================================================ */
+    function callGemini(systemPrompt, userQuery, temperature) {
+        if (!state.apiKey) {
+            return Promise.reject(new Error('Please set your Gemini API key first — click the gear icon in the header.'));
+        }
+        return window.SilidAPI.callGemini({
+            prompt: userQuery,
+            systemPrompt: systemPrompt,
+            temperature: typeof temperature === 'number' ? temperature : 0.7
+        });
+    }
+
+    /* ============================================================
+       Prompts
+       ============================================================ */
+    var SYSTEM_PROMPT = 'You are an expert Filipino teacher and instructional-materials designer who creates beautiful, print-ready ACTIVITY SHEETS for DepEd learners. ' +
+        'Return ONLY an HTML fragment — no markdown code fences, no <html>/<head>/<body> tags, no explanations. ' +
+        'The fragment will be placed inside a white A4 page, so write clean, self-contained HTML. ' +
+        'STYLE RULES: ' +
+        '- Use inline CSS only (style="..." attributes) — no <style> block, no external CSS. ' +
+        '- Playful but printable: each activity section has a bold uppercase title with a colored left border or underline, a small emoji icon (e.g. 🧩 Scrambled Words, 🖼️ 3 Pics 1 Word, ✅ Identification, ⭕ Multiple Choice, 🔤 Fill in the Blanks, 🔗 Matching Type, 📝 Short Answer, ❓ True or False, 🔍 Word Search), and a one-line instruction in a light shaded box. ' +
+        '- Number items clearly: 1. 2. 3. … with a blank answer line (_____) for identification/short-answer items. ' +
+        '- Matching Type MUST be a two-column table (Column A | Column B) with letter choices (A, B, C…). ' +
+        '- 3 Pics 1 Word: show three dashed-border picture boxes with a simple emoji or symbol inside each, then the letter tiles of the answer scrambled below (e.g. U M S N). ' +
+        '- Scrambled Words: show the jumbled letters in spaced capitals (e.g. L E P P A) with a clue/definition. ' +
+        '- Use tables for any two-column content. Keep item text academically accurate and age-appropriate for the grade level. ' +
+        '- Do NOT include a school header, name field, title, or "Activity Sheet" heading — only the activity sections. Keep total length sensible for one printed page (aim ~12–20 items).';
+
+    var EXTRACT_PROMPT = 'You are an expert Filipino teacher. Your job is to find EVERY activity inside a lesson plan and list them. ' +
+        'Return ONLY a JSON array — no markdown code fences, no explanations, no trailing text. ' +
+        'Each element must be an object with exactly these keys: "session" (the session/column name if visible, otherwise ""), ' +
+        '"category" (one of: motivation, unlocking, discussion, group_activity, application, assessment, evaluation, assignment, other), ' +
+        'and "description" (a short factual description of that activity, written in the lesson plan\'s language). ' +
+        'List the activities in the order they appear in the plan. Do NOT invent activities that are not in the text. ' +
+        'If the lesson plan contains no clear activities, return an empty array [].';
+
+    function buildLessonPrompt() {
+        var extra = $('lesson-extra').value.trim();
+        var gradeHint = $('lesson-grade').value.trim();
+        var subjectHint = $('lesson-subject').value.trim();
+        var sessionNote = '';
+        if (state.fromLessonPlan && state.lessonSession) {
+            sessionNote = state.lessonSession === 'all'
+                ? 'The lesson plan covers ' + state.lessonSessions + ' sessions — build the activity sheet from the activities of ALL sessions (the whole week).'
+                : 'The lesson plan covers ' + state.lessonSessions + ' sessions — use ONLY the activities, objectives, and assessments of SESSION ' + state.lessonSession + ' (the column labeled "Sesyon ' + state.lessonSession + '" / "Session ' + state.lessonSession + '" in the table). IGNORE the other sessions.';
+        }
+        var user = 'Here is ' + (state.fromLessonPlan
+            ? 'a weekly lesson plan (HTML, exported from the iLaw Lesson Plan tool)'
+            : state.lessonStructured
+                ? 'an iLaw lesson plan (exported as .docx) — parsed into a structured, session-by-session breakdown below'
+                : 'the full text of an iLaw lesson plan (exported as .docx)') + '. ' +
+            (state.fromLessonPlan
+                ? 'Read it carefully. ' + sessionNote + ' Identify EVERY activity inside the selected session — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.'
+                : state.lessonStructured
+                    ? 'The plan is laid out in "--- Sesyon N ---" blocks below, one per day. Identify EVERY activity across all sessions — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.'
+                    : 'Read it carefully and identify EVERY activity inside it — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.') +
+            ' Choose the best Filipino classroom format for each activity (e.g. motivation → Scrambled Words or 3 Pics 1 Word; discussion → Identification or Multiple Choice; application → Matching Type or Fill in the Blanks; assessment → True or False / Short Answer). ' +
+            'Match the subject and grade level shown in the lesson plan.' +
+            ' The lesson plan is written in ' + (state.sheetLang === 'filipino' ? 'FILIPINO/TAGALOG' : 'ENGLISH') + ' — write ALL section titles, instructions, clues, and test items in ' + (state.sheetLang === 'filipino' ? 'Filipino' : 'English') + ' to match the lesson plan.' +
+            (gradeHint ? '\nGrade level: ' + gradeHint : '') +
+            (subjectHint ? '\nSubject: ' + subjectHint : '') +
+            (extra ? '\nEXTRA INSTRUCTIONS FROM THE TEACHER: ' + extra : '') +
+            '\n\nIMPORTANT FIRST LINE: Start your HTML output with an HTML comment exactly like this — <!--META: grade:Grade 7|subject:Science|quarter:1st Quarter|topic:Photosynthesis--> — filling in the actual values from the lesson plan (leave a field empty if unknown). Then output the activity sections.' +
+            '\n\nLESSON PLAN TEXT:\n' + state.lessonText.slice(0, state.fromLessonPlan ? 60000 : 30000);
+        return user;
+    }
+
+    function buildExtractPrompt() {
+        var sessionNote = '';
+        if (state.fromLessonPlan && state.lessonSession) {
+            sessionNote = state.lessonSession === 'all'
+                ? 'The plan covers ' + state.lessonSessions + ' sessions — list the activities of ALL sessions (the whole week).'
+                : 'Use ONLY the activities of SESSION ' + state.lessonSession + ' (the column labeled "Sesyon ' + state.lessonSession + '" / "Session ' + state.lessonSession + '" in the table). IGNORE the other sessions.';
+        }
+        return 'Below is a lesson plan. List every activity inside it — motivation, unlocking, discussion, group activities, application, formative assessment, evaluation, assignment — in order.' +
+            (sessionNote ? '\n' + sessionNote : '') +
+            '\n\nLESSON PLAN TEXT:\n' + state.lessonText.slice(0, state.fromLessonPlan ? 60000 : 30000);
+    }
+
+    function parseActivityList(text) {
+        if (!text) return null;
+        var t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+        var arr = null;
+        try { arr = JSON.parse(t); } catch (e) { arr = null; }
+        if (!Array.isArray(arr)) {
+            /* the model wrapped the array in prose — grab the first [...] block */
+            var m = t.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+            if (m) { try { arr = JSON.parse(m[0]); } catch (e2) { arr = null; } }
+        }
+        if (!Array.isArray(arr)) return null;
+        return arr.filter(function (a) {
+            return a && typeof a === 'object' && (a.description || a.activity || a.title);
+        });
+    }
+
+    function buildLessonPromptFromActivities(acts) {
+        var extra = $('lesson-extra').value.trim();
+        var gradeHint = $('lesson-grade').value.trim();
+        var subjectHint = $('lesson-subject').value.trim();
+        var list = acts.map(function (a, i) {
+            var line = (i + 1) + '. [' + (a.category || a.type || 'activity') + ']';
+            if (a.session) line += ' (' + a.session + ')';
+            line += ' ' + (a.description || a.activity || a.title || '');
+            return line;
+        }).join('\n');
+        var user = 'The lesson plan contains the ' + acts.length + ' activities listed below (extracted straight from the plan). ' +
+            'Turn EVERY ONE of them into a student activity — do NOT skip any, and do NOT invent activities that are not on the list. ' +
+            'Choose the best Filipino classroom format for each activity (e.g. motivation → Scrambled Words or 3 Pics 1 Word; discussion → Identification or Multiple Choice; application → Matching Type or Fill in the Blanks; assessment → True or False / Short Answer). ' +
+            'Match the subject and grade level shown in the lesson plan.' +
+            ' The lesson plan is written in ' + (state.sheetLang === 'filipino' ? 'FILIPINO/TAGALOG' : 'ENGLISH') + ' — write ALL section titles, instructions, clues, and test items in ' + (state.sheetLang === 'filipino' ? 'Filipino' : 'English') + ' to match the lesson plan.' +
+            (gradeHint ? '\nGrade level: ' + gradeHint : '') +
+            (subjectHint ? '\nSubject: ' + subjectHint : '') +
+            (extra ? '\nEXTRA INSTRUCTIONS FROM THE TEACHER: ' + extra : '') +
+            '\n\nIMPORTANT FIRST LINE: Start your HTML output with an HTML comment exactly like this — <!--META: grade:Grade 7|subject:Science|quarter:1st Quarter|topic:Photosynthesis--> — filling in the actual values from the lesson plan (leave a field empty if unknown). Then output the activity sections.' +
+            '\n\nACTIVITIES FOUND IN THE LESSON PLAN:\n' + list;
+        return user;
+    }
+
+    function buildCustomPrompt() {
+        var topic = $('custom-topic').value.trim();
+        var grade = $('custom-grade').value.trim();
+        var subject = $('custom-subject').value.trim();
+        var source = $('custom-source').value.trim();
+        var secs = state.sections.map(function (s, i) {
+            return (i + 1) + '. ' + s.type + ' — ' + s.count + ' items' + (s.instruction ? ' (instruction: ' + s.instruction + ')' : '');
+        }).join('\n');
+        var user = 'Create an activity sheet with these exact sections and item counts. ' +
+            'Topic: ' + topic + ' | Grade: ' + grade + ' | Subject: ' + subject + ' | Difficulty: ' + state.difficulty + '.\n\nSECTIONS:\n' + secs +
+            (source ? '\n\nUse this source material so the items match the lessons:\n' + source.slice(0, 15000) : '') +
+            '\n\nMatch the exact total number of items requested. Do NOT add extra sections.';
+        return user;
+    }
+
+    /* ============================================================
+       Generate
+       ============================================================ */
+    function buildSheetHeader(meta) {
+        var si = {};
+        try { si = JSON.parse(localStorage.getItem('school_info')) || {}; } catch (e) { si = {}; }
+        var h = '';
+        if (si.schoolLogo1 || si.schoolLogo2 || si.schoolName) {
+            h += '<div style="text-align:center;margin-bottom:10px;">';
+            if (si.schoolLogo1 || si.schoolLogo2) {
+                h += '<div style="margin-bottom:6px;">';
+                if (si.schoolLogo1) h += '<img src="' + si.schoolLogo1 + '" style="height:64px;margin:0 10px;vertical-align:middle;">';
+                if (si.schoolLogo2) h += '<img src="' + si.schoolLogo2 + '" style="height:64px;margin:0 10px;vertical-align:middle;">';
+                h += '</div>';
+            }
+            if (si.schoolName) h += '<p style="font-size:15px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin:0;">' + si.schoolName + '</p>';
+            if (si.schoolAddress) h += '<p style="font-size:11px;color:#666;margin:2px 0;">' + si.schoolAddress + '</p>';
+            if (si.department) h += '<p style="font-size:11px;color:#666;margin:2px 0;font-weight:bold;">' + si.department + '</p>';
+            h += '</div>';
+            h += '<div style="border-top:2px solid #0B0A12;margin:8px 0 14px;"></div>';
+        }
+        h += '<div style="text-align:center;margin-bottom:6px;">';
+        h += '<p style="font-size:18px;font-weight:bold;letter-spacing:2px;margin:0;color:#5B46E8;text-transform:uppercase;">Activity Sheet</p>';
+        if (meta.topic) h += '<p style="font-size:14px;font-weight:bold;margin:2px 0 0;">' + meta.topic + '</p>';
+        h += '</div>';
+        var metaLine = [meta.subject, meta.grade, meta.quarter].filter(Boolean).join(' • ');
+        if (metaLine) h += '<p style="text-align:center;font-size:12px;color:#444;margin:2px 0 12px;">' + metaLine + '</p>';
+        h += '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px;"><tr>' +
+             '<td style="padding:2px 4px;">Name: ______________________________</td>' +
+             '<td style="padding:2px 4px;text-align:right;">Grade &amp; Section: ____________________</td>' +
+             '</tr><tr>' +
+             '<td style="padding:2px 4px;">Date: ______________</td>' +
+             '<td style="padding:2px 4px;text-align:right;">Score: ________</td>' +
+             '</tr></table>';
+        return h;
+    }
+
+    function renderSheet(html) {
+        html = html.replace(/^```(html)?\s*/i, '').replace(/```\s*$/i, '');
+        // Grab grade / subject / quarter / topic from the fragment if the AI added meta
+        var meta = { grade: '', subject: '', quarter: '', topic: '' };
+        var m;
+        if ((m = html.match(/<!--META:\s*([\s\S]*?)-->/))) {
+            m[1].split('|').forEach(function (part) {
+                var kv = part.split(':');
+                if (kv[0] && kv[1]) meta[kv[0].trim().toLowerCase()] = kv[1].trim();
+            });
+            html = html.replace(/<!--META:[\s\S]*?-->\s*/, '');
+        }
+        if (state.mode === 'lesson') {
+            if (!meta.grade) meta.grade = $('lesson-grade').value.trim();
+            if (!meta.subject) meta.subject = $('lesson-subject').value.trim();
+        }
+        state.sheetMeta = meta;
+        state.sheetHtml = html;
+
+        // Validate output
+        var v = window.SilidValidate.validateActivityHtml(html);
+        var warnEl = $('validation-warning');
+        if (v.warnings.length > 0) {
+            warnEl.innerHTML = v.warnings.map(function(w) { return '<p>' + w + '</p>'; }).join('');
+            warnEl.classList.remove('hidden');
+        } else {
+            warnEl.classList.add('hidden');
+        }
+
+        var header = buildSheetHeader(meta);
+        $('output-content').innerHTML = header + html;
+        showLoadingPanel(false);
+        $('empty-state').classList.add('hidden');
+        $('output-wrap').classList.remove('hidden');
+        $('actions-bar').classList.remove('hidden');
+        $('actions-bar').classList.add('flex');
+        $('actions-bar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        saveActivityOutput();
+        activitySaveToLibrary();
+    }
+
+    /* ============================================================
+       Activity review — teacher confirms/edits the extracted list
+       ============================================================ */
+    function showReview(acts) {
+        showLoadingPanel(false);
+        $('empty-state').classList.add('hidden');
+        var list = $('review-activities-list');
+        list.innerHTML = '';
+        acts.forEach(function (a, i) {
+            var badge = CATEGORY_BADGES[a.category] || CATEGORY_BADGES.other;
+            var row = document.createElement('div');
+            row.className = 'px-5 py-3 flex gap-3 items-start';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = true;
+            cb.className = 'mt-2 w-4 h-4 shrink-0 cursor-pointer accent-[#5B46E8]';
+            var body = document.createElement('div');
+            body.className = 'flex-1 min-w-0';
+            var head = document.createElement('div');
+            head.className = 'flex items-center gap-2 flex-wrap mb-1.5';
+            head.innerHTML = '<span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ' + badge.cls + '">' + badge.label + '</span>' +
+                (a.session ? '<span class="text-[11px] font-semibold text-ink/50">' + esc(a.session) + '</span>' : '') +
+                '<span class="text-[11px] text-ink/30 ml-auto">' + (i + 1) + '</span>';
+            var ta = document.createElement('textarea');
+            ta.rows = 2;
+            ta.className = 'w-full text-sm rounded-lg bg-ink/[0.03] ring-1 ring-black/5 focus:ring-iris-600 focus:bg-white px-3 py-2 resize-y outline-none transition';
+            ta.value = a.description || a.activity || a.title || '';
+            body.appendChild(head);
+            body.appendChild(ta);
+            row.appendChild(cb);
+            row.appendChild(body);
+            list.appendChild(row);
+        });
+        $('review-count').textContent = acts.length + (acts.length === 1 ? ' activity' : ' activities');
+        $('review-panel').classList.remove('hidden');
+    }
+    function hideReview() {
+        $('review-panel').classList.add('hidden');
+    }
+    function confirmReview() {
+        clearError();
+        var acts = [];
+        var rows = $('review-activities-list').children;
+        for (var i = 0; i < rows.length; i++) {
+            var cb = rows[i].querySelector('input[type=checkbox]');
+            if (cb && !cb.checked) continue;
+            var ta = rows[i].querySelector('textarea');
+            var desc = ta ? ta.value.trim() : '';
+            if (!desc) continue;
+            var orig = (state.pendingActivities && state.pendingActivities[i]) || {};
+            acts.push({ session: orig.session || '', category: orig.category || 'other', description: desc });
+        }
+        if (!acts.length) {
+            setError('Every activity was unchecked or emptied — keep at least one activity to generate the sheet.');
+            return;
+        }
+        hideReview();
+        state.pendingActivities = null;
+        clearSavedActivityOutput();
+        var genBtn = $('btn-lesson-generate');
+        genBtn.disabled = true;
+        genBtn.classList.add('opacity-60');
+        setLoading(true, 'Found ' + acts.length + ' activities in the plan — designing the sheet…');
+        callGemini(SYSTEM_PROMPT, buildLessonPromptFromActivities(acts))
+            .then(function (html) { renderSheet(html); })
+            .catch(function (err) {
+                console.error(err);
+                setError('Failed to generate the activity sheet. ' + err.message);
+            })
+            .finally(function () {
+                genBtn.disabled = false;
+                genBtn.classList.remove('opacity-60');
+                setLoading(false);
+            });
+    }
+    function cancelReview() {
+        hideReview();
+        state.pendingActivities = null;
+        var genBtn = $('btn-lesson-generate');
+        genBtn.disabled = false;
+        genBtn.classList.remove('opacity-60');
+        setLoading(false);
+        /* bring back whatever was on screen before (the previous sheet, if any) */
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem(SAVED_ACTIVITY_KEY)); } catch (e) { saved = null; }
+        if (saved && saved.sheetHtml) restoreActivityOutput();
+        else $('empty-state').classList.remove('hidden');
+    }
+
+    function generate() {
+        clearError();
+        var label;
+        if (state.mode === 'lesson') {
+            if (!state.lessonText.trim()) { setError('Please upload your iLaw lesson plan (.docx) first.'); return; }
+            label = 'Reading your lesson plan and designing the sheet…';
+        } else {
+            var topic = $('custom-topic').value.trim();
+            var grade = $('custom-grade').value.trim();
+            var subject = $('custom-subject').value.trim();
+            if (!topic || !grade || !subject) { setError('Please fill in Topic, Grade Level, and Subject.'); return; }
+            label = 'Designing your activity sheet…';
+        }
+
+        var genBtn = state.mode === 'lesson' ? $('btn-lesson-generate') : $('btn-custom-generate');
+        var finish = function () {
+            genBtn.disabled = false;
+            genBtn.classList.remove('opacity-60');
+            setLoading(false);
+            showLoadingPanel(false);
+            if ($('output-wrap').classList.contains('hidden')) $('empty-state').classList.remove('hidden');
+        };
+        genBtn.disabled = true;
+        genBtn.classList.add('opacity-60');
+        showLoadingPanel(true, label);
+        $('actions-bar').classList.add('hidden');
+        $('output-wrap').classList.add('hidden');
+        hideReview();
+        state.answerKeyHtml = ''; state.hasKey = false;
+        state.rubricHtml = ''; state.hasRubric = false;
+        /* the previous sheet is NOT cleared yet — canceling the review restores it */
+
+        if (state.mode === 'lesson') {
+            /* Two-stage pipeline:
+               Stage 1 — low-temperature extraction call returns a strict JSON list of
+               every activity found in the plan, then shows it to the teacher for
+               confirmation/editing (coverage becomes checkable instead of prompt-luck).
+               Stage 2 — designs the sheet from the confirmed list.
+               If extraction fails or returns nothing, fall back to the classic
+               single-shot prompt so the button always produces something. */
+            showLoadingPanel(true, 'Scanning the lesson plan for every activity…');
+            callGemini(EXTRACT_PROMPT, buildExtractPrompt(), 0.2)
+                .then(function (jsonText) {
+                    var acts = parseActivityList(jsonText);
+                    if (acts && acts.length) {
+                        state.pendingActivities = acts;
+                        showLoadingPanel(false);
+                        showReview(acts);
+                        return null; /* pause — confirmReview()/cancelReview() continues */
+                    }
+                    return callGemini(SYSTEM_PROMPT, buildLessonPrompt());
+                }, function (err) {
+                    /* extraction call failed (API/quota error) — fall back to single shot */
+                    console.warn('Activity extraction failed, generating the sheet in one shot instead:', err);
+                    return callGemini(SYSTEM_PROMPT, buildLessonPrompt());
+                })
+                .then(function (html) {
+                    if (!html) return; /* review path — button stays disabled until confirm/cancel */
+                    renderSheet(html);
+                    finish();
+                })
+                .catch(function (err) {
+                    console.error(err);
+                    setError('Failed to generate the activity sheet. ' + err.message);
+                    finish();
+                });
+        } else {
+            callGemini(SYSTEM_PROMPT, buildCustomPrompt())
+                .then(renderSheet)
+                .catch(function (err) {
+                    console.error(err);
+                    setError('Failed to generate the activity sheet. ' + err.message);
+                })
+                .finally(finish);
+        }
+    }
+
+    /* ============================================================
+       Answer key
+       ============================================================ */
+    function generateAnswerKey() {
+        if (!state.sheetHtml) { setError('Generate the activity sheet first, then create the answer key.'); return; }
+        var btn = $('btn-answer-key');
+        btn.disabled = true;
+        setLoading(true, 'Creating the answer key…');
+        var prompt = 'Here is the activity sheet HTML. Create the complete ANSWER KEY for it: ' +
+            'for objective items give the exact answer (letter, word, or true/false), for scrambled words/3 pics 1 word give the unscrambled answer, ' +
+            'for short-answer/essay give model answers or key points. ' +
+            'Return ONLY an HTML fragment (no code fences, no <html> tags): a clean answer key with a bold centered title "ANSWER KEY", ' +
+            'one section per activity with the same emoji icon + title style, answers numbered to match the items. ' +
+            'Write it in ' + (state.sheetLang === 'filipino' ? 'FILIPINO (Tagalog), matching the sheet' : 'ENGLISH, matching the sheet') + '. ' +
+            'Use inline CSS only, compact (font-size ~12px).\n\nACTIVITY SHEET:\n' + state.sheetHtml;
+        callGemini('You are a strict, accurate answer-key generator for Filipino teachers. Return only clean HTML with inline CSS. No explanations.', prompt)
+            .then(function (html) {
+                html = html.replace(/^```(html)?\s*/i, '').replace(/```\s*$/i, '');
+                state.answerKeyHtml = html;
+                state.hasKey = true;
+                var header = buildSheetHeader(state.sheetMeta);
+                var parts = header + state.sheetHtml + '<div style="page-break-before:always;"></div>' + html;
+                if (state.hasRubric) parts += '<div style="page-break-before:always;"></div>' + state.rubricHtml;
+                $('output-content').innerHTML = parts;
+                saveActivityOutput();
+                activityUpdateLibrary();
+                btn.textContent = '✓ Answer Key Added';
+                setTimeout(function () {
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Generate Answer Key';
+                }, 2000);
+            })
+            .catch(function (err) { console.error('Answer key generation failed:', err); setError('Could not create the answer key: ' + ((err && err.message) || 'unknown error') + '.'); })
+            .finally(function () { btn.disabled = false; setLoading(false); });
+    }
+
+    /* ============================================================
+       Rubric
+       ============================================================ */
+    function generateRubric() {
+        if (!state.sheetHtml) { setError('Generate the activity sheet first, then create the rubric.'); return; }
+        var btn = $('btn-rubric');
+        btn.disabled = true;
+        setLoading(true, 'Building the grading rubric…');
+        var prompt = 'Here is the activity sheet HTML. Analyze it and create a grading RUBRIC. ' +
+            'If the sheet contains SUBJECTIVE items (Essay, Short Answer, Problem Solving, Reflection, Acrostic/Slogan), ' +
+            'create a clear point-based rubric (e.g. 4-point or 5-point scale per criterion, with a table of criteria and score bands). ' +
+            'If the sheet contains ONLY OBJECTIVE items (True or False, Multiple Choice, Identification, Matching, Scrambled Words, Fill in the Blanks), ' +
+            'reply with exactly this line as the output: "A rubric is not required for this objective activity sheet." ' +
+            'Return ONLY an HTML fragment (no code fences, no <html> tags): a clean rubric with a bold centered title "GRADING RUBRIC", ' +
+            'tables with borders for criteria and score bands, write it in ' + (state.sheetLang === 'filipino' ? 'FILIPINO (Tagalog), matching the sheet' : 'ENGLISH, matching the sheet') + ', ' +
+            'use inline CSS only, compact (font-size ~12px).\n\nACTIVITY SHEET:\n' + state.sheetHtml;
+        callGemini('You are an expert educational-assessment designer for Filipino teachers. Return only clean HTML with inline CSS. No explanations.', prompt)
+            .then(function (html) {
+                html = html.replace(/^```(html)?\s*/i, '').replace(/```\s*$/i, '');
+                state.rubricHtml = html;
+                state.hasRubric = true;
+                var header = buildSheetHeader(state.sheetMeta);
+                var parts = header + state.sheetHtml;
+                if (state.hasKey) parts += '<div style="page-break-before:always;"></div>' + state.answerKeyHtml;
+                parts += '<div style="page-break-before:always;"></div>' + html;
+                $('output-content').innerHTML = parts;
+                saveActivityOutput();
+                activityUpdateLibrary();
+                btn.textContent = '✓ Rubric Added';
+                setTimeout(function () {
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg> Generate Rubric';
+                }, 2000);
+            })
+            .catch(function (err) { console.error('Rubric generation failed:', err); setError('Could not create the rubric: ' + ((err && err.message) || 'unknown error') + '.'); })
+            .finally(function () { btn.disabled = false; setLoading(false); });
+    }
+
+    /* ============================================================
+       Persistence — keep the last generated sheet across page visits
+       ============================================================ */
+    var SAVED_ACTIVITY_KEY = 'saved_activity_output';
+
+    /* ── Document history (shared-docs-ui.js + shared-docs.js) ── */
+    var docsLastId = null;
+
+    function activitySheetMeta() {
+        var m = state.sheetMeta || {};
+        return {
+            sheetHtml: state.sheetHtml,
+            answerKeyHtml: state.answerKeyHtml,
+            rubricHtml: state.rubricHtml,
+            hasKey: state.hasKey,
+            hasRubric: state.hasRubric,
+            sheetMeta: m,
+            sheetLang: state.sheetLang,
+            mode: state.mode,
+            grade: $('lesson-grade') ? $('lesson-grade').value : '',
+            subject: $('lesson-subject') ? $('lesson-subject').value : ''
+        };
+    }
+
+    function activitySaveToLibrary() {
+        if (!window.SilidDocsUI || !state.sheetHtml) return;
+        var m = state.sheetMeta || {};
+        window.SilidDocsUI.save({
+            name: [m.topic, m.grade].filter(Boolean).join(' · ') || 'Activity Sheet',
+            content: $('output-content').innerHTML,
+            summary: [m.subject, m.grade].filter(Boolean).join(' · '),
+            meta: activitySheetMeta()
+        }).then(function (id) { docsLastId = id; });
+    }
+
+    function activityUpdateLibrary() {
+        if (!window.SilidDocs || !docsLastId) return;
+        window.SilidDocs.updateDocument(docsLastId, {
+            content: $('output-content').innerHTML,
+            meta: activitySheetMeta()
+        });
+    }
+    function saveActivityOutput() {
+        if (!state.sheetHtml) return;
+        try {
+            localStorage.setItem(SAVED_ACTIVITY_KEY, JSON.stringify({
+                html: $('output-content').innerHTML,
+                sheetHtml: state.sheetHtml,
+                answerKeyHtml: state.answerKeyHtml,
+                rubricHtml: state.rubricHtml,
+                hasKey: state.hasKey,
+                hasRubric: state.hasRubric,
+                sheetMeta: state.sheetMeta,
+                sheetLang: state.sheetLang,
+                mode: state.mode,
+                grade: $('lesson-grade') ? $('lesson-grade').value : '',
+                subject: $('lesson-subject') ? $('lesson-subject').value : '',
+                savedAt: Date.now()
+            }));
+        } catch (e) { /* storage full — ignore */ }
+    }
+    function clearSavedActivityOutput() {
+        try { localStorage.removeItem(SAVED_ACTIVITY_KEY); } catch (e) {}
+    }
+    function restoreActivityOutput() {
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem(SAVED_ACTIVITY_KEY)); } catch (e) {}
+        if (!saved || !saved.sheetHtml || !saved.html) return;
+        state.sheetHtml = saved.sheetHtml;
+        state.answerKeyHtml = saved.answerKeyHtml || '';
+        state.rubricHtml = saved.rubricHtml || '';
+        state.hasKey = !!saved.hasKey;
+        state.hasRubric = !!saved.hasRubric;
+        state.sheetMeta = saved.sheetMeta || { grade: '', subject: '', quarter: '', topic: '' };
+        state.sheetLang = saved.sheetLang || 'english';
+        state.mode = saved.mode === 'custom' ? 'custom' : 'lesson';
+        if (saved.grade && $('lesson-grade')) $('lesson-grade').value = saved.grade;
+        if (saved.subject && $('lesson-subject')) $('lesson-subject').value = saved.subject;
+        setMode(state.mode);
+        $('output-content').innerHTML = saved.html;
+        $('empty-state').classList.add('hidden');
+        $('output-wrap').classList.remove('hidden');
+        $('actions-bar').classList.remove('hidden');
+        $('actions-bar').classList.add('flex');
+    }
+
+    /* ============================================================
+       Export: Word (.docx) + Print
+       ============================================================ */
+    function buildWordHtml() {
+        var content = $('output-content').innerHTML;
+        return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
+            '@page { size: A4 portrait; margin: 0.7in; }' +
+            'body { font-family: "Segoe UI", Calibri, Arial, sans-serif; color: #000; }' +
+            'table { border-collapse: collapse; }' +
+            'p { margin: 4px 0; }' +
+            '</style></head><body>' + content + '</body></html>';
+    }
+
+    function downloadDocx() {
+        if (!state.sheetHtml) { setError('Generate the activity sheet first.'); return; }
+        try {
+            var converted = htmlDocx.asBlob(buildWordHtml(), { orientation: 'portrait', margins: { top: 720, bottom: 720, left: 720, right: 720 } });
+            var topic = (state.sheetMeta.topic || 'Activity_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            saveAs(converted, 'Activity_Sheet_' + topic + '.docx');
+            var orig = $('btn-download').innerHTML;
+            $('btn-download').innerHTML = '✔ Downloaded!';
+            setTimeout(function () { $('btn-download').innerHTML = orig; }, 2000);
+        } catch (err) {
+            console.error(err);
+            setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '. Try the Word (.doc) button or the Print / PDF button instead.');
+        }
+    }
+
+    /* Flat .doc: one HTML file Word opens straight away — nothing to unzip, and it
+       needs no external library, so it still works when a CDN is unreachable. */
+    function downloadFlatDoc() {
+        if (!state.sheetHtml) { setError('Generate the activity sheet first.'); return; }
+        var btn = $('btn-download-doc');
+        try {
+            var blob = new Blob(['\ufeff', buildWordHtml()], { type: 'application/msword' });
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            var topic = (state.sheetMeta.topic || 'Activity_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            link.href = url;
+            link.download = 'Activity_Sheet_' + topic + '.doc';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+            var orig = btn.innerHTML;
+            btn.innerHTML = '✔ Downloaded!';
+            setTimeout(function () { btn.innerHTML = orig; }, 2000);
+        } catch (err) {
+            console.error('Word export error:', err);
+            setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '. Try the Print / PDF button instead.');
+        }
+    }
+
+    /* ============================================================
+       Settings dropdown (shared behavior)
+       ============================================================ */
+    function setSettingsMsg(kind, text) {
+        var msgEl = $('settings-test-msg');
+        if (!msgEl) return;
+        msgEl.textContent = text;
+        msgEl.classList.remove('hidden');
+        msgEl.className = 'text-[10px] mt-1.5 px-1 ' + (kind === 'ok' ? 'text-emerald-600' : 'text-red-500');
+    }
+    function pingGeminiKey(k) {
+        return window.SilidAPI.pingKey(k);
+    }
+    function testApiKeyNow() {
+        var btn = $('settings-test-btn');
+        var k1 = ($('settings-key-input').value || '').trim();
+        var k2 = ($('settings-key-input-2').value || '').trim();
+        if (!k1) { setSettingsMsg('fail', 'Please paste your primary API key first.'); return; }
+        if (k1.length < 20) { setSettingsMsg('fail', 'This primary key looks too short. Please copy the full key from Google AI Studio.'); return; }
+        if (k2 && k2.length < 20) { setSettingsMsg('fail', 'The backup key looks too short. Please copy the full key from Google AI Studio.'); return; }
+        btn.disabled = true;
+        btn.textContent = 'Testing…';
+        pingGeminiKey(k1).then(function (r1) {
+            if (!r1.ok) {
+                btn.disabled = false;
+                btn.textContent = 'Test API Key';
+                setSettingsMsg('fail', 'Primary key: ' + r1.friendly);
+                return;
+            }
+            if (!k2) {
+                btn.disabled = false;
+                btn.textContent = '✓ API Key Working';
+                setSettingsMsg('ok', 'Your API key is working! You can now generate sheets.');
+                return;
+            }
+            pingGeminiKey(k2).then(function (r2) {
+                btn.disabled = false;
+                if (r2.ok) {
+                    btn.textContent = '✓ Keys Working';
+                    setSettingsMsg('ok', 'Primary and backup keys are both working!');
+                } else {
+                    btn.textContent = 'Test API Key';
+                    setSettingsMsg('fail', 'Primary key works, but the backup failed: ' + r2.friendly);
+                }
+            }, function () {
+                btn.disabled = false;
+                btn.textContent = 'Test API Key';
+                setSettingsMsg('fail', 'Primary key works, but cannot reach Google to test the backup.');
+            });
+        }, function () {
+            btn.disabled = false;
+            btn.textContent = 'Test API Key';
+            setSettingsMsg('fail', 'Cannot reach Google. Check your internet connection and try again.');
+        });
+    }
+    function bindSettingsDropdown() {
+        var gear = $('settings-btn');
+        var dd = $('settings-dropdown');
+        var input = $('settings-key-input');
+        var testBtn = $('settings-test-btn');
+        if (!gear || !dd) return;
+        function close() { dd.classList.add('hidden'); }
+        gear.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            var wasHidden = dd.classList.contains('hidden');
+            close();
+            if (wasHidden) { dd.classList.remove('hidden'); if (input) input.focus(); }
+        });
+        document.addEventListener('mousedown', function (e) {
+            if (dd.classList.contains('hidden')) return;
+            if (dd.contains(e.target) || gear.contains(e.target)) return;
+            close();
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+        if (input) input.addEventListener('input', function () {
+            var v = input.value.trim();
+            if (window.SilidKeys) window.SilidKeys.set('primary', v);
+            else if (v) localStorage.setItem('gemini_api_key', v);
+            else localStorage.removeItem('gemini_api_key');
+            state.apiKey = v;
+            updateApiDot();
+            if (testBtn) { testBtn.textContent = 'Test API Key'; testBtn.disabled = false; }
+            var msgEl = $('settings-test-msg');
+            if (msgEl) msgEl.classList.add('hidden');
+        });
+        var input2 = $('settings-key-input-2');
+        if (input2) {
+            if (!input2.value) input2.value = window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || '');
+            input2.addEventListener('input', function () {
+                var v = input2.value.trim();
+                if (window.SilidKeys) window.SilidKeys.set('backup', v);
+                else if (v) localStorage.setItem('gemini_api_key_2', v);
+                else localStorage.removeItem('gemini_api_key_2');
+                state.apiKey2 = v;
+                if (testBtn) { testBtn.textContent = 'Test API Key'; testBtn.disabled = false; }
+                var msgEl = $('settings-test-msg');
+                if (msgEl) msgEl.classList.add('hidden');
+            });
+        }
+        var remember = $('remember-keys');
+        var rememberHintEl = $('remember-keys-hint');
+        if (remember) {
+            remember.checked = !!(window.SilidKeys && window.SilidKeys.isRemembered());
+            if (rememberHintEl && window.SilidKeys) rememberHintEl.textContent = window.SilidKeys.rememberHint(remember.checked);
+            remember.addEventListener('change', function () {
+                if (!window.SilidKeys) return;
+                var hint = window.SilidKeys.rememberHint(remember.checked);
+                window.SilidKeys.setRemembered(remember.checked);
+                if (rememberHintEl) rememberHintEl.textContent = hint;
+                if (window.SilidToast) window.SilidToast.info(hint);
+            });
+        }
+        if (testBtn) testBtn.addEventListener('click', testApiKeyNow);
+    }
+
+    /* ============================================================
+       Init
+       ============================================================ */
+    function init() {
+        var savedKey = window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || '');
+        state.apiKey = savedKey;
+        var keyInput = $('settings-key-input');
+        if (keyInput) keyInput.value = savedKey;
+        var savedKey2 = window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || '');
+        state.apiKey2 = savedKey2;
+        var keyInput2 = $('settings-key-input-2');
+        if (keyInput2) keyInput2.value = savedKey2;
+        updateApiDot();
+        bindSettingsDropdown();
+        bindAutocomplete($('custom-grade'), $('custom-grade-list'), window.DEPED_GRADE_LEVELS || []);
+        bindAutocomplete($('custom-subject'), $('custom-subject-list'), window.DEPED_SUBJECTS || []);
+        bindFileInput();
+        loadFromLessonPlan();
+        $('lesson-from-clear').addEventListener('click', clearFromLesson);
+        renderSections();
+
+        document.querySelectorAll('#mode-tabs button').forEach(function (b) {
+            b.addEventListener('click', function () { setMode(b.dataset.mode); });
+        });
+        document.querySelectorAll('#diff-pills button').forEach(function (b) {
+            b.addEventListener('click', function () {
+                state.difficulty = b.dataset.diff;
+                document.querySelectorAll('#diff-pills button').forEach(function (x) { x.classList.toggle('active', x === b); });
+            });
+        });
+        $('btn-add-section').addEventListener('click', function () {
+            state.sections.push({ type: 'Multiple Choice', count: 5, instruction: '' });
+            renderSections();
+        });
+        $('btn-lesson-generate').addEventListener('click', generate);
+        $('btn-custom-generate').addEventListener('click', generate);
+        $('btn-confirm-review').addEventListener('click', confirmReview);
+        $('btn-cancel-review').addEventListener('click', cancelReview);
+        $('btn-download').addEventListener('click', downloadDocx);
+        $('btn-download-doc').addEventListener('click', downloadFlatDoc);
+        $('btn-print').addEventListener('click', function () { window.print(); });
+        $('btn-answer-key').addEventListener('click', generateAnswerKey);
+        $('btn-rubric').addEventListener('click', generateRubric);
+        restoreActivityOutput();
+
+        if (window.SilidDocsUI) {
+            window.SilidDocsUI.mount({ tool: 'activity-sheet', label: 'Activity Sheet' });
+            window.SilidDocsUI.onOpen(function (doc) {
+                if (!doc || !doc.content) return;
+                var m = doc.meta || {};
+                if (m.sheetHtml) state.sheetHtml = m.sheetHtml;
+                state.answerKeyHtml = m.answerKeyHtml || '';
+                state.rubricHtml = m.rubricHtml || '';
+                state.hasKey = !!m.hasKey;
+                state.hasRubric = !!m.hasRubric;
+                if (m.sheetMeta) state.sheetMeta = m.sheetMeta;
+                if (m.sheetLang) state.sheetLang = m.sheetLang;
+                if (m.mode) { state.mode = m.mode; setMode(state.mode); }
+                docsLastId = doc.id;
+                $('output-content').innerHTML = doc.content;
+                $('empty-state').classList.add('hidden');
+                $('output-wrap').classList.remove('hidden');
+                $('actions-bar').classList.remove('hidden');
+                $('actions-bar').classList.add('flex');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+
+        // reveal animation
+        setTimeout(function () {
+            document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('visible'); });
+        }, 50);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+</body>
+</html>

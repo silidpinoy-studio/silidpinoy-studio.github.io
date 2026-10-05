@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>PPT Maker — SilidPinoy</title>
+    <script>/* cache-bust */ localStorage.removeItem('saved_ppt_output');</script>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            display: ['"Fraunces"', 'serif'],
+          },
+          colors: {
+            ink: '#0B0A12',
+            canvas: '#F7F6F3',
+            mist: '#EEEDF8',
+            iris: { 50:'#F1EEFE',100:'#E7E2FD',200:'#D2C9FB',500:'#6D5BF5',600:'#5B46E8',700:'#4632C9' },
+          },
+          transitionTimingFunction: {
+            spring: 'cubic-bezier(0.32,0.72,0,1)',
+            soft: 'cubic-bezier(0.22,1,0.36,1)',
+          },
+        },
+      },
+    };
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="shared-api.js"></script>
+    <script src="shared-keys.js"></script>
+    <script src="shared-validate.js"></script>
+    <script src="shared-docs.js"></script>
+    <script src="shared-docs-ui.js"></script>
+    <script src="shared-file-utils.js"></script>
+    <script src="shared-toast.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&display=swap" rel="stylesheet">
+    <style>
+        * { -webkit-font-smoothing: antialiased; }
+        body { margin:0; background:#F7F6F3; }
+        body::before {
+          content:""; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0.035;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+        .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.14) 0%,transparent 70%); }
+        .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1); }
+        .btn-spring:hover { transform:translateY(-2px); }
+        .card-bezel { border-radius:1.75rem; padding:6px; background:white; box-shadow:0 24px 70px -34px rgba(11,10,18,0.3); }
+        .card-inner { border-radius:calc(1.75rem - 6px); background:#F7F6F3; }
+        .pill-group { display:flex; background:white; padding:4px; border-radius:12px; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05); }
+        .pill-group button { flex:1; padding:8px 12px; border-radius:10px; font-size:13px; font-weight:600; transition: all .2s; color:rgba(11,10,18,0.5); display:flex; align-items:center; justify-content:center; gap:6px; }
+        .pill-group button.active { background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3); }
+        .section-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+        .section-header .icon-circle { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; background:rgba(91,70,232,0.1); color:#5B46E8; flex-shrink:0; }
+        .section-header h3 { font-size:14px; font-weight:700; letter-spacing:-0.01em; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+        .animate-fade-in { animation:fadeIn .2s ease-out forwards; }
+        .reveal { opacity:0; transform:translateY(24px); transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+        .reveal.visible { opacity:1; transform:translateY(0); }
+        .loader { border-top-color: #5B46E8; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        .slide-mock { border:10px solid #0B0A12; border-radius:1.5rem; overflow:hidden; background:white; aspect-ratio:16/9; }
+        .day-toggle, .theme-toggle, .lang-toggle, .atype-toggle, .adiff-toggle, .dllsrc-toggle {
+          padding:7px 12px; border-radius:10px; font-size:12px; font-weight:600;
+          background:white; color:rgba(11,10,18,0.6); transition:all .2s;
+          box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);
+        }
+        .day-toggle:hover, .theme-toggle:hover, .lang-toggle:hover, .atype-toggle:hover, .adiff-toggle:hover, .dllsrc-toggle:hover { color:#0B0A12; }
+        .day-toggle.active, .lang-toggle.active, .atype-toggle.active, .adiff-toggle.active, .dllsrc-toggle.active {
+          background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3);
+        }
+        .theme-toggle { padding:5px; text-align:center; }
+        .theme-toggle.active { outline:2px solid #5B46E8; outline-offset:1px; }
+        .dllsrc-toggle { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:8px 6px; }
+        .scroll-thin::-webkit-scrollbar { width:6px; }
+        .scroll-thin::-webkit-scrollbar-thumb { background:rgba(11,10,18,0.12); border-radius:99px; }
+        /* Print handout: only #print-handout prints, one slide per page (like PowerPoint's notes pages). */
+        #print-handout { display:none; }
+        @media print {
+          @page { size: A4 landscape; margin: 0.4in; }
+          body { background:#fff !important; }
+          body::before { display:none!important; }
+          .no-print { display:none!important; }
+          body > *:not(#print-handout) { display:none!important; }
+          #print-handout { display:block !important; }
+          .print-page { break-after:page; page-break-after:always; }
+          .print-page:last-child { break-after:auto; page-break-after:auto; }
+        }
+    </style>
+</head>
+<body class="font-sans text-ink antialiased min-h-screen flex flex-col">
+
+    <!-- Premium Header Nav -->
+    <header class="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+        <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
+            <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer">
+                <span class="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
+                    <span class="text-[15px] font-extrabold leading-none">S</span>
+                </span>
+                <span class="font-semibold tracking-tight text-base">Silid<span class="text-iris-600">Pinoy</span></span><span class="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
+            </a>
+            <a href="index.html#test-maker" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Test Maker</a>
+            <a href="tos.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
+            <a href="lesson.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
+            <span class="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">PPT Maker</span>
+            <a href="activity.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+            <span data-silid-docs-slot class="ml-1 flex items-center"></span>
+            <button id="settings-btn" type="button" class="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span id="api-status-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>
+            </button>
+        </nav>
+
+        <!-- Inline Settings dropdown (API key) -->
+        <div id="settings-dropdown" class="hidden absolute top-full right-4 mt-3 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50">
+            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Primary API Key</label>
+            <input type="password" id="settings-key-input" placeholder="Paste your API key..." autocomplete="off"
+                class="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-2">Backup API Key <span class="normal-case font-medium text-ink/35">(optional)</span></label>
+            <input type="password" id="settings-key-input-2" placeholder="Paste a key from another account..." autocomplete="off"
+                class="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+            <label class="flex items-start gap-2 mt-3 text-[11px] text-ink/70 cursor-pointer select-none">
+                <input type="checkbox" id="remember-keys" class="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
+                <span>Remember my API key on this device</span>
+            </label>
+            <p id="remember-keys-hint" class="text-[10px] text-ink/40 mt-1.5">Off — your key is kept for this browser session only and is never written to your device.</p>
+            <p class="text-[10px] text-ink/40 mt-1">Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-iris-600 underline">Get keys</a></p>
+            <button id="settings-test-btn" type="button"
+                class="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100">
+                Test API Key
+            </button>
+            <p id="settings-test-msg" class="hidden text-[10px] mt-1.5 px-1"></p>
+            <div class="border-t border-black/5 mt-3 pt-3">
+                <a href="index.html#settings" class="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    School &amp; Personal Info
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full pt-28 pb-16">
+        <div class="max-w-6xl mx-auto px-4 md:px-6">
+
+            <!-- Page heading -->
+            <div class="text-center mb-8 reveal visible">
+                <span class="text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600">PowerPoint Generator</span>
+                <h1 class="font-display text-4xl md:text-5xl font-light tracking-tight mt-2">Turn any material into a slide deck.</h1>
+                <p class="text-ink/55 mt-3 max-w-xl mx-auto text-sm">Pick a source below, paste or upload your content, and download a ready-to-use <strong>.pptx</strong>.</p>
+            </div>
+
+            <!-- Mode tabs -->
+            <div class="max-w-3xl mx-auto mb-8">
+                <div class="pill-group" id="mode-tabs">
+                    <button type="button" data-mode="topic" class="active">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        Any Topic
+                    </button>
+                    <button type="button" data-mode="dll">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2" ry="2"/><line x1="12" y1="20" x2="12" y2="16"/><line x1="8" y1="20" x2="16" y2="20"/></svg>
+                        DLL → PPT
+                    </button>
+                    <button type="button" data-mode="exam">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        Exam / Quiz → PPT
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:flex lg:gap-6 items-start">
+
+                <!-- ============ INPUT PANEL ============ -->
+                <section class="no-print lg:w-2/5 flex-shrink-0 space-y-4">
+
+                    <!-- Card: Any Topic -->
+                    <div id="card-topic" class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                            <h3>Topic Details</h3>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Topic / Lesson Title <span class="text-red-500">*</span></label>
+                                <input type="text" id="topic-input" placeholder="e.g. Photosynthesis, Araling Panlipunan Week 3, Climate Change"
+                                    class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Audience <span class="text-ink/25">(optional)</span></label>
+                                    <input type="text" id="topic-audience" placeholder="e.g. Grade 7 Students"
+                                        class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Purpose <span class="text-ink/25">(optional)</span></label>
+                                    <input type="text" id="topic-purpose" placeholder="e.g. Introduce / Review"
+                                        class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Extra Instructions <span class="text-ink/25">(optional)</span></label>
+                                <textarea id="topic-extra" rows="2" placeholder="e.g. Include examples, keep it simple for beginners"
+                                    class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Deck Size <span class="text-ink/25">(slide range)</span></label>
+                                <select id="topic-slide-range" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    <option value="5-8">Short — 5 to 8 slides</option>
+                                    <option value="8-12" selected>Standard — 8 to 12 slides</option>
+                                    <option value="12-16">Long — 12 to 16 slides</option>
+                                    <option value="16-20">Very long — 16 to 20 slides</option>
+                                    <option value="20+">Deep dive — 20+ slides</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Source Content</label>
+                                <div class="pill-group mb-3" style="max-width:320px;">
+                                    <button type="button" data-io="paste" class="io-toggle active">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                                        Paste Text
+                                    </button>
+                                    <button type="button" data-io="file" class="io-toggle">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                        Upload File
+                                    </button>
+                                </div>
+                                <textarea id="topic-paste" rows="5" placeholder="Paste your notes, module text, or lesson content here…"
+                                    class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                                <div id="topic-file-wrap" class="hidden">
+                                    <label class="block cursor-pointer">
+                                        <div class="rounded-xl border-2 border-dashed border-iris-200 bg-iris-50/40 hover:bg-iris-50 p-6 text-center transition">
+                                            <p class="text-sm font-semibold text-iris-600" id="topic-file-label">Click to choose a file (.docx, .doc or .txt)</p>
+                                            <p class="text-xs text-ink/40 mt-1">Word documents and text files supported</p>
+                                        </div>
+                                        <input type="file" id="topic-file" accept=".pdf,.docx,.doc,.txt,application/pdf" class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+                            <button id="btn-topic-generate" class="w-full bg-iris-600 hover:bg-iris-700 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 shadow-lg shadow-iris-200 btn-spring">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+                                Generate Deck
+                            </button>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: DLL / Lesson Exemplar -->
+                    <div id="card-dll" class="card-bezel hidden"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2" ry="2"/><line x1="12" y1="20" x2="12" y2="16"/><line x1="8" y1="20" x2="16" y2="20"/></svg></span>
+                            <h3>Lesson / DLL → Presentation</h3>
+                        </div>
+                        <div class="space-y-4">
+                            <p class="text-xs text-ink/50 leading-relaxed">Upload a lesson exemplar or DLL, or type the details manually. Pick the day, deck size, theme, language, and optional assessment — the AI builds an engaging deck of your chosen length with speaker notes.</p>
+
+                            <!-- 1. Source type -->
+                            <div class="pill-group" id="dll-source-pills">
+                                <button type="button" data-dllsrc="exemplar" class="dllsrc-toggle active">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                    Exemplar
+                                </button>
+                                <button type="button" data-dllsrc="dll" class="dllsrc-toggle">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                    Upload DLL
+                                </button>
+                                <button type="button" data-dllsrc="manual" class="dllsrc-toggle">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                    Manual
+                                </button>
+                            </div>
+
+                            <!-- Upload / paste area -->
+                            <div id="dll-upload-area">
+                                <div class="pill-group mb-3" style="max-width:320px;">
+                                    <button type="button" data-io="paste" class="io-toggle active">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                                        Paste Text
+                                    </button>
+                                    <button type="button" data-io="file" class="io-toggle">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                        Upload File
+                                    </button>
+                                </div>
+                                <textarea id="dll-paste" rows="6" placeholder="Paste your lesson exemplar / DLL content here…"
+                                    class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                                <div id="dll-file-wrap" class="hidden">
+                                    <label class="block cursor-pointer">
+                                        <div class="rounded-xl border-2 border-dashed border-iris-200 bg-iris-50/40 hover:bg-iris-50 p-6 text-center transition">
+                                            <p class="text-sm font-semibold text-iris-600" id="dll-file-label">Click to choose a file</p>
+                                            <p class="text-xs text-ink/40 mt-1">Supports .pdf, .docx, .doc, and .txt</p>
+                                        </div>
+                                        <input type="file" id="dll-file" accept=".pdf,.docx,.doc,.txt,application/pdf" class="hidden">
+                                    </label>
+                                </div>
+                                <div id="dll-file-status" class="hidden rounded-xl bg-iris-50 ring-1 ring-iris-100 p-3 flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <svg class="text-iris-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span id="dll-file-status-name" class="text-xs font-semibold text-ink/70 truncate"></span>
+                                    </div>
+                                    <button id="dll-file-clear" class="text-ink/30 hover:text-red-500 transition p-1 flex-shrink-0" title="Remove file">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Manual entry area -->
+                            <div id="dll-manual-area" class="hidden space-y-3">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Subject <span class="text-red-500">*</span></label>
+                                        <input type="text" id="dll-subject" placeholder="e.g. Science, Mathematics"
+                                            class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Grade Level <span class="text-red-500">*</span></label>
+                                        <input type="text" id="dll-grade" placeholder="e.g. Grade 5"
+                                            class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Competency / Topic <span class="text-red-500">*</span></label>
+                                    <input type="text" id="dll-competency" placeholder="e.g. The Water Cycle, Fractions, Parts of Speech"
+                                        class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Source Text / Lesson Plan <span class="text-ink/25">(optional)</span></label>
+                                    <textarea id="dll-manual-text" rows="4" placeholder="Paste your lesson plan, reading material, or context here…"
+                                        class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- 2. Day selector -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Target Day</label>
+                                <div class="flex flex-wrap gap-2" id="dll-days">
+                                    <button type="button" data-day="Day 1" class="day-toggle active">Day 1</button>
+                                    <button type="button" data-day="Day 2" class="day-toggle">Day 2</button>
+                                    <button type="button" data-day="Day 3" class="day-toggle">Day 3</button>
+                                    <button type="button" data-day="Day 4" class="day-toggle">Day 4</button>
+                                    <button type="button" data-day="Day 5" class="day-toggle">Day 5</button>
+                                </div>
+                            </div>
+
+                            <!-- 3. Theme -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Theme</label>
+                                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2" id="dll-themes">
+                                    <button type="button" data-theme="modern" class="theme-toggle active" title="Modern Slate">
+                                        <span class="block h-8 rounded-lg overflow-hidden flex ring-1 ring-black/10"><span class="w-1/2" style="background:#0F172A"></span><span class="w-1/2" style="background:#3B82F6"></span></span>
+                                        <span class="text-[9px] font-semibold text-ink/50 mt-1 block">Slate</span>
+                                    </button>
+                                    <button type="button" data-theme="forest" class="theme-toggle" title="Forest Green">
+                                        <span class="block h-8 rounded-lg overflow-hidden flex ring-1 ring-black/10"><span class="w-1/2" style="background:#14532D"></span><span class="w-1/2" style="background:#16A34A"></span></span>
+                                        <span class="text-[9px] font-semibold text-ink/50 mt-1 block">Forest</span>
+                                    </button>
+                                    <button type="button" data-theme="sunset" class="theme-toggle" title="Sunset Warm">
+                                        <span class="block h-8 rounded-lg overflow-hidden flex ring-1 ring-black/10"><span class="w-1/2" style="background:#7F1D1D"></span><span class="w-1/2" style="background:#EA580C"></span></span>
+                                        <span class="text-[9px] font-semibold text-ink/50 mt-1 block">Sunset</span>
+                                    </button>
+                                    <button type="button" data-theme="ocean" class="theme-toggle" title="Deep Ocean">
+                                        <span class="block h-8 rounded-lg overflow-hidden flex ring-1 ring-black/10"><span class="w-1/2" style="background:#1E3A8A"></span><span class="w-1/2" style="background:#06B6D4"></span></span>
+                                        <span class="text-[9px] font-semibold text-ink/50 mt-1 block">Ocean</span>
+                                    </button>
+                                    <button type="button" data-theme="purple" class="theme-toggle" title="Royal Purple">
+                                        <span class="block h-8 rounded-lg overflow-hidden flex ring-1 ring-black/10"><span class="w-1/2" style="background:#4C1D95"></span><span class="w-1/2" style="background:#8B5CF6"></span></span>
+                                        <span class="text-[9px] font-semibold text-ink/50 mt-1 block">Purple</span>
+                                    </button>
+                                    <button type="button" data-theme="playful" class="theme-toggle" title="Playful">
+                                        <span class="block h-8 rounded-lg overflow-hidden flex ring-1 ring-black/10"><span class="w-1/2" style="background:#4285F4"></span><span class="w-1/2" style="background:#FFAB40"></span></span>
+                                        <span class="text-[9px] font-semibold text-ink/50 mt-1 block">Playful</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 4. Language -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Output Language</label>
+                                <div class="pill-group" style="max-width:240px;">
+                                    <button type="button" data-lang="English" class="lang-toggle active">English</button>
+                                    <button type="button" data-lang="Filipino" class="lang-toggle">Filipino</button>
+                                </div>
+                            </div>
+
+                            <!-- 5. Deck size -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Deck Size <span class="text-ink/25">(slide range)</span></label>
+                                <select id="dll-slide-range" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                    <option value="5-8">Short — 5 to 8 slides</option>
+                                    <option value="8-12">Standard — 8 to 12 slides</option>
+                                    <option value="12-16" selected>Long — 12 to 16 slides</option>
+                                    <option value="16-20">Very long — 16 to 20 slides</option>
+                                    <option value="20+">Deep dive — 20+ slides</option>
+                                </select>
+                                <p class="text-[11px] text-ink/40 mt-1.5">Counts lesson slides only — assessment slides (if enabled) are added on top.</p>
+                            </div>
+
+                            <!-- 6. Assessment -->
+                            <div>
+                                <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                                    <input type="checkbox" id="dll-assessment-toggle" class="w-4 h-4 rounded accent-iris-600">
+                                    <span class="text-sm font-semibold text-ink/70">Include an assessment at the end</span>
+                                </label>
+                                <div id="dll-assessment-opts" class="hidden mt-3 space-y-3 rounded-xl bg-white ring-1 ring-black/5 p-4">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Type</label>
+                                        <div class="flex flex-wrap gap-1.5">
+                                            <button type="button" data-atype="Multiple Choice" class="atype-toggle active">Multiple Choice</button>
+                                            <button type="button" data-atype="True or False" class="atype-toggle">True or False</button>
+                                            <button type="button" data-atype="Short Answer" class="atype-toggle">Short Answer</button>
+                                            <button type="button" data-atype="Fill in the blanks" class="atype-toggle">Fill in the blanks</button>
+                                            <button type="button" data-atype="Matching Type" class="atype-toggle">Matching Type</button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex-1">
+                                            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Difficulty</label>
+                                            <div class="flex gap-1.5">
+                                                <button type="button" data-adiff="Easy" class="adiff-toggle">Easy</button>
+                                                <button type="button" data-adiff="Medium" class="adiff-toggle active">Medium</button>
+                                                <button type="button" data-adiff="Difficult" class="adiff-toggle">Difficult</button>
+                                            </div>
+                                        </div>
+                                        <div class="flex-1">
+                                            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Items: <span id="dll-items-val" class="text-iris-600">5</span></label>
+                                            <input type="range" id="dll-items" min="1" max="10" value="5" class="w-full accent-iris-600">
+                                        </div>
+                                    </div>
+                                    <p class="text-[11px] text-ink/45 leading-relaxed">Answer key is placed secretly in the speaker notes of each assessment slide.</p>
+                                </div>
+                            </div>
+
+                            <button id="btn-dll-generate" class="w-full bg-iris-600 hover:bg-iris-700 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 shadow-lg shadow-iris-200 btn-spring">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+                                Generate Presentation
+                            </button>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: Exam / Quiz -->
+                    <div id="card-exam" class="card-bezel hidden"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                            <h3>Exam / Quiz Source</h3>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="pill-group" style="max-width:320px;">
+                                <button type="button" data-qtype="exam" class="qtype-toggle active">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                                        Exam
+                                    </button>
+                                    <button type="button" data-qtype="quiz" class="qtype-toggle">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>
+                                        Quiz
+                                    </button>
+                                </div>
+                            <p class="text-xs text-ink/50 leading-relaxed">Upload the exam/quiz document or paste the questions. The AI extracts each question and builds one review slide per item — answers go into the speaker notes.</p>
+                            <div>
+                                <div class="pill-group mb-3" style="max-width:320px;">
+                                    <button type="button" data-io="paste" class="io-toggle active">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                                        Paste Text
+                                    </button>
+                                    <button type="button" data-io="file" class="io-toggle">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                        Upload File
+                                    </button>
+                                </div>
+                                <textarea id="exam-paste" rows="8" placeholder="Paste the exam or quiz questions here…&#10;1. What is the capital of France?&#10;A. London&#10;B. Paris&#10;C. Berlin&#10;Answer: B"
+                                    class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
+                                <div id="exam-file-wrap" class="hidden">
+                                    <label class="block cursor-pointer">
+                                        <div class="rounded-xl border-2 border-dashed border-iris-200 bg-iris-50/40 hover:bg-iris-50 p-6 text-center transition">
+                                            <p class="text-sm font-semibold text-iris-600" id="exam-file-label">Click to choose a file (.docx, .doc or .txt)</p>
+                                            <p class="text-xs text-ink/40 mt-1">Word documents and text files supported</p>
+                                        </div>
+                                        <input type="file" id="exam-file" accept=".pdf,.docx,.doc,.txt,application/pdf" class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+                            <button id="btn-exam-generate" class="w-full bg-iris-600 hover:bg-iris-700 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 shadow-lg shadow-iris-200 btn-spring">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+                                Extract Questions
+                            </button>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: Slide Visuals -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span>
+                            <h3>Slide Visuals</h3>
+                        </div>
+                        <div class="pill-group" id="visuals-pills">
+                            <button type="button" data-visuals="images" class="visuals-toggle active">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+                                AI Images
+                            </button>
+                            <button type="button" data-visuals="both" class="visuals-toggle">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><path d="M12 5.5h4"/><path d="M14 3.5v4"/></svg>
+                                Images + Emoji
+                            </button>
+                            <button type="button" data-visuals="emoji" class="visuals-toggle">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                                Emoji Icons
+                            </button>
+                            <button type="button" data-visuals="none" class="visuals-toggle">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                                None
+                            </button>
+                        </div>
+                        <p id="visuals-hint" class="text-xs text-ink/50 mt-3 leading-relaxed">AI-generated illustrations powered by Gemini for slides that have a visual idea. Requires a Gemini API key.</p>
+                        <div id="youtube-input-wrap" class="hidden mt-3">
+                            <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">YouTube Video URL <span class="text-ink/25">(optional)</span></label>
+                            <input type="text" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..."
+                                class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                            <p class="text-[10px] text-ink/40 mt-1">Paste a YouTube link to embed a video on the current slide. Works in Microsoft 365.</p>
+                        </div>
+                    </div></div>
+
+                    <!-- Error box -->
+                    <div id="input-error" class="hidden rounded-xl bg-red-50 ring-1 ring-red-100 p-4 text-sm text-red-600 font-medium"></div>
+
+                </section>
+
+                <!-- ============ PREVIEW PANEL ============ -->
+                <section class="no-print lg:w-3/5 flex-shrink-0 mt-6 lg:mt-0">
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)] min-h-[480px]">
+
+                        <!-- Empty state -->
+                        <div id="panel-empty" class="flex flex-col items-center justify-center text-center py-24 px-6">
+                            <span class="grid place-items-center w-16 h-16 rounded-2xl bg-mist text-iris-600 mb-5">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2" ry="2"/><line x1="12" y1="20" x2="12" y2="16"/><line x1="8" y1="20" x2="16" y2="20"/></svg>
+                            </span>
+                            <h3 class="font-display text-2xl font-light">Your deck will appear here</h3>
+                            <p class="text-ink/45 text-sm mt-2 max-w-sm">Choose a mode on the left, add your content, and press generate. You'll get a preview with speaker notes and a one-click <strong>.pptx</strong> download.</p>
+                        </div>
+
+                        <!-- Loading state -->
+                        <div id="panel-loading" class="hidden flex-col items-center justify-center text-center py-24 px-6">
+                            <div class="relative mb-8">
+                                <div class="absolute inset-0 bg-iris-500 rounded-full animate-ping opacity-20"></div>
+                                <div class="w-24 h-24 bg-white rounded-full shadow-xl flex items-center justify-center relative z-10 ring-1 ring-black/5">
+                                    <div class="w-10 h-10 border-4 border-mist border-t-iris-600 rounded-full loader"></div>
+                                </div>
+                            </div>
+                            <h3 class="text-xl font-bold" id="loading-title">Generating…</h3>
+                            <p class="text-ink/45 text-sm mt-2 max-w-sm" id="loading-sub">This usually takes a few seconds.</p>
+                        </div>
+
+                        <!-- Exam review state -->
+                        <div id="panel-review" class="hidden">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+                                <div>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-iris-600">Review Mode</span>
+                                    <h3 class="text-lg font-bold mt-1" id="review-count"></h3>
+                                    <p class="text-xs text-ink/45">Remove items you don't want before building the deck.</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button id="btn-review-cancel" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-ink/60 hover:bg-black/5 transition">Cancel</button>
+                                    <button id="btn-review-build" class="bg-iris-600 hover:bg-iris-700 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-iris-200 btn-spring flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        Build &amp; Download PPTX
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="review-list" class="grid sm:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto scroll-thin pr-1"></div>
+                        </div>
+
+                        <!-- Slides preview state -->
+                        <div id="panel-preview" class="hidden">
+                            <div class="flex items-center justify-between gap-3 mb-5 flex-wrap">
+                                <div class="flex items-center gap-2">
+                                    <button id="btn-prev" class="p-2.5 rounded-xl ring-1 ring-black/5 bg-white text-ink/50 hover:text-ink transition disabled:opacity-30 disabled:pointer-events-none">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                                    </button>
+                                    <span class="text-xs font-bold text-ink/45 bg-white ring-1 ring-black/5 px-3 py-2 rounded-lg">Slide <span id="slide-num">1</span> / <span id="slide-total">1</span></span>
+                                    <button id="btn-next" class="p-2.5 rounded-xl ring-1 ring-black/5 bg-white text-ink/50 hover:text-ink transition disabled:opacity-30 disabled:pointer-events-none">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                    </button>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button id="btn-start-over" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-ink/60 hover:bg-black/5 transition">Start Over</button>
+                                    <button id="btn-print-deck" class="bg-white ring-1 ring-black/10 hover:ring-black/25 text-ink text-sm font-bold px-5 py-2.5 rounded-xl btn-spring flex items-center gap-2" title="Print or save as PDF — a handout of every slide and its speaker notes. No PowerPoint needed.">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                        Print / PDF
+                                    </button>
+                                    <button id="btn-download" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 btn-spring flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        Download .pptx
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Slide mock -->
+                            <div class="slide-mock">
+                                <div id="slide-body" class="h-full w-full"></div>
+                            </div>
+
+                            <!-- Image generation progress bar -->
+                            <div id="img-status" class="hidden mt-3">
+                                <div class="rounded-xl bg-iris-500/5 ring-1 ring-iris-500/10 px-4 py-3">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div class="flex items-center gap-2">
+                                            <svg id="img-status-spinner" class="animate-spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                            <span id="img-status-text" class="text-xs font-semibold text-iris-600"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span id="img-status-pct" class="text-[10px] font-bold text-iris-500 tabular-nums"></span>
+                                            <button id="img-cancel-btn" type="button" class="hidden px-2 py-0.5 rounded-md text-[10px] font-bold text-red-500 bg-red-50 ring-1 ring-red-200 hover:bg-red-100 transition" title="Cancel image generation">Cancel</button>
+                                        </div>
+                                    </div>
+                                    <div class="w-full h-2 bg-iris-100 rounded-full overflow-hidden">
+                                        <div id="img-status-bar" class="h-full bg-gradient-to-r from-iris-500 to-iris-400 rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Speaker notes -->
+                            <div class="mt-4 bg-iris-500/5 ring-1 ring-iris-500/10 rounded-2xl p-4 flex gap-3">
+                                <span class="grid place-items-center w-8 h-8 rounded-lg bg-iris-500/15 text-iris-600 flex-shrink-0 mt-0.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                </span>
+                                <div class="min-w-0">
+                                    <span class="font-black text-[10px] uppercase tracking-widest text-iris-600 block mb-1">Speaker Notes</span>
+                                    <p id="preview-notes" class="text-sm text-ink/70 leading-relaxed"></p>
+                                </div>
+                            </div>
+
+                            <!-- Preview disclaimer -->
+                            <div class="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 ring-1 ring-amber-200/60">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500 flex-shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <p class="text-[11px] text-amber-700 leading-relaxed"><strong>Preview is approximate.</strong> The actual .pptx may look slightly different due to font and layout rendering differences between browser and PowerPoint.</p>
+                            </div>
+                        </div>
+
+                    </div></div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- Print / PDF handout target — filled in only when Print / PDF is pressed. -->
+    <div id="print-handout"></div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        var $ = function (id) { return document.getElementById(id); };
+
+        /* ---------- state ---------- */
+        var state = {
+            mode: 'topic',            // topic | dll | exam
+            qtype: 'exam',            // exam | quiz
+            slides: [],
+            items: [],
+            current: 0,
+            fileName: 'deck',
+            apiKey: '',
+            apiKey2: '',
+            // DLL / lesson mode
+            dllInputType: 'exemplar',  // exemplar | dll | manual
+            selectedDay: 'Day 1',
+            selectedTheme: 'modern',
+            selectedLanguage: 'English',
+            includeAssessment: false,
+            assessmentType: 'Multiple Choice',
+            assessmentItems: 5,
+            assessmentDifficulty: 'Medium',
+            dllText: '',               // uploaded/pasted source text
+            uploadedFileName: '',
+            presentationTitle: '',
+            generatedImages: {},       // slide index -> data URL
+            generatingImages: {},
+            imageErrors: {},
+            visuals: 'images',         // images | both | emoji | none
+            slideRange: '8-12',        // 5-8 | 8-12 | 12-16 | 16-20 | 20+  (topic mode)
+            dllSlideRange: '12-16',    // deck size for DLL / lesson mode
+            youtubeUrl: ''             // optional YouTube URL for current slide
+        };
+
+        var THEMES = {
+            modern: { name: 'Modern Slate', primary: '0F172A', secondary: '3B82F6', accent: 'E2E8F0', text: '334155', bg: 'F8FAFC' },
+            forest: { name: 'Forest Green', primary: '14532D', secondary: '16A34A', accent: 'DCFCE7', text: '1F2937', bg: 'F0FDF4' },
+            sunset: { name: 'Sunset Warm', primary: '7F1D1D', secondary: 'EA580C', accent: 'FFEDD5', text: '431407', bg: 'FFF7ED' },
+            ocean:  { name: 'Deep Ocean', primary: '1E3A8A', secondary: '06B6D4', accent: 'CFFAFE', text: '172554', bg: 'F0F9FF' },
+            purple: { name: 'Royal Purple', primary: '4C1D95', secondary: '8B5CF6', accent: 'EDE9FE', text: '2E1065', bg: 'F5F3FF' },
+            playful: { name: 'Playful', primary: '4285F4', secondary: 'FFAB40', accent: '0097A7', text: '333333', bg: 'FFFFFF' }
+        };
+
+        /* ---------- SVG icon library for Playful theme ---------- */
+        var SVG_ICONS = {
+            book:    'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#4285F4"/><path d="M20 18h24M20 26h24M20 34h16" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="44" cy="40" r="8" fill="#FFAB40"/><path d="M41 40l3 3 5-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'),
+            pencil:  'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#FFAB40"/><path d="M24 44l16-16 4 4-16 16H24v-4z" fill="white"/><path d="M28 28l4-4 8 8-4 4" fill="white" opacity="0.5"/></svg>'),
+            lightbulb:'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#0097A7"/><circle cx="32" cy="28" r="12" fill="white" opacity="0.9"/><rect x="26" y="40" width="12" height="6" rx="2" fill="white" opacity="0.7"/><path d="M28 22l4-6 4 6" stroke="#0097A7" stroke-width="2" stroke-linecap="round"/></svg>'),
+            globe:   'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#4285F4"/><circle cx="32" cy="32" r="16" fill="white" opacity="0.2"/><circle cx="32" cy="32" r="16" stroke="white" stroke-width="2"/><ellipse cx="32" cy="32" rx="8" ry="16" stroke="white" stroke-width="1.5"/><line x1="16" y1="32" x2="48" y2="32" stroke="white" stroke-width="1.5"/></svg>'),
+            star:    'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#FFAB40"/><path d="M32 16l4 10h10l-8 6 3 10-9-6-9 6 3-10-8-6h10z" fill="white"/></svg>'),
+            heart:   'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#E53935"/><path d="M32 44c-12-8-20-14-20-22a8 8 0 0116-1 8 8 0 0116 1c0 8-8 14-12 22z" fill="white"/></svg>'),
+            trophy:  'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#0097A7"/><path d="M22 18h20v12c0 6-4 10-10 10s-10-4-10-10V18z" fill="white" opacity="0.9"/><path d="M18 18h-4v6c0 4 4 6 4 6" stroke="white" stroke-width="2"/><path d="M46 18h4v6c0 4-4 6-4 6" stroke="white" stroke-width="2"/><rect x="28" y="40" width="8" height="4" rx="1" fill="white" opacity="0.7"/></svg>'),
+            flask:   'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#4285F4"/><path d="M26 16h12v12l8 16H18l8-16V16z" fill="white" opacity="0.9"/><circle cx="28" cy="38" r="2" fill="#FFAB40"/><circle cx="36" cy="36" r="1.5" fill="#0097A7"/></svg>'),
+            chart:   'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#FFAB40"/><rect x="18" y="30" width="6" height="14" rx="1" fill="white"/><rect x="28" y="22" width="6" height="22" rx="1" fill="white"/><rect x="38" y="18" width="6" height="26" rx="1" fill="white"/></svg>'),
+            music:   'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="6" fill="#0097A7"/><circle cx="24" cy="40" r="5" fill="white"/><circle cx="40" cy="36" r="5" fill="white"/><line x1="29" y1="40" x2="29" y2="18" stroke="white" stroke-width="2.5"/><line x1="45" y1="36" x2="45" y2="14" stroke="white" stroke-width="2.5"/><line x1="29" y1="18" x2="45" y2="14" stroke="white" stroke-width="2.5"/></svg>')
+        };
+
+        function svgIconForSlide(s, idx) {
+            var t = ((s.title || '') + ' ' + (s.content || []).join(' ')).toLowerCase();
+            var pairs = [
+                ['objective', 'star'], ['learning', 'book'], ['introduction', 'lightbulb'], ['lesson', 'book'],
+                ['activity', 'pencil'], ['practice', 'pencil'], ['discussion', 'globe'],
+                ['example', 'lightbulb'], ['summary', 'chart'], ['conclusion', 'trophy'],
+                ['review', 'chart'], ['science', 'flask'], ['math', 'chart'],
+                ['music', 'music'], ['health', 'heart'], ['geography', 'globe']
+            ];
+            for (var k = 0; k < pairs.length; k++) {
+                if (t.indexOf(pairs[k][0]) !== -1) return SVG_ICONS[pairs[k][1]];
+            }
+            return SVG_ICONS.book;
+        }
+
+        var MODE_META = {
+            topic: { label: 'Deck', filePrefix: 'Deck' },
+            dll:   { label: 'Lesson Deck', filePrefix: 'Lesson_' + (state.selectedDay || 'Day_1').replace(/\s+/g, '') + '_Presentation' },
+            exam:  { label: 'Exam Deck', filePrefix: 'Exam_Deck' },
+            quiz:  { label: 'Quiz Deck', filePrefix: 'Quiz_Deck' }
+        };
+
+        var PASTE_IDS = { topic: 'topic-paste', dll: 'dll-paste', exam: 'exam-paste' };
+        var FILE_IDS  = { topic: 'topic-file',  dll: 'dll-file',  exam: 'exam-file' };
+        var FILE_LABEL_IDS = { topic: 'topic-file-label', dll: 'dll-file-label', exam: 'exam-file-label' };
+
+        /* ---------- api key status dot ---------- */
+        function updateApiDot() {
+            state.apiKey = (window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || '')).trim();
+            state.apiKey2 = (window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || '')).trim();
+            var dot = $('api-status-dot');
+            dot.style.background = state.apiKey ? '#34D399' : '#F87171';
+        }
+
+        /* ---------- view helpers ---------- */
+        function show(id) { $(id).classList.remove('hidden'); }
+        function hide(id) { $(id).classList.add('hidden'); }
+
+        function setPhase(phase) {
+            hide('panel-empty'); hide('panel-loading'); hide('panel-review'); hide('panel-preview');
+            show('panel-' + phase);
+        }
+
+        function clearError() {
+            hide('input-error');
+            $('input-error').textContent = '';
+        }
+
+        function setError(msg) {
+            $('input-error').textContent = msg;
+            show('input-error');
+        }
+
+        /* ---------- mode switching ---------- */
+        function switchMode(mode) {
+            state.mode = mode;
+            state.current = 0;
+            state.slides = [];
+            state.items = [];
+            clearError();
+
+            // tabs
+            document.querySelectorAll('#mode-tabs button').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+            });
+
+            // cards
+            hide('card-topic'); hide('card-dll'); hide('card-exam');
+            show('card-' + mode);
+
+            setPhase('empty');
+        }
+
+        /* ---------- IO toggles (paste / file) ---------- */
+        function bindIoToggles(cardId) {
+            var card = $(cardId);
+            card.querySelectorAll('.io-toggle').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var io = btn.getAttribute('data-io');
+                    card.querySelectorAll('.io-toggle').forEach(function (b) {
+                        b.classList.toggle('active', b === btn);
+                    });
+                    var mode = cardId.replace('card-', '');
+                    var pasteEl = $(PASTE_IDS[mode]);
+                    var fileWrap = $(mode + '-file-wrap');
+                    pasteEl.classList.toggle('hidden', io === 'file');
+                    fileWrap.classList.toggle('hidden', io !== 'file');
+                });
+            });
+        }
+
+        /* ---------- file selection ---------- */
+        function bindFileInputs() {
+            ['topic', 'dll', 'exam'].forEach(function (mode) {
+                var input = $(FILE_IDS[mode]);
+                input.addEventListener('change', function () {
+                    var f = input.files && input.files[0];
+                    if (!f) return;
+                    var ext = f.name.split('.').pop().toLowerCase();
+                    if (ext !== 'docx' && ext !== 'doc' && ext !== 'txt' && ext !== 'pdf') {
+                        setError('Only .pdf, .docx, .doc, or .txt files are supported.');
+                        input.value = '';
+                        return;
+                    }
+                    if (ext === 'pdf' && !window.pdfjsLib) {
+                        setError('PDF reader is still loading. Please wait a moment and try again.');
+                        input.value = '';
+                        return;
+                    }
+                    clearError();
+                    $(FILE_LABEL_IDS[mode]).textContent = f.name;
+                    if (mode === 'dll') {
+                        $('dll-file-status-name').textContent = f.name;
+                        $('dll-file-status').classList.remove('hidden');
+                        // keep the upload area's paste textarea hidden
+                        var pasteEl = $(PASTE_IDS[mode]);
+                        pasteEl.classList.add('hidden');
+                        $(mode + '-file-wrap').classList.remove('hidden');
+                    }
+                });
+            });
+        }
+
+        /* ---------- text extraction from file (txt / docx / pdf) ---------- */
+        function warnSource(text, pageCount) {
+            if (!window.SilidFileUtils || !text) return;
+            window.SilidFileUtils.warnAboutSource(text, 'ppt-maker', pageCount);
+        }
+        function extractText(file) {
+            var ext = file.name.split('.').pop().toLowerCase();
+            if (ext === 'docx') {
+                return file.arrayBuffer().then(function (buf) {
+                    return window.SilidFileUtils.extractDocxText(buf);
+                }).then(function (text) { warnSource(text); return text; });
+            }
+            if (ext === 'pdf') {
+                return file.arrayBuffer().then(function (buf) {
+                    return window.pdfjsLib.getDocument({ data: buf }).promise.then(function (pdf) {
+                        var pages = [];
+                        for (var i = 1; i <= pdf.numPages; i++) {
+                            pages.push(pdf.getPage(i).then(function (page) {
+                                return page.getTextContent().then(function (tc) {
+                                    return tc.items.map(function (it) { return it.str; }).join(' ');
+                                });
+                            }));
+                        }
+                        return Promise.all(pages).then(function (arr) {
+                            var text = arr.join('\n');
+                            warnSource(text, pdf.numPages);
+                            return text;
+                        });
+                    });
+                });
+            }
+            if (ext === 'doc') {
+                return file.text().then(function (raw) {
+                    var res = (window.SilidFileUtils && window.SilidFileUtils.extractLegacyDocText)
+                        ? window.SilidFileUtils.extractLegacyDocText(raw)
+                        : { text: '' };
+                    if (res.error) throw new Error(res.error);
+                    warnSource(res.text);
+                    return res.text;
+                });
+            }
+            return file.text().then(function (text) { warnSource(text); return text; });
+        }
+
+        /* ---------- gemini ---------- */
+        function callGemini(promptText, schema) {
+            /* Retry, friendly errors and backup-key fallback are centralized in shared-api.js */
+            var opts = {
+                prompt: promptText,
+                apiKey: state.apiKey,
+                backupKey: state.apiKey2 || ''
+            };
+            if (schema) opts.schema = schema;
+            return window.SilidAPI.callGeminiJSON(opts);
+        }
+
+        /* ---------- prompts ---------- */
+        function slideRangeText(range) {
+            var map = {
+                '5-8': '5 to 8', '8-12': '8 to 12', '12-16': '12 to 16',
+                '16-20': '16 to 20', '20+': '20 or more'
+            };
+            var key = range || state.slideRange;
+            return map[key] || (range ? '12 to 16' : '8 to 12');
+        }
+
+        function buildTopicPrompt(src) {
+            return [
+                'You are an expert presentation content strategist for teachers. Create a clean, well-structured slide deck.',
+                '',
+                'RULES:',
+                '- Language: simple, clear, teacher-friendly.',
+                '- Do NOT mention the target audience explicitly in slide text (e.g. avoid "As Grade 7 students...").',
+                '- Each slide: a concise title, 3-5 short bullet points, and detailed speaker notes for the presenter.',
+                '- Content must be accurate, organized, and classroom-appropriate.',
+                '- Aim for ' + slideRangeText() + ' slides: a title slide, organized content slides, and a short summary at the end.',
+                '- Provide a short \'visualIdea\' for most slides: a one-line description of an illustration that fits the slide (e.g. "a bright sun heating a body of water"). For the title slide and a summary slide, use "None".',
+                '',
+                'OUTPUT FORMAT: Return ONLY a JSON array of slide objects:',
+                '[{"title":"Slide title","content":["bullet 1","bullet 2"],"notes":"speaker notes","visualIdea":"short illustration description"}]',
+                'No markdown fences, no commentary.',
+                '',
+                'Topic: ' + ($('topic-input').value.trim() || '(not provided)'),
+                'Target audience: ' + ($('topic-audience').value.trim() || 'general learners'),
+                'Purpose: ' + ($('topic-purpose').value.trim() || 'inform and teach'),
+                'Extra instructions: ' + ($('topic-extra').value.trim() || 'none'),
+                '',
+                'SOURCE CONTENT:',
+                '---',
+                src,
+                '---'
+            ].join('\n');
+        }
+
+        var DLL_SCHEMA = {
+            type: 'OBJECT',
+            properties: {
+                presentationTitle: { type: 'STRING' },
+                slides: {
+                    type: 'ARRAY',
+                    items: {
+                        type: 'OBJECT',
+                        properties: {
+                            layout: { type: 'STRING', enum: ['title', 'content_bullets', 'content_image_right', 'content_image_left', 'big_statement', 'infographic_cards', 'assessment'] },
+                            title: { type: 'STRING' },
+                            content: { type: 'ARRAY', items: { type: 'STRING' } },
+                            speakerNotes: { type: 'STRING' },
+                            suggestedVisual: { type: 'STRING' },
+                            youtubeVideo: { type: 'STRING' }
+                        },
+                        required: ['layout', 'title', 'content', 'speakerNotes', 'suggestedVisual', 'youtubeVideo']
+                    }
+                }
+            },
+            required: ['presentationTitle', 'slides']
+        };
+
+        function buildDllPrompt(src, contextType) {
+            var lang = state.selectedLanguage || 'English';
+            var range = slideRangeText(state.dllSlideRange);
+            var assessmentInstructions = '';
+            if (state.includeAssessment) {
+                var at = state.assessmentType;
+                var rules = {
+                    'True or False': 'Group EXACTLY 1 item per slide. Put the numbered question as the title (e.g., "1. True or False? [Question]").',
+                    'Multiple Choice': 'Group EXACTLY 1 item per slide. Put the numbered question as the title (e.g., "1. [Question]"). Put the choices in the content as bullet points.',
+                    'Short Answer': 'Group EXACTLY 3 items per slide (or the remainder for the last slide). Put the numbered questions in the content array.',
+                    'Fill in the blanks': 'Group EXACTLY 3 items per slide (or the remainder for the last slide). Put the numbered questions with blanks in the content array.',
+                    'Matching Type': 'Group the matching set clearly on the slides. Number the items in Column A.'
+                }[at] || '';
+                assessmentInstructions = [
+                    '',
+                    'CRITICAL ASSESSMENT INSTRUCTIONS:',
+                    'You must include an assessment section at the VERY END of the presentation.',
+                    '- Test Type: ' + at,
+                    '- Total Items: ' + state.assessmentItems + ' items total across the assessment slides.',
+                    '- Difficulty level: ' + state.assessmentDifficulty,
+                    '- Numbering: YOU MUST NUMBER EVERY QUESTION SEQUENTIALLY starting from 1 to ' + state.assessmentItems + '.',
+                    '- Formatting Rules:',
+                    '  ' + rules,
+                    "- Use the 'assessment' layout for all assessment slides. DO NOT suggest any visuals for these slides. Pure text only.",
+                    "- VERY IMPORTANT: Always provide the correct Answer Key in the 'speakerNotes' field of each assessment slide for the teacher!",
+                    ''
+                ].join('\n');
+            }
+
+            var dllNote = state.dllInputType === 'dll'
+                ? 'CRITICAL FOR DLL: The text is from a Daily Lesson Log (DLL). Meticulously locate the specific column, row, or section corresponding strictly to ' + state.selectedDay + '. Follow the exact sequence of the lesson plan for this day, but deeply ELABORATE on it so learners understand. Keep the core idea and sequence intact.'
+                : 'DO NOT leave out any activities or information intended for this day.';
+
+            return [
+                'You are an expert Teacher, Instructional Designer, and Presentation Creator.',
+                'Take the provided lesson material, extract the specific lesson for ' + state.selectedDay + ', and transform it into a highly engaging, professional, infographic-style presentation.',
+                '',
+                'CRITICAL INSTRUCTION: The ENTIRE output (titles, content, speaker notes, visual suggestions) MUST be written in ' + lang + '.',
+                '',
+                'CRITICAL LENGTH & COMPLETENESS RULES (MUST FOLLOW STRICTLY):',
+                '1. DECK SIZE: The main lesson content (BEFORE adding any assessment slides) must total ' + range + ' slides. This is a hard requirement — do not go under or over this range.',
+                '2. ZERO OMISSION: You MUST include EVERY SINGLE PART, detail, activity, and explanation from the provided lesson material for the requested day. Do not drop important steps. To stay within the deck size, COMBINE closely related points onto shared slides instead of adding extra slides. If the material is short, EXPAND on it extensively.',
+                '3. ONE FOCUS PER SLIDE: Each slide teaches one clear idea — but do not pad the deck with extra slides beyond the requested range.',
+                '4. EXPAND & TEACH: As a master teacher, add rich context, simple definitions, and highly relatable analogies for the learners.',
+                '',
+                'Structure logically to fit the ' + range + ' slide target:',
+                '- Title & Objectives (1-2 slides)',
+                '- Review/Motivation/Icebreaker (1-2 slides)',
+                '- Deep Discussion & Concept Breakdown (the largest section — one sub-topic per slide)',
+                '- Application/Activities/Guided Practice (1-2 slides)',
+                '- Generalization/Wrap-up (1 slide)',
+                '',
+                'Rules for the Presentation:',
+                '1. MAKE SLIDE CONTENT RICH AND DESCRIPTIVE: Write detailed, complete sentences. Expand the content array with comprehensive explanations, relevant facts, real-world applications, and engaging examples directly visible to the learners. Add supplementary educational information to enrich the original content.',
+                "2. Provide a description of a 'suggestedVisual' for slides that need one.",
+                "3. Assign a 'layout' to each slide from these options:",
+                '   - "title": Only for the main opening slide.',
+                '   - "content_bullets": Standard text slide for general information.',
+                '   - "content_image_right": Text on the left, visual placeholder on the right.',
+                '   - "content_image_left": Visual placeholder on the left, text on the right.',
+                '   - "big_statement": For a single major point, quote, or key takeaway (use only 1 short sentence).',
+                '   - "infographic_cards": USE THIS OFTEN for lists, 3-step processes, or categorizations. The content array MUST have exactly 3 items.',
+                '   - "assessment": ONLY for assessment/quiz questions. Pure text, no image suggestions, large font.',
+                '4. Always return the response adhering EXACTLY to the provided JSON schema.',
+                assessmentInstructions,
+                '',
+                'Context Type: ' + contextType,
+                'Extract ALL the lesson content for ' + state.selectedDay + ' (or the equivalent session/part) from the following text.',
+                dllNote,
+                'Create a highly visual, professional presentation containing ' + range + ' slides of main lesson content (excluding assessment slides).',
+                'Output the entire presentation in ' + lang + '.',
+                '',
+                'Source Text:',
+                '---',
+                src.substring(0, 40000),
+                '---'
+            ].join('\n');
+        }
+
+        function buildExamPrompt(src) {
+            var kind = state.qtype === 'quiz' ? 'quiz' : 'exam';
+            return [
+                'You are an expert educational assistant. Analyze the following ' + kind + ' text and extract every question.',
+                '',
+                'OUTPUT FORMAT: Return ONLY a JSON array of objects:',
+                '[{"question":"full question text","options":["Option A text","Option B text"],"answer":"correct answer text or letter, empty string if unknown"}]',
+                '',
+                'RULES:',
+                '- Keep question text as-is; fix obvious typos only.',
+                '- For multiple choice, put each choice as a separate string in "options" (without the A./B./C. prefix).',
+                '- For true/false, identification, or essay items, leave "options" empty and put the expected answer in "answer" if visible.',
+                '- If an answer key is present, use it; otherwise leave "answer" empty.',
+                '- Skip headers, instructions, and page numbers.',
+                '',
+                'TEXT TO ANALYZE:',
+                '---',
+                src.substring(0, 40000),
+                '---'
+            ].join('\n');
+        }
+
+        /* ---------- persistence: keep the last deck across page visits ---------- */
+        var SAVED_PPT_KEY = 'saved_ppt_output';
+        function savePptState() {
+            if (!state.slides.length) return;
+            var payload = {
+                slides: state.slides,
+                current: state.current,
+                mode: state.mode,
+                qtype: state.qtype,
+                selectedDay: state.selectedDay,
+                selectedTheme: state.selectedTheme,
+                selectedLanguage: state.selectedLanguage,
+                includeAssessment: state.includeAssessment,
+                assessmentType: state.assessmentType,
+                assessmentItems: state.assessmentItems,
+                assessmentDifficulty: state.assessmentDifficulty,
+                visuals: state.visuals,
+                slideRange: state.slideRange,
+                dllSlideRange: state.dllSlideRange,
+                presentationTitle: state.presentationTitle,
+                fileName: state.fileName,
+                generatedImages: state.generatedImages,
+                savedAt: Date.now()
+            };
+            try {
+                localStorage.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
+            } catch (e) {
+                // storage full (usually the image data URLs) — retry without images
+                try {
+                    payload.generatedImages = {};
+                    localStorage.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
+                } catch (e2) { /* give up */ }
+            }
+        }
+        function clearSavedPptState() {
+            try { localStorage.removeItem(SAVED_PPT_KEY); } catch (e) {}
+        }
+
+        /* ── Lesson Plan hand-off (lesson.html sends a generated plan) ── */
+        function importLessonForPpt() {
+            var raw = null;
+            try { raw = JSON.parse(localStorage.getItem('lesson_ppt_import')); } catch (e) { raw = null; }
+            if (!raw || !raw.html || !String(raw.html).trim()) return;
+            try { localStorage.removeItem('lesson_ppt_import'); } catch (e) {}
+
+            // flatten the plan's HTML into readable source text for the prompt
+            var html = String(raw.html)
+                .replace(/<\/?(td|th)[^>]*>/gi, ' | ')
+                .replace(/<\/tr[^>]*>/gi, '\n')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/?(p|div|h[1-6]|li|ul|ol|table|thead|tbody)[^>]*>/gi, '\n');
+            var holder = document.createElement('div');
+            holder.innerHTML = html;
+            var text = (holder.textContent || '')
+                .replace(/[ \t\u00a0]+/g, ' ')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+            if (text.length < 20) return;
+
+            var header = '<<< LESSON SOURCE — sent from the Lesson Plan tool >>>\n' +
+                'This is a weekly lesson plan' + (raw.sessions ? ' with ' + raw.sessions + ' sessions' : '') +
+                ". Build the presentation from the lesson content below — include every session's material.\n\n";
+
+            switchMode('dll');
+            var exemplarBtn = document.querySelector('#dll-source-pills .dllsrc-toggle[data-dllsrc="exemplar"]');
+            if (exemplarBtn) exemplarBtn.click();   // selects the source type and shows the paste area
+            var pasteBtn = document.querySelector('#dll-upload-area .io-toggle[data-io="paste"]');
+            if (pasteBtn) pasteBtn.click();         // make sure the paste box (not the file box) is showing
+            $('dll-paste').value = header + text;
+            if (window.SilidToast) window.SilidToast.success('Lesson plan loaded — pick a day, deck size, and theme, then press Generate.');
+        }
+
+        /* ── Document history (shared-docs-ui.js + shared-docs.js) ── */
+        function pptSaveToLibrary() {
+            if (!window.SilidDocsUI || !state.slides || !state.slides.length) return;
+            var title = state.presentationTitle || (state.fileName ? 'Presentation — ' + state.fileName : 'Presentation');
+            window.SilidDocsUI.save({
+                name: title,
+                content: JSON.stringify({
+                    slides: state.slides,
+                    presentationTitle: state.presentationTitle,
+                    mode: state.mode,
+                    selectedTheme: state.selectedTheme,
+                    selectedLanguage: state.selectedLanguage,
+                    slideRange: state.slideRange,
+                    dllSlideRange: state.dllSlideRange,
+                    generatedImages: state.generatedImages
+                }),
+                summary: state.slides.length + ' slides' + (state.mode ? ' · ' + state.mode.toUpperCase() : ''),
+                meta: { slideCount: state.slides.length, mode: state.mode }
+            });
+        }
+        function restorePptState() {
+            var saved = null;
+            try { saved = JSON.parse(localStorage.getItem(SAVED_PPT_KEY)); } catch (e) {}
+            if (!saved || !Array.isArray(saved.slides) || !saved.slides.length) return;
+            state.slides = saved.slides;
+            state.current = Math.min(parseInt(saved.current, 10) || 0, state.slides.length - 1);
+            if (saved.mode) state.mode = saved.mode;
+            if (saved.qtype) state.qtype = saved.qtype;
+            if (saved.selectedDay) state.selectedDay = saved.selectedDay;
+            if (saved.selectedTheme) state.selectedTheme = saved.selectedTheme;
+            if (saved.selectedLanguage) state.selectedLanguage = saved.selectedLanguage;
+            if (typeof saved.includeAssessment === 'boolean') state.includeAssessment = saved.includeAssessment;
+            if (saved.assessmentType) state.assessmentType = saved.assessmentType;
+            if (saved.assessmentItems) state.assessmentItems = saved.assessmentItems;
+            if (saved.assessmentDifficulty) state.assessmentDifficulty = saved.assessmentDifficulty;
+            if (saved.visuals) state.visuals = saved.visuals;
+            if (saved.slideRange) state.slideRange = saved.slideRange;
+            if (saved.dllSlideRange) state.dllSlideRange = saved.dllSlideRange;
+            if (saved.presentationTitle) state.presentationTitle = saved.presentationTitle;
+            if (saved.fileName) state.fileName = saved.fileName;
+            if (saved.generatedImages) state.generatedImages = saved.generatedImages;
+            state.generatingImages = {}; state.imageErrors = {};
+            MODE_META.dll.filePrefix = 'Lesson_' + state.selectedDay.replace(/\s+/g, '') + '_Presentation';
+
+            // sync the mode tabs + cards and the option pills with the restored state
+            document.querySelectorAll('#mode-tabs button').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-mode') === state.mode);
+            });
+            ['card-topic', 'card-dll', 'card-exam'].forEach(function (id) { hide(id); });
+            show('card-' + state.mode);
+            document.querySelectorAll('.qtype-toggle').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-qtype') === state.qtype);
+            });
+            document.querySelectorAll('#dll-days .day-toggle').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-day') === state.selectedDay);
+            });
+            document.querySelectorAll('#dll-themes .theme-toggle').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-theme') === state.selectedTheme);
+            });
+            document.querySelectorAll('#visuals-pills .visuals-toggle').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-visuals') === state.visuals);
+            });
+            document.querySelectorAll('.lang-toggle').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-lang') === state.selectedLanguage);
+            });
+            var topicRangeSel = $('topic-slide-range');
+            if (topicRangeSel) topicRangeSel.value = state.slideRange;
+            var dllRangeSel = $('dll-slide-range');
+            if (dllRangeSel) dllRangeSel.value = state.dllSlideRange;
+            renderPreview();
+        }
+
+        /* ---------- generate: topic ---------- */
+        function generateTopic() {
+            clearError();
+            if (!state.apiKey) {
+                setError('Please set your Gemini API key first — click the gear icon in the top bar, or open Settings on the home page.');
+                return;
+            }
+            if (!$('topic-input').value.trim()) {
+                setError('Please enter a topic or lesson title.');
+                return;
+            }
+
+            var srcPromise;
+            if (state.inputMethod === 'file') {
+                var fileInput = $('topic-file');
+                var f = fileInput.files && fileInput.files[0];
+                if (!f) { setError('Please choose a file first.'); return; }
+                state.fileName = f.name.replace(/\.[^.]+$/, '');
+                srcPromise = extractText(f);
+            } else {
+                var text = $('topic-paste').value.trim();
+                if (text.length < 20) { setError('Please paste some content first (at least a few sentences).'); return; }
+                state.fileName = MODE_META.topic.filePrefix;
+                srcPromise = Promise.resolve(text);
+            }
+
+            clearSavedPptState();
+            setPhase('loading');
+            $('loading-title').textContent = 'Designing your deck…';
+            $('loading-sub').textContent = 'The AI is organizing your content into slides. This takes a few seconds.';
+            $('loading-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            srcPromise.then(function (src) {
+                return callGemini(buildTopicPrompt(src));
+            }).then(function (parsed) {
+                if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('The AI did not return any slides. Please try again.');
+                state.slides = parsed.map(function (s) {
+                    return {
+                        layout: 'content_bullets',
+                        title: String(s.title || ''),
+                        content: Array.isArray(s.content) ? s.content.map(String) : (s.content ? [String(s.content)] : []),
+                        notes: String(s.notes || ''),
+                        suggestedVisual: String(s.visualIdea || s.suggestedVisual || '')
+                    };
+                });
+                state.current = 0;
+                renderPreview();
+                autoGenerateImages();
+            }).catch(function (err) {
+                console.error(err);
+                setPhase('empty');
+                setError('Generation failed: ' + (err.message || 'unknown error') + ' — please try again.');
+            });
+        }
+
+        /* ---------- generate: dll / lesson ---------- */
+        function generateDll() {
+            clearError();
+            if (!state.apiKey) {
+                setError('Please set your Gemini API key first — click the gear icon in the top bar, or open Settings on the home page.');
+                return;
+            }
+
+            var contextType, srcPromise;
+            if (state.dllInputType === 'manual') {
+                var subject = $('dll-subject').value.trim();
+                var grade = $('dll-grade').value.trim();
+                var comp = $('dll-competency').value.trim();
+                if (!subject || !grade || !comp) { setError('Please fill in Subject, Grade Level, and Competency / Topic.'); return; }
+                var manual = $('dll-manual-text').value.trim();
+                contextType = 'Manual Entry / Lesson Plan';
+                state.fileName = 'Lesson_' + state.selectedDay.replace(/\s+/g, '') + '_Presentation';
+                srcPromise = Promise.resolve('Subject: ' + subject + '\nGrade Level: ' + grade + '\nCompetency/Topic: ' + comp + '\n\nAdditional Lesson Context/Source Text:\n' + manual);
+            } else if (state.dllInputType === 'dll') {
+                contextType = 'Daily Lesson Log (DLL)';
+                state.fileName = 'Lesson_' + state.selectedDay.replace(/\s+/g, '') + '_Presentation';
+                srcPromise = dllSourceText();
+            } else {
+                contextType = 'Lesson Exemplar';
+                state.fileName = 'Lesson_' + state.selectedDay.replace(/\s+/g, '') + '_Presentation';
+                srcPromise = dllSourceText();
+            }
+
+            clearSavedPptState();
+            setPhase('loading');
+            $('loading-title').textContent = 'Designing your ' + state.selectedDay + ' lesson deck…';
+            $('loading-sub').textContent = 'The AI is extracting the day\'s lesson and building a ' + slideRangeText(state.dllSlideRange) + ' slide presentation.';
+            $('loading-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            srcPromise.then(function (src) {
+                if (!src || src.trim().length < 20) throw new Error('No lesson content found. Please paste or upload the lesson material.');
+                return callGemini(buildDllPrompt(src, contextType), DLL_SCHEMA);
+            }).then(function (parsed) {
+                var slides = parsed && parsed.slides;
+                if (!Array.isArray(slides) || slides.length === 0) throw new Error('The AI did not return any slides. Please try again.');
+                state.presentationTitle = String(parsed.presentationTitle || ('Lesson ' + state.selectedDay));
+                state.slides = slides.map(function (s) {
+                    return {
+                        layout: String(s.layout || 'content_bullets'),
+                        title: String(s.title || ''),
+                        content: Array.isArray(s.content) ? s.content.map(String) : (s.content ? [String(s.content)] : []),
+                        notes: String(s.speakerNotes || ''),
+                        suggestedVisual: String(s.suggestedVisual || '')
+                    };
+                });
+                state.current = 0;
+                renderPreview();
+                autoGenerateImages();
+                savePptState();
+                pptSaveToLibrary();
+            }).catch(function (err) {
+                console.error(err);
+                setPhase('empty');
+                setError('Generation failed: ' + (err.message || 'unknown error') + ' — please try again.');
+            });
+        }
+
+        /* ---------- emoji decorations (offline-safe visuals) ---------- */
+        function emojiForSlide(s, i) {
+            var layout = s.layout || '';
+            if (state.mode === 'exam') {
+                if (state.qtype === 'quiz') return i % 3 === 0 ? '❓' : '🤔';
+                return i % 3 === 0 ? '📝' : (i % 3 === 1 ? '🤔' : '✅');
+            }
+            if (layout === 'title' || i === 0) return '📚';
+            if (layout === 'assessment') return '✅';
+            if (layout === 'big_statement') return '💡';
+            if (layout === 'infographic_cards') return '🗂️';
+            var t = ((s.title || '') + ' ' + (s.content || []).join(' ')).toLowerCase();
+            var pairs = [
+                ['objective', '🎯'], ['learning', '🎓'], ['introduction', '🚀'], ['lesson', '📖'],
+                ['activity', '✏️'], ['practice', '✏️'], ['exercise', '🏋️'], ['discussion', '💬'],
+                ['example', '🔍'], ['summary', '📌'], ['conclusion', '🏁'], ['review', '🔁'],
+                ['homework', '📝'], ['assignment', '📝'], ['assessment', '✅'], ['quiz', '❓'],
+                ['exam', '📋'], ['test', '📋'], ['science', '🔬'], ['math', '➗'], ['english', '📖'],
+                ['filipino', '🇵🇭'], ['araling', '🌏'], ['mapeh', '🎨'], ['esp', '🤝'],
+                ['tle', '🛠️'], ['history', '🏛️'], ['geography', '🗺️'], ['computer', '💻'],
+                ['technology', '💻'], ['research', '🔎'], ['writing', '🖊️'], ['reading', '📚'],
+                ['solving', '🧮'], ['experiment', '🧪'], ['group', '👥'], ['video', '🎬'],
+                ['chart', '📊'], ['graph', '📈'], ['song', '🎵'], ['dance', '💃'], ['sport', '⚽'],
+                ['health', '❤️'], ['nature', '🌿'], ['earth', '🌍'], ['plants', '🌱'], ['animals', '🐾']
+            ];
+            for (var k = 0; k < pairs.length; k++) {
+                if (t.indexOf(pairs[k][0]) !== -1) return pairs[k][1];
+            }
+            var fallback = ['🌟', '✨', '🔷', '📘', '🎯', '💠'];
+            return fallback[i % fallback.length];
+        }
+
+        /* ---------- image generation: Gemini Nano Banana 2 Lite ----------
+           Uses gemini-3.1-flash-lite-image (Nano Banana 2 Lite) for image generation.
+           This is Gemini's fastest and cheapest image model. No external fallback services. */
+        var IMAGE_API_MODEL = 'gemini-3.1-flash-lite-image';
+
+        function visualPrompt(visual) {
+            return 'Create a square educational illustration for a classroom presentation slide. ' +
+                'Clean flat vector style, bright friendly colors, no text, no letters, no numbers, no watermark. Scene: ' + visual;
+        }
+
+        /* One call to the Gemini image model with a given key. Resolves to
+           { ok:true, dataUrl } or { ok:false, retryable, msg }. */
+        function apiImageAttempt(key, promptText) {
+            var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + IMAGE_API_MODEL +
+                ':generateContent?key=' + encodeURIComponent(key);
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: { responseModalities: ['IMAGE'] }
+                })
+            }).then(function (res) {
+                return res.json().then(function (data) {
+                    if (!res.ok) {
+                        var msg = (data.error && data.error.message) || ('HTTP error ' + res.status);
+                        var retryable = res.status === 429 || res.status >= 500 ||
+                            /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable/i.test(msg);
+                        return { ok: false, retryable: retryable, msg: msg };
+                    }
+                    var parts = (data.candidates && data.candidates[0] && data.candidates[0].content &&
+                                 data.candidates[0].content.parts) || [];
+                    for (var i = 0; i < parts.length; i++) {
+                        if (parts[i] && parts[i].inlineData && parts[i].inlineData.data) {
+                            return { ok: true, dataUrl: 'data:' + (parts[i].inlineData.mimeType || 'image/png') + ';base64,' + parts[i].inlineData.data };
+                        }
+                    }
+                    return { ok: false, retryable: true, msg: 'The image model returned no image. Try again.' };
+                });
+            }, function () {
+                return { ok: false, retryable: true, msg: 'Network error contacting the image model.' };
+            });
+        }
+
+        /* Primary key → backup key (quota/busy). Resolves to a data URL. */
+        function smartSlideImage(visual) {
+            var promptText = visualPrompt(visual);
+            var k1 = (state.apiKey || '').trim();
+            var k2 = (state.apiKey2 || '').trim();
+            var runWithKey = function (key) {
+                return apiImageAttempt(key, promptText).then(function (r) {
+                    if (r.ok) return r.dataUrl;
+                    if (r.retryable && k2 && k2 !== key) return runWithKey(k2);
+                    throw new Error(r.msg);
+                });
+            };
+            if (!k1) throw new Error('API key required for image generation. Please set your Gemini API key in Settings.');
+            return runWithKey(k1);
+        }
+
+        /* ---------- auto image generation after deck creation ---------- */
+        // Generates images for slides that have a visual suggestion, sequentially so the
+        // free image service isn't hammered. Retries transient failures once, then reports
+        // which slides couldn't get an image so the user can retry those manually.
+        function autoGenerateImages() {
+            if (state.visuals !== 'images' && state.visuals !== 'both') return; // emoji & none modes skip the image service; 'both' only fetches for slides with a visual idea
+            var withVisual = [];
+            state.slides.forEach(function (s, i) {
+                if (s.suggestedVisual && s.suggestedVisual.length > 5 &&
+                    s.suggestedVisual.toLowerCase() !== 'none' &&
+                    !state.generatedImages[i]) {
+                    withVisual.push(i);
+                }
+            });
+            if (!withVisual.length) return;
+
+            var total = withVisual.length;
+            var done = 0;
+            var failed = 0;
+            var cancelled = false;
+            var status = $('img-status');
+            var statusText = $('img-status-text');
+            var statusPct = $('img-status-pct');
+            var statusBar = $('img-status-bar');
+            var cancelBtn = $('img-cancel-btn');
+            var statusSpinner = $('img-status-spinner');
+            var showStatus = function () {
+                var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                if (statusText) statusText.textContent = 'Generating images… ' + done + '/' + total;
+                if (statusPct) statusPct.textContent = pct + '%';
+                if (statusBar) statusBar.style.width = pct + '%';
+            };
+            var hideStatus = function (delayMs) {
+                setTimeout(function () {
+                    if (status) status.classList.add('hidden');
+                    if (statusBar) { statusBar.classList.add('from-iris-500', 'to-iris-400'); statusBar.classList.remove('from-amber-400', 'to-amber-300', 'from-emerald-400', 'to-emerald-300'); statusBar.style.width = '0%'; }
+                    if (statusSpinner) statusSpinner.classList.remove('hidden');
+                    if (cancelBtn) cancelBtn.classList.add('hidden');
+                }, delayMs);
+            };
+            var cleanup = function () {
+                if (cancelBtn) cancelBtn.classList.add('hidden');
+            };
+
+            // Wire cancel button
+            if (cancelBtn) {
+                cancelBtn.classList.remove('hidden');
+                cancelBtn.onclick = function () {
+                    cancelled = true;
+                    cleanup();
+                    if (statusText) statusText.textContent = 'Cancelled — ' + done + '/' + total + ' images generated.';
+                    if (statusSpinner) statusSpinner.classList.add('hidden');
+                    if (statusBar) { statusBar.classList.add('from-amber-400', 'to-amber-300'); statusBar.classList.remove('from-iris-500', 'to-iris-400'); }
+                    hideStatus(5000);
+                };
+            }
+
+            if (status) {
+                status.classList.remove('hidden');
+                if (statusSpinner) statusSpinner.classList.remove('hidden');
+                showStatus();
+            }
+
+            var finish = function () {
+                cleanup();
+                if (!status) return;
+                var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                if (statusBar) { statusBar.style.width = '100%'; }
+                if (statusPct) statusPct.textContent = '100%';
+                if (failed > 0) {
+                    statusText.textContent = failed + ' image' + (failed === 1 ? '' : 's') + ' failed — tap retry on the slide.';
+                    if (statusBar) { statusBar.classList.remove('from-iris-500', 'to-iris-400'); statusBar.classList.add('from-amber-400', 'to-amber-300'); }
+                    if (statusSpinner) statusSpinner.classList.add('hidden');
+                    hideStatus(12000);
+                } else {
+                    if (statusText) statusText.textContent = 'All images generated!';
+                    if (statusBar) { statusBar.classList.remove('from-iris-500', 'to-iris-400'); statusBar.classList.add('from-emerald-400', 'to-emerald-300'); }
+                    if (statusSpinner) statusSpinner.classList.add('hidden');
+                    hideStatus(2500);
+                }
+            };
+
+            // attempt 0 = first try, 1 = one retry after a short pause.
+            // Gemini image model only — no external fallback.
+            var fetchImage = function (i, visual) {
+                return smartSlideImage(visual);
+            };
+
+            var run = function (idx) {
+                if (cancelled || idx >= withVisual.length) {
+                    finish();
+                    return;
+                }
+                var i = withVisual[idx];
+                var visual = state.slides[i].suggestedVisual;
+                state.generatingImages[i] = true;
+                if (state.current === i) renderPreview();
+
+                fetchImage(i, visual)
+                    .catch(function () {
+                        // one retry after a pause (transient network / throttle errors)
+                        return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(function () {
+                            if (cancelled) throw new Error('cancelled');
+                            return fetchImage(i, visual);
+                        });
+                    })
+                    .then(function (dataUrl) {
+                        if (cancelled) return;
+                        state.generatedImages[i] = dataUrl;
+                        state.generatingImages[i] = false;
+                        delete state.imageErrors[i];
+                        if (state.current === i) renderPreview();
+                        savePptState();
+                    })
+                    .catch(function (err) {
+                        if (cancelled) return;
+                        console.error('Image generation failed for slide ' + (i + 1) + ':', err);
+                        state.generatingImages[i] = false;
+                        state.imageErrors[i] = 'Could not load image. Check your connection and try again.';
+                        failed++;
+                        if (state.current === i) renderPreview();
+                    })
+                    .then(function () {
+                        if (cancelled) return;
+                        done++;
+                        showStatus();
+                        setTimeout(function () { run(idx + 1); }, 350);
+                    });
+            };
+            run(0);
+        }
+
+        function dllSourceText() {
+            if (state.inputMethod === 'file') {
+                var f = $('dll-file').files && $('dll-file').files[0];
+                if (!f) return Promise.reject(new Error('Please choose a file first.'));
+                return extractText(f);
+            }
+            var t = $('dll-paste').value.trim();
+            if (!t) return Promise.reject(new Error('Please paste the lesson content or upload a file.'));
+            return Promise.resolve(t);
+        }
+
+        /* ---------- generate: exam / quiz ---------- */
+        function generateExam() {
+            clearError();
+            if (!state.apiKey) {
+                setError('Please set your Gemini API key first — click the gear icon in the top bar, or open Settings on the home page.');
+                return;
+            }
+
+            var mode = 'exam';
+            var srcPromise;
+            if (state.inputMethod === 'file') {
+                var fileInput = $(FILE_IDS[mode]);
+                var f = fileInput.files && fileInput.files[0];
+                if (!f) {
+                    setError('Please choose a file first.');
+                    return;
+                }
+                state.fileName = f.name.replace(/\.[^.]+$/, '');
+                srcPromise = extractText(f);
+            } else {
+                var text = $(examPasteId()).value.trim();
+                if (text.length < 20) {
+                    setError('Please paste the exam or quiz questions first.');
+                    return;
+                }
+                state.fileName = MODE_META[state.qtype].filePrefix;
+                srcPromise = Promise.resolve(text);
+            }
+
+            clearSavedPptState();
+            setPhase('loading');
+            $('loading-title').textContent = 'Extracting questions…';
+            $('loading-sub').textContent = 'The AI is reading your exam/quiz and pulling out every question.';
+            $('loading-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            srcPromise.then(function (src) {
+                return callGemini(buildExamPrompt(src));
+            }).then(function (parsed) {
+                if (!Array.isArray(parsed)) throw new Error('Unexpected AI response. Please try again.');
+                var items = parsed.filter(function (it) { return it && it.question && String(it.question).trim(); })
+                    .map(function (it, i) {
+                        return {
+                            id: 'q' + i,
+                            question: String(it.question).trim(),
+                            options: Array.isArray(it.options) ? it.options.map(String) : [],
+                            answer: String(it.answer || '').trim()
+                        };
+                    });
+                if (items.length === 0) throw new Error('No questions found. Check that your text contains actual questions.');
+                state.items = items;
+                renderReview();
+            }).catch(function (err) {
+                console.error(err);
+                setPhase('empty');
+                setError('Extraction failed: ' + (err.message || 'unknown error') + ' — please try again.');
+            });
+        }
+
+        function examPasteId() { return PASTE_IDS.exam; }
+
+        /* ---------- review rendering ---------- */
+        function renderReview() {
+            setPhase('review');
+            $('review-count').textContent = state.items.length + ' question' + (state.items.length === 1 ? '' : 's') + ' found — ready for slides';
+            var list = $('review-list');
+            list.innerHTML = '';
+            state.items.forEach(function (item, idx) {
+                var card = document.createElement('div');
+                card.className = 'bg-white rounded-xl ring-1 ring-black/5 p-4 space-y-3 animate-fade-in';
+                card.innerHTML =
+                    '<div class="flex items-center justify-between">' +
+                        '<span class="text-[10px] font-black uppercase tracking-wider text-ink/35 bg-black/5 px-2 py-1 rounded-md">#' + (idx + 1) + '</span>' +
+                        '<button class="review-remove p-1.5 text-ink/30 hover:text-red-500 transition rounded-lg" title="Remove slide">' +
+                            '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                        '</button>' +
+                    '</div>' +
+                    '<p class="text-sm font-semibold leading-snug">' + escapeHtml(item.question) + '</p>' +
+                    (item.options.length ? '<ul class="space-y-1">' + item.options.map(function (o, oi) {
+                        return '<li class="flex items-start gap-2 text-xs text-ink/60"><span class="w-5 h-5 flex-shrink-0 rounded-md bg-mist text-iris-600 text-[10px] font-bold grid place-items-center">' + String.fromCharCode(65 + oi) + '</span><span>' + escapeHtml(o) + '</span></li>';
+                    }).join('') + '</ul>' : '') +
+                    (item.answer ? '<div class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5">Answer: ' + escapeHtml(item.answer) + '</div>' : '');
+                card.querySelector('.review-remove').addEventListener('click', function () {
+                    state.items.splice(idx, 1);
+                    renderReview();
+                });
+                list.appendChild(card);
+            });
+        }
+
+        /* ---------- build exam slides ---------- */
+        function buildExamSlides() {
+            var kind = state.qtype === 'quiz' ? 'Quiz' : 'Exam';
+            var slides = [{
+                title: kind + ' Review',
+                content: ['Source: ' + (state.fileName || kind), state.items.length + ' questions in this deck', 'Answers are in the speaker notes'],
+                notes: 'Welcome. Review the answers in the speaker notes of each slide.'
+            }];
+            state.items.forEach(function (item, i) {
+                var content = item.options.length
+                    ? item.options.map(function (o, oi) { return String.fromCharCode(65 + oi) + '. ' + o; })
+                    : ['(Open-ended / identification item)'];
+                slides.push({
+                    title: 'Question ' + (i + 1),
+                    content: content,
+                    notes: (item.answer ? 'Answer: ' + item.answer : 'Answer: see your answer key')
+                });
+                slides[slides.length - 1].question = item.question;
+            });
+            state.slides = slides;
+            state.current = 0;
+            /* Validate the deck before previewing it */
+            var v = window.SilidValidate.validatePptSlides(state.slides, { minSlides: 5 });
+            if (v.warnings.length > 0) {
+                setError('Warning: ' + v.warnings.join(' '));
+            }
+            renderPreview();
+            savePptState();
+            pptSaveToLibrary();
+        }
+
+        /* ---------- preview rendering (layout-aware) ---------- */
+        function renderPreview() {
+            if (!state.slides.length) return;
+            setPhase('preview');
+            var s = state.slides[state.current];
+            $('slide-num').textContent = state.current + 1;
+            $('slide-total').textContent = state.slides.length;
+            $('btn-prev').disabled = state.current === 0;
+            $('btn-next').disabled = state.current === state.slides.length - 1;
+            $('preview-notes').textContent = s.notes || 'No speaker notes for this slide.';
+
+            var theme = THEMES[state.selectedTheme] || THEMES.modern;
+            var layout = s.layout || 'content_bullets';
+            var isDll = state.mode === 'dll';
+            var bullets = s.question ? [s.question].concat(s.content) : s.content;
+            var body = $('slide-body');
+            var html = '';
+
+            function bulletList(items, cls, textColor) {
+                var tColor = textColor || theme.text || '#2A2438';
+                return '<ul class="' + (cls || 'space-y-2.5') + '">' + (items || []).map(function (b) {
+                    return '<li class="flex items-start gap-2.5 text-sm leading-relaxed"><span class="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style="background:' + theme.secondary + '"></span><span style="color:' + tColor + '">' + escapeHtml(b) + '</span></li>';
+                }).join('') + '</ul>';
+            }
+
+            function visualSide() {
+                var visual = s.suggestedVisual || '';
+                var hasIdea = visual.length > 5 && visual.toLowerCase() !== 'none';
+                if (state.visuals === 'emoji' || (state.visuals === 'both' && !hasIdea)) {
+                    return '<div class="flex flex-col items-center justify-center text-center rounded-xl p-4 gap-2" style="width:42%;min-height:180px;background:' + theme.accent + '">' +
+                        '<span class="text-[64px] leading-none select-none">' + emojiForSlide(s, state.current) + '</span>' +
+                        '<span class="text-[10px] font-bold uppercase tracking-wider opacity-60" style="color:' + theme.text + '">' + escapeHtml((visual || 'Slide icon').slice(0, 70)) + '</span>' +
+                    '</div>';
+                }
+                if (state.visuals === 'none') return '';
+                var img = state.generatedImages[state.current];
+                if (img) {
+                    return '<div class="relative rounded-xl overflow-hidden" style="width:42%;min-height:180px"><img src="' + img + '" class="absolute inset-0 w-full h-full object-cover"/><span class="absolute inset-0 grid place-items-center bg-black/30 opacity-0 hover:opacity-100 transition text-white text-[10px] font-bold uppercase tracking-wider">Generated</span></div>';
+                }
+                if (!hasIdea) return '';
+                return '<div class="flex flex-col items-center justify-center text-center rounded-xl border-2 border-dashed p-4 gap-2" style="width:42%;min-height:180px;border-color:' + theme.secondary + '80">' +
+                    '<span class="text-[10px] font-bold uppercase tracking-wider opacity-50" style="color:' + theme.text + '">Visual</span>' +
+                    '<span class="text-[11px] italic leading-tight opacity-60" style="color:' + theme.text + '">' + escapeHtml(visual) + '</span>' +
+                    '<button id="preview-gen-img" class="mt-1 px-3 py-1.5 rounded-lg text-white text-[11px] font-bold flex items-center gap-1.5 btn-spring" style="background:' + theme.secondary + '">' +
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>' +
+                        (state.generatingImages[state.current] ? 'Creating…' : 'Generate Image') +
+                    '</button>' +
+                    (state.imageErrors[state.current] ? '<span class="text-[10px] text-red-500 font-medium">' + state.imageErrors[state.current] + '</span>' : '') +
+                '</div>';
+            }
+
+            if (isDll && layout === 'title') {
+                var isPlayfulTitle = state.selectedTheme === 'playful';
+                html = '<div class="h-full flex items-center justify-center p-8 text-center relative overflow-hidden" style="background:' + theme.primary + '">' +
+                    '<div class="absolute top-0 right-0 w-1/2 h-full -skew-x-12 translate-x-1/4" style="background:' + theme.secondary + '"></div>' +
+                    (isPlayfulTitle ? '<img src="' + SVG_ICONS.book + '" class="absolute top-3 left-3 w-10 h-10 opacity-25" /><img src="' + SVG_ICONS.pencil + '" class="absolute top-3 right-3 w-10 h-10 opacity-25" /><img src="' + SVG_ICONS.star + '" class="absolute bottom-3 left-3 w-8 h-8 opacity-20" /><img src="' + SVG_ICONS.trophy + '" class="absolute bottom-3 right-3 w-8 h-8 opacity-20" />' : '') +
+                    '<div class="relative z-10 bg-white rounded-2xl shadow-xl px-8 py-10 w-4/5 max-w-lg">' +
+                        (state.visuals === 'emoji' || state.visuals === 'both' ? '<div class="text-5xl leading-none mb-4 select-none">' + emojiForSlide(s, state.current) + '</div>' : '') +
+                        '<h3 class="font-display text-3xl font-medium leading-tight" style="color:' + theme.primary + '">' + escapeHtml(state.presentationTitle || s.title) + '</h3>' +
+                        '<div class="inline-block mt-4 px-4 py-1.5 rounded-full text-xs font-bold" style="background:' + theme.accent + ';color:' + theme.text + '">Target Lesson: ' + escapeHtml(state.selectedDay) + '</div>' +
+                    '</div>' +
+                '</div>';
+            } else if (isDll && layout === 'big_statement') {
+                html = '<div class="h-full flex flex-col items-center justify-center p-10 text-center relative" style="background:' + theme.secondary + '">' +
+                    (state.visuals === 'emoji' || state.visuals === 'both' ? '<span class="absolute top-3 left-6 text-7xl leading-none select-none">' + emojiForSlide(s, state.current) + '</span>' : '<span class="absolute top-2 left-5 text-[110px] font-serif leading-none text-white/25 select-none">"</span>') +
+                    '<p class="text-[11px] font-bold uppercase tracking-widest mb-4" style="color:' + theme.accent + '">' + escapeHtml(s.title) + '</p>' +
+                    '<div class="bg-white rounded-2xl shadow-xl px-8 py-8 w-4/5 z-10">' +
+                        '<p class="text-2xl italic font-bold" style="color:' + theme.primary + '">"' + escapeHtml((bullets && bullets[0]) || '') + '"</p>' +
+                    '</div>' +
+                '</div>';
+            } else if (isDll && layout === 'infographic_cards') {
+                var cards = (s.content || []).slice(0, 3);
+                html = '<div class="h-full flex flex-col" style="background:' + theme.bg + '">' +
+                    '<div class="px-6 py-4 flex items-center gap-3 shrink-0" style="background:' + theme.primary + '">' +
+                        (state.visuals === 'emoji' || state.visuals === 'both' ? '<span class="text-2xl leading-none select-none">' + emojiForSlide(s, state.current) + '</span>' : '<svg class="opacity-60" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>') +
+                        '<h3 class="text-lg font-bold text-white">' + escapeHtml(s.title) + '</h3>' +
+                    '</div>' +
+                    '<div class="flex-1 flex items-stretch justify-center gap-4 px-6 py-8">' +
+                        cards.map(function (item, i) {
+                            var box = i % 2 === 0 ? theme.secondary : theme.primary;
+                            return '<div class="flex-1 rounded-xl shadow-lg relative flex flex-col items-center justify-center px-4 pt-6 pb-4 text-center" style="background:' + box + '">' +
+                                '<span class="absolute -top-3 w-8 h-8 rounded-full grid place-items-center text-xs font-bold shadow-md" style="background:' + theme.accent + ';color:' + box + '">' + (i + 1) + '</span>' +
+                                '<span class="text-white text-[13px] font-medium leading-snug">' + escapeHtml(item) + '</span>' +
+                            '</div>';
+                        }).join('') +
+                    '</div>' +
+                '</div>';
+            } else if (isDll && layout === 'assessment') {
+                html = '<div class="h-full flex flex-col" style="background:' + theme.bg + '">' +
+                    '<div class="px-6 py-5 flex items-center gap-3 shrink-0 relative" style="background:' + theme.primary + '">' +
+                        (state.visuals === 'emoji' || state.visuals === 'both' ? '<span class="text-2xl leading-none select-none">' + emojiForSlide(s, state.current) + '</span>' : '<span class="text-white/50 font-mono text-lg">Q</span>') +
+                        '<h3 class="text-xl font-bold text-white leading-tight">' + escapeHtml(s.title) + '</h3>' +
+                        '<div class="absolute bottom-0 left-0 w-full h-1.5" style="background:' + theme.secondary + '"></div>' +
+                    '</div>' +
+                    '<div class="flex-1 m-6 rounded-xl bg-white shadow-md ring-1 ring-black/5 relative overflow-hidden">' +
+                        '<div class="absolute left-0 top-0 bottom-0 w-2" style="background:' + theme.secondary + '"></div>' +
+                        '<div class="h-full px-6 py-5 overflow-hidden">' + bulletList(bullets, 'space-y-3') + '</div>' +
+                    '</div>' +
+                '</div>';
+            } else if (isDll && (layout === 'content_image_left' || layout === 'content_image_right')) {
+                var vs = visualSide();
+                var textBlock = '<div class="flex-1 rounded-xl bg-white shadow-sm ring-1 ring-black/5 relative overflow-hidden">' +
+                    '<div class="absolute left-0 top-0 bottom-0 w-1.5" style="background:' + theme.secondary + '"></div>' +
+                    '<div class="h-full px-5 py-4 overflow-hidden">' + bulletList(bullets) + '</div>' +
+                '</div>';
+                var left = layout === 'content_image_left' ? vs + textBlock : textBlock + vs;
+                html = '<div class="h-full flex flex-col" style="background:' + theme.bg + '">' +
+                    '<div class="px-6 py-4 flex items-center gap-3 shrink-0 relative" style="background:' + theme.primary + '">' +
+                        '<span class="text-white/50 font-mono text-xs">' + (state.current + 1) + '</span>' +
+                        '<h3 class="text-lg font-bold text-white">' + escapeHtml(s.title) + '</h3>' +
+                        '<div class="absolute bottom-0 left-0 w-full h-1" style="background:' + theme.secondary + '"></div>' +
+                    '</div>' +
+                    '<div class="flex-1 px-6 py-5 flex gap-5 items-stretch min-h-0">' + left + '</div>' +
+                '</div>';
+            } else {
+                // content_bullets (topic, exam, and default DLL slides)
+                var isPlayfulPreview = state.selectedTheme === 'playful';
+                if (isDll) {
+                    html = '<div class="h-full flex flex-col relative" style="background:' + theme.bg + '">' +
+                        '<div class="px-6 py-4 flex items-center gap-3 shrink-0 relative" style="background:' + theme.primary + '">' +
+                            '<span class="text-white/50 font-mono text-xs">' + (state.current + 1) + '</span>' +
+                            '<h3 class="text-lg font-bold text-white">' + escapeHtml(s.title) + '</h3>' +
+                            '<div class="absolute bottom-0 left-0 w-full h-1" style="background:' + theme.secondary + '"></div>' +
+                        '</div>' +
+                        (isPlayfulPreview ? '<img src="' + svgIconForSlide(s, state.current) + '" class="absolute top-1 right-2 w-7 h-7 opacity-30" />' : '') +
+                        '<div class="flex-1 px-6 py-5 overflow-hidden">' +
+                            '<div class="h-full rounded-xl bg-white shadow-sm ring-1 ring-black/5 relative overflow-hidden">' +
+                                '<div class="absolute left-0 top-0 bottom-0 w-1.5" style="background:' + theme.secondary + '"></div>' +
+                                '<div class="h-full px-6 py-5 overflow-hidden">' + bulletList(bullets) + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        (isPlayfulPreview ? '<span class="absolute bottom-1 right-2 text-sm opacity-30 select-none">' + ['💡','🔍','⭐','🎨','📌'][state.current % 5] + '</span>' : '') +
+                    '</div>';
+                } else {
+                        // Match PPTX: Georgia font, centered title, left-aligned bullets
+                        var previewFont = isPlayfulPreview ? 'Arial, sans-serif' : 'Georgia, serif';
+                        var previewTitleColor = isPlayfulPreview ? theme.primary : '#0B0A12';
+                        var previewBulletColor = isPlayfulPreview ? theme.text : '#2A2438';
+                        var vs = visualSide();
+                        if (vs) {
+                            html = '<div class="h-full p-6 md:p-8 flex flex-col relative" style="background:' + (isPlayfulPreview ? theme.bg : '#FFFFFF') + '">' +
+                                (isPlayfulPreview ? '<img src="' + svgIconForSlide(s, state.current) + '" class="absolute top-2 right-3 w-7 h-7 opacity-25" />' : '') +
+                                '<div class="text-center mb-4">' +
+                                    '<h3 class="text-xl md:text-2xl font-medium leading-tight" style="color:' + previewTitleColor + ';font-family:' + previewFont + '">' + escapeHtml(s.title || ('Slide ' + (state.current + 1))) + '</h3>' +
+                                    '<div class="w-10 h-1 mx-auto mt-2 rounded-full" style="background:' + (isPlayfulPreview ? theme.secondary : '#5B46E8') + '"></div>' +
+                                '</div>' +
+                                '<div class="flex-1 flex gap-5 items-stretch min-h-0">' +
+                                    '<div class="flex-1 overflow-hidden rounded-xl bg-white ring-1 ring-black/5 p-4">' + bulletList(bullets, 'space-y-3', previewBulletColor) + '</div>' +
+                                    vs +
+                                '</div>' +
+                            '</div>';
+                        } else {
+                            html = '<div class="h-full p-8 md:p-10 flex flex-col relative" style="background:' + (isPlayfulPreview ? theme.bg : '#FFFFFF') + '">' +
+                                (isPlayfulPreview ? '<img src="' + svgIconForSlide(s, state.current) + '" class="absolute top-2 right-3 w-7 h-7 opacity-25" />' : '') +
+                                '<div class="text-center mb-6">' +
+                                    '<h3 class="text-2xl md:text-3xl font-medium leading-tight" style="color:' + previewTitleColor + ';font-family:' + previewFont + '">' + escapeHtml(s.title || ('Slide ' + (state.current + 1))) + '</h3>' +
+                                    '<div class="w-10 h-1 mx-auto mt-3 rounded-full" style="background:' + (isPlayfulPreview ? theme.secondary : '#5B46E8') + '"></div>' +
+                                '</div>' +
+                                '<div class="flex-1 overflow-hidden">' + bulletList(bullets, 'space-y-3', previewBulletColor) + '</div>' +
+                            '</div>';
+                }
+            }
+        }
+
+            // YouTube embed preview
+            if (state.youtubeUrl && state.current === state.slides.indexOf(s)) {
+                var ytMatch2 = state.youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]+)/);
+                if (ytMatch2) {
+                    var ytThumb = 'https://img.youtube.com/vi/' + ytMatch2[1] + '/mqdefault.jpg';
+                    html += '<div class="absolute inset-x-0 bottom-0 h-1/3 flex items-center justify-center" style="background:rgba(0,0,0,0.85)">' +
+                        '<img src="' + ytThumb + '" class="h-full object-cover rounded-lg opacity-80" />' +
+                        '<div class="absolute inset-0 flex items-center justify-center">' +
+                            '<span class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shadow-lg cursor-pointer">' +
+                                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>' +
+                            '</span>' +
+                        '</div>' +
+                        '<span class="absolute top-2 right-3 text-[10px] font-bold text-white/60 uppercase tracking-wider">YouTube Embed</span>' +
+                    '</div>';
+                }
+            }
+
+            body.innerHTML = html;
+            var genBtn = $('preview-gen-img');
+            if (genBtn) genBtn.addEventListener('click', function () { generateSlideImage(state.current, s.suggestedVisual); });
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        /* ---------- per-slide image generation (Gemini image model) ---------- */
+        function generateSlideImage(index, visualPrompt) {
+            if (state.visuals !== 'images' && state.visuals !== 'both') return;
+            if (!visualPrompt || visualPrompt.length < 3) {
+                setError('No visual suggestion available for this slide.');
+                return;
+            }
+            state.generatingImages[index] = true;
+            state.imageErrors[index] = null;
+            if (state.current === index) renderPreview();
+            smartSlideImage(visualPrompt)
+                .then(function (dataUrl) {
+                    state.generatedImages[index] = dataUrl;
+                    state.generatingImages[index] = false;
+                    if (state.current === index) renderPreview();
+                })
+                .catch(function (err) {
+                    console.error('Image generation error:', err);
+                    state.generatingImages[index] = false;
+                    state.imageErrors[index] = 'Could not generate image. Check your connection.';
+                    if (state.current === index) renderPreview();
+                });
+        }
+
+        /* ---------- print / PDF handout (every slide + its notes, one per page) ---------- */
+        function buildPrintHandout() {
+            var host = $('print-handout');
+            if (!host) return;
+            var theme = THEMES[state.selectedTheme] || THEMES.modern;
+            var head = '<div style="margin-bottom:14px;">' +
+                '<div style="font:700 15px Georgia,serif;color:#0B0A12;">' + escapeHtml(state.presentationTitle || 'Slide Deck') + '</div>' +
+                '<div style="font:11px Arial,sans-serif;color:#6b7280;margin-top:2px;">' + state.slides.length + ' slides' +
+                    (state.mode === 'dll' && state.selectedDay ? ' &middot; ' + escapeHtml(state.selectedDay) : '') +
+                    ' &middot; Printed ' + new Date().toLocaleDateString() + '</div>' +
+            '</div>';
+            host.innerHTML = head + state.slides.map(function (s, i) {
+                var bullets = s.question ? [s.question].concat(s.content || []) : (s.content || []);
+                return '<section class="print-page" style="padding:6px 0 18px;">' +
+                    '<div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">' +
+                        '<div style="background:#' + theme.primary + ';color:#fff;padding:8px 14px;display:flex;align-items:baseline;gap:10px;">' +
+                            '<span style="font:700 10px Arial,sans-serif;opacity:.7;letter-spacing:.08em;">SLIDE ' + (i + 1) + '/' + state.slides.length + '</span>' +
+                            '<span style="font:700 16px Georgia,serif;">' + escapeHtml(s.title || ('Slide ' + (i + 1))) + '</span>' +
+                        '</div>' +
+                        '<div style="height:4px;background:#' + theme.secondary + ';"></div>' +
+                        '<div style="padding:12px 16px 14px;">' +
+                            (bullets.length
+                                ? '<ul style="margin:0 0 0 18px;padding:0;font:14px Georgia,serif;color:#2A2438;line-height:1.55;">' +
+                                    bullets.map(function (b) { return '<li>' + escapeHtml(b) + '</li>'; }).join('') + '</ul>'
+                                : '<p style="margin:0;font:12px Arial,sans-serif;font-style:italic;color:#9ca3af;">No body text on this slide.</p>') +
+                        '</div>' +
+                    '</div>' +
+                    (s.notes
+                        ? '<div style="margin-top:8px;font:11.5px Arial,sans-serif;color:#4b5563;line-height:1.5;border-left:3px solid #' + theme.secondary + ';background:#f7f7fb;padding:8px 12px;">' +
+                            '<strong>Speaker notes:</strong> ' + escapeHtml(s.notes) + '</div>'
+                        : '') +
+                '</section>';
+            }).join('');
+        }
+
+        function printDeck() {
+            if (!state.slides.length) {
+                var m = 'Generate a deck first — there is nothing to print yet.';
+                if (window.SilidToast) window.SilidToast.warning(m); else alert(m);
+                return;
+            }
+            try {
+                buildPrintHandout();
+                window.print();
+            } catch (e) {
+                console.error('Print failed:', e);
+                var msg = 'Could not open the print dialog: ' + ((e && e.message) || 'unknown error');
+                if (window.SilidToast) window.SilidToast.error(msg); else alert(msg);
+            }
+        }
+
+        /* ---------- pptx download (layout + theme aware) ---------- */
+        function downloadPptx() {
+            if (!window.PptxGenJS) {
+                setError('The PowerPoint library is still loading. Please wait a moment and try again.');
+                return;
+            }
+            try {
+                var pptx = new window.PptxGenJS();
+                pptx.layout = 'LAYOUT_16x9';
+                pptx.author = 'SilidPinoy';
+                pptx.title = state.presentationTitle || state.fileName || 'Presentation';
+                var theme = THEMES[state.selectedTheme] || THEMES.modern;
+                var isDll = state.mode === 'dll';
+                var isPlayful = state.selectedTheme === 'playful';
+
+                /* Playful helper: adds decorative shapes for the Playful theme */
+                function playfulDecorate(slide, idx) {
+                    if (!isPlayful) return;
+                    // Top-right corner circle
+                    slide.addShape('ellipse', { x: 10.5, y: -0.6, w: 2.0, h: 2.0, fill: { color: theme.secondary, transparency: 25 } });
+                    // Bottom-left corner circle
+                    slide.addShape('ellipse', { x: -0.5, y: 4.5, w: 1.8, h: 1.8, fill: { color: theme.accent, transparency: 30 } });
+                    // Small decorative dot top-left
+                    slide.addShape('ellipse', { x: 0.3, y: 0.2, w: 0.3, h: 0.3, fill: { color: theme.secondary } });
+                    // Small decorative dot bottom-right
+                    slide.addShape('ellipse', { x: 11.2, y: 5.0, w: 0.25, h: 0.25, fill: { color: theme.accent } });
+                }
+
+                state.slides.forEach(function (s, i) {
+                    var slide = pptx.addSlide();
+                    var layout = s.layout || 'content_bullets';
+                    var isFirst = i === 0;
+                    var contentLines = s.question ? [s.question].concat(s.content) : s.content;
+                    // NOTE: PptxGenJS addText only accepts a single string OR an array of
+                    // {text, options} objects — plain string arrays crash with
+                    // "Cannot create property 'options' on string". Always wrap strings.
+                    function textObjects(lines, extra) {
+                        return (lines || []).map(function (p) {
+                            var opts = { breakLine: false };
+                            if (extra) for (var k in extra) opts[k] = extra[k];
+                            return { text: p, options: opts };
+                        });
+                    }
+
+                    if (isDll && layout === 'title') {
+                        slide.background = { color: theme.primary };
+                        slide.addShape('rect', { x: 7.0, y: -1, w: 4.5, h: 8, fill: { color: theme.secondary }, rotate: 20 });
+                        slide.addShape('rect', { x: 0.8, y: 1.2, w: 8.4, h: 2.5, fill: { color: 'FFFFFF' }, rectRadius: 0.1,
+                            shadow: { type: 'outer', color: '000000', opacity: 0.2, blur: 5, offset: 3, angle: 45 } });
+                        if (isPlayful) {
+                            // Playful: SVG icons + decorative circles
+                            slide.addShape('ellipse', { x: -0.8, y: -0.8, w: 2.5, h: 2.5, fill: { color: theme.secondary, transparency: 30 } });
+                            slide.addShape('ellipse', { x: 9.8, y: 4.0, w: 2.0, h: 2.0, fill: { color: theme.accent, transparency: 25 } });
+                            slide.addShape('ellipse', { x: 1.5, y: 4.5, w: 0.6, h: 0.6, fill: { color: theme.secondary, transparency: 40 } });
+                            slide.addShape('ellipse', { x: 8.5, y: 0.1, w: 0.4, h: 0.4, fill: { color: 'EEFF41' } });
+                            slide.addImage({ data: SVG_ICONS.book, x: 0.2, y: 0.1, w: 0.7, h: 0.7, transparency: 20 });
+                            slide.addImage({ data: SVG_ICONS.pencil, x: 9.8, y: 0.1, w: 0.7, h: 0.7, transparency: 20 });
+                            slide.addImage({ data: SVG_ICONS.star, x: 0.3, y: 4.6, w: 0.6, h: 0.6, transparency: 25 });
+                            slide.addImage({ data: SVG_ICONS.trophy, x: 9.3, y: 4.6, w: 0.6, h: 0.6, transparency: 25 });
+                        }
+                        if (state.visuals === 'emoji' || state.visuals === 'both') {
+                            slide.addText(emojiForSlide(s, i), { x: 1, y: 0.15, w: 8, h: 1, fontSize: 40, align: 'center' });
+                        }
+                        slide.addText(state.presentationTitle || s.title || 'Lesson Presentation', {
+                            x: 1, y: 1.4, w: 8, h: 2, fontSize: 40, align: 'center', bold: true, color: theme.primary
+                        });
+                        slide.addShape('rect', { x: 3.5, y: 4.2, w: 3, h: 0.6, fill: { color: theme.accent }, rectRadius: 0.3 });
+                        slide.addText('Target Lesson: ' + state.selectedDay, { x: 3.5, y: 4.2, w: 3, h: 0.6, fontSize: 18, align: 'center', color: theme.text, bold: true });
+                    } else if (isDll && layout === 'big_statement') {
+                        slide.background = { color: theme.secondary };
+                        if (isPlayful) {
+                            slide.addShape('ellipse', { x: -1, y: -1, w: 3, h: 3, fill: { color: theme.primary, transparency: 30 } });
+                            slide.addShape('ellipse', { x: 9.5, y: 3.5, w: 2.5, h: 2.5, fill: { color: 'EEFF41', transparency: 40 } });
+                            slide.addShape('ellipse', { x: 8, y: -0.5, w: 1.2, h: 1.2, fill: { color: theme.accent, transparency: 35 } });
+                        }
+                        if (state.visuals === 'emoji' || state.visuals === 'both') {
+                            slide.addText(emojiForSlide(s, i), { x: 0.5, y: 0.3, w: 2, h: 2, fontSize: 110, align: 'center', valign: 'middle' });
+                        } else {
+                            slide.addText('"', { x: 0.5, y: 0.5, w: 2, h: 2, fontSize: 120, color: 'FFFFFF', bold: true, transparency: 70 });
+                        }
+                        slide.addText(s.title || '', { x: 1, y: 0.8, w: 8, h: 1, fontSize: 22, bold: true, color: theme.accent, align: 'center', uppercase: true });
+                        var stmt = (contentLines && contentLines[0]) || '';
+                        slide.addShape('rect', { x: 1, y: 1.8, w: 8, h: 3, fill: { color: 'FFFFFF' }, rectRadius: 0.1,
+                            shadow: { type: 'outer', color: '000000', opacity: 0.15, blur: 10, offset: 5, angle: 45 } });
+                        slide.addText(stmt, { x: 1.5, y: 2, w: 7, h: 2.6, fontSize: 32, italic: true, color: theme.primary, align: 'center', valign: 'middle', bold: true });
+                    } else if (isDll && layout === 'assessment') {
+                        slide.background = { color: theme.bg };
+                        slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.5, fill: { color: theme.primary } });
+                        slide.addText(s.title || '', { x: 0.5, y: 0.25, w: 9, h: 1, fontSize: 36, bold: true, color: 'FFFFFF', valign: 'middle' });
+                        if (state.visuals === 'emoji' || state.visuals === 'both') {
+                            slide.addText(emojiForSlide(s, i), { x: 9.0, y: 0.25, w: 0.9, h: 1, fontSize: 34, align: 'right', valign: 'middle' });
+                        }
+                        if (isPlayful) {
+                            slide.addShape('ellipse', { x: 10.5, y: 0.3, w: 1.5, h: 1.5, fill: { color: theme.secondary, transparency: 40 } });
+                            slide.addText('✅', { x: 9.8, y: 4.2, w: 1, h: 0.8, fontSize: 30 });
+                            slide.addText('📝', { x: 0.3, y: 4.5, w: 1, h: 0.8, fontSize: 26 });
+                        }
+                        slide.addShape('rect', { x: 0.5, y: 1.8, w: 9, h: 3.2, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 2 },
+                            shadow: { type: 'outer', color: '000000', opacity: 0.05, blur: 5, offset: 2, angle: 45 } });
+                        slide.addShape('rect', { x: 0.5, y: 1.8, w: 0.15, h: 3.2, fill: { color: theme.secondary } });
+                        var abullets = textObjects(contentLines, { bullet: { type: 'bullet', color: theme.secondary }, color: theme.text });
+                        slide.addText(abullets, { x: 1.0, y: 2.0, w: 8.0, h: 2.8, fontSize: 24, color: theme.text, valign: 'top', lineSpacing: 40 });
+                    } else if (isDll && layout === 'infographic_cards') {
+                        slide.background = { color: theme.bg };
+                        slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: theme.primary } });
+                        slide.addText(s.title || '', { x: 0.5, y: 0.1, w: 9, h: 1, fontSize: 32, bold: true, color: 'FFFFFF', valign: 'middle' });
+                        if (state.visuals === 'emoji' || state.visuals === 'both') {
+                            slide.addText(emojiForSlide(s, i), { x: 9.1, y: 0.1, w: 0.8, h: 1, fontSize: 28, align: 'right', valign: 'middle' });
+                        }
+                        if (isPlayful) {
+                            slide.addShape('ellipse', { x: 10.0, y: 4.0, w: 1.8, h: 1.8, fill: { color: theme.secondary, transparency: 30 } });
+                            slide.addShape('ellipse', { x: -0.5, y: 4.5, w: 1.2, h: 1.2, fill: { color: theme.accent, transparency: 35 } });
+                        }
+                        var items = (s.content || []).slice(0, 3);
+                        var cardWidth = 2.8, spacing = 0.4, startX = 0.5;
+                        var cardEmojis = ['💡', '🔍', '⭐'];
+                        items.forEach(function (item, ci) {
+                            var box = ci % 2 === 0 ? theme.secondary : theme.primary;
+                            slide.addShape('rect', { x: startX, y: 1.8, w: cardWidth, h: 3.2, fill: { color: box }, rectRadius: 0.1,
+                                shadow: { type: 'outer', color: '000000', opacity: 0.2, blur: 5, offset: 3, angle: 45 } });
+                            slide.addShape('rect', { x: startX, y: 1.8, w: cardWidth, h: 0.15, fill: { color: theme.accent } });
+                            slide.addShape('ellipse', { x: startX + 1.15, y: 1.4, w: 0.5, h: 0.5, fill: { color: theme.accent }, line: { color: box, width: 2 } });
+                            slide.addText(String(ci + 1), { x: startX + 1.15, y: 1.4, w: 0.5, h: 0.5, color: box, bold: true, align: 'center', valign: 'middle', fontSize: 16 });
+                            if (isPlayful) {
+                                slide.addText(cardEmojis[ci] || '✨', { x: startX + 0.9, y: 2.0, w: 1, h: 0.6, fontSize: 28, align: 'center' });
+                                slide.addText(item, { x: startX + 0.2, y: 2.5, w: cardWidth - 0.4, h: 2.3, color: 'FFFFFF', fontSize: 15, align: 'center', valign: 'top', lineSpacing: 20 });
+                            } else {
+                                slide.addText(item, { x: startX + 0.2, y: 2.1, w: cardWidth - 0.4, h: 2.7, color: 'FFFFFF', fontSize: 16, align: 'center', valign: 'top', lineSpacing: 22 });
+                            }
+                            startX += cardWidth + spacing;
+                        });
+                    } else if (isDll && (layout === 'content_image_left' || layout === 'content_image_right' || layout === 'content_bullets')) {
+                        slide.background = { color: theme.bg };
+                        slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: theme.primary } });
+                        slide.addShape('rect', { x: 0, y: 1.15, w: '100%', h: 0.05, fill: { color: theme.secondary } });
+                        slide.addText(s.title || '', { x: 0.5, y: 0.1, w: 9, h: 1, fontSize: 32, bold: true, color: 'FFFFFF', valign: 'middle' });
+                        if (state.visuals === 'emoji' || state.visuals === 'both') {
+                            slide.addText(emojiForSlide(s, i), { x: 9.1, y: 0.1, w: 0.8, h: 1, fontSize: 30, align: 'right', valign: 'middle' });
+                        }
+                        if (isPlayful) playfulDecorate(slide, i);
+                        var bbullets = textObjects(contentLines, { bullet: { type: 'bullet', color: theme.secondary }, color: theme.text });
+                        var img = state.generatedImages[i];
+                        var isImageLayout = layout === 'content_image_left' || layout === 'content_image_right';
+                        var hasIdea = !!(s.suggestedVisual && s.suggestedVisual.length > 5 && s.suggestedVisual.toLowerCase() !== 'none');
+                        var emojiMode = state.visuals === 'emoji' || (state.visuals === 'both' && !hasIdea);
+                        var wantImage = state.visuals === 'images' || (state.visuals === 'both' && hasIdea);
+                        var useImageRight = isImageLayout && state.visuals !== 'none' && (layout === 'content_image_right' || state.visuals === 'emoji' || state.visuals === 'both' || wantImage);
+                        var useImageLeft = isImageLayout && state.visuals !== 'none' && layout === 'content_image_left' && (state.visuals === 'emoji' || state.visuals === 'both' || wantImage);
+                        var emojiBox = function (bx, by, bw, bh) {
+                            slide.addShape('rect', { x: bx, y: by, w: bw, h: bh, fill: { color: theme.accent }, rectRadius: 0.1 });
+                            slide.addText(emojiForSlide(s, i), { x: bx, y: by + 0.4, w: bw, h: bh - 1.1, fontSize: 90, align: 'center', valign: 'middle' });
+                            slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: bx + 0.2, y: by + bh - 0.75, w: bw - 0.4, h: 0.6, fontSize: 11, align: 'center', color: theme.text, italic: true });
+                        };
+                        if (useImageLeft) {
+                            if (emojiMode) emojiBox(0.4, 1.5, 3.8, 3.8);
+                            else if (img) slide.addImage({ data: img, x: 0.4, y: 1.5, w: 3.8, h: 3.8 });
+                            else {
+                                slide.addShape('rect', { x: 0.4, y: 1.5, w: 3.8, h: 3.8, fill: { color: theme.accent }, rectRadius: 0.1, line: { color: theme.secondary, width: 1.5, dashType: 'dash' } });
+                                slide.addText('[ Visual Area ]\n\n' + (s.suggestedVisual || ''), { x: 0.6, y: 1.7, w: 3.4, h: 3.4, fontSize: 13, align: 'center', color: theme.primary, valign: 'middle', italic: true });
+                            }
+                            slide.addShape('rect', { x: 4.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
+                            slide.addShape('rect', { x: 4.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
+                            slide.addText(bbullets, { x: 4.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
+                        } else if (useImageRight) {
+                            slide.addShape('rect', { x: 0.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
+                            slide.addShape('rect', { x: 0.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
+                            slide.addText(bbullets, { x: 0.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
+                            if (emojiMode) emojiBox(5.8, 1.5, 3.8, 3.8);
+                            else if (img) slide.addImage({ data: img, x: 5.8, y: 1.5, w: 3.8, h: 3.8 });
+                            else {
+                                slide.addShape('rect', { x: 5.8, y: 1.5, w: 3.8, h: 3.8, fill: { color: theme.accent }, rectRadius: 0.1, line: { color: theme.secondary, width: 1.5, dashType: 'dash' } });
+                                slide.addText('[ Visual Area ]\n\n' + (s.suggestedVisual || ''), { x: 6.0, y: 1.7, w: 3.4, h: 3.4, fontSize: 13, align: 'center', color: theme.primary, valign: 'middle', italic: true });
+                            }
+                        } else {
+                            slide.addShape('rect', { x: 0.5, y: 1.5, w: 9, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
+                            slide.addShape('rect', { x: 0.5, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
+                            slide.addText(bbullets, { x: 0.8, y: 1.7, w: 8.4, h: 3.4, fontSize: 17, color: theme.text, valign: 'top', lineSpacing: 26 });
+                        }
+                    } else {
+                        // Simple mode (topic / exam) — clean white slides
+                        slide.background = { color: isPlayful ? theme.bg : 'FFFFFF' };
+                        if (isPlayful) {
+                            slide.addShape('rect', { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: theme.primary } });
+                            slide.addShape('rect', { x: 0, y: 0, w: 12, h: 0.12, fill: { color: theme.secondary } });
+                            slide.addShape('rect', { x: 0, y: 5.51, w: 12, h: 0.12, fill: { color: theme.accent } });
+                            slide.addShape('ellipse', { x: 10.5, y: -0.5, w: 2, h: 2, fill: { color: theme.secondary, transparency: 30 } });
+                            slide.addShape('ellipse', { x: -0.4, y: 4.3, w: 1.5, h: 1.5, fill: { color: theme.accent, transparency: 30 } });
+                            slide.addText(emojiForSlide(s, i), { x: 0.4, y: 0.2, w: 0.8, h: 0.6, fontSize: 24 });
+                        } else {
+                            slide.addShape('rect', { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: '5B46E8' } });
+                        }
+                        slide.addText(s.title || ('Slide ' + (i + 1)), {
+                            x: 0.7, y: 0.55, w: 11.6, h: isFirst ? 1.2 : 0.9,
+                            fontSize: isFirst ? 36 : 30, bold: true, color: isPlayful ? theme.primary : '0B0A12',
+                            align: 'center', fontFace: isPlayful ? 'Arial' : 'Georgia'
+                        });
+                        var cbullets = textObjects(contentLines, { bullet: { code: '2022', color: isPlayful ? theme.secondary : undefined } });
+                        var simg = state.generatedImages[i];
+                        if (state.visuals === 'emoji' || (state.visuals === 'both' && !simg)) {
+                            slide.addText(cbullets, {
+                                x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
+                                valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
+                            });
+                            slide.addShape('rect', { x: 6.5, y: 1.6, w: 4.2, h: 3.6, fill: { color: isPlayful ? theme.accent : 'EDEBF8' }, rectRadius: 0.1 });
+                            slide.addText(emojiForSlide(s, i), { x: 6.5, y: 1.9, w: 4.2, h: 2.4, fontSize: 96, align: 'center', valign: 'middle' });
+                            slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: 6.5, y: 4.4, w: 4.2, h: 0.6, fontSize: 11, align: 'center', color: isPlayful ? theme.text : '6B6578', italic: true });
+                        } else if (simg) {
+                            slide.addText(cbullets, {
+                                x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
+                                valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
+                            });
+                            slide.addImage({ data: simg, x: 6.5, y: 1.6, w: 4.2, h: 3.6, sizing: { type: 'contain', w: 4.2, h: 3.6 } });
+                        } else {
+                            slide.addText(cbullets, {
+                                x: isFirst ? 1.2 : 1.0, y: isFirst ? 2.3 : 1.8,
+                                w: isFirst ? 9.6 : 10.0, h: 3.4, fontSize: 18, color: isPlayful ? theme.text : '2A2438',
+                                valign: 'top', align: isFirst ? 'center' : 'left',
+                                lineSpacingMultiple: 1.25, autoFit: true
+                            });
+                        }
+                    }
+
+                    if (isPlayful) {
+                        // Playful: slide number in a colored circle
+                        slide.addShape('ellipse', { x: 11.0, y: 5.0, w: 0.5, h: 0.5, fill: { color: theme.primary } });
+                        slide.addText(String(i + 1), { x: 11.0, y: 5.0, w: 0.5, h: 0.5, fontSize: 11, color: 'FFFFFF', align: 'center', valign: 'middle', bold: true });
+                    } else {
+                        slide.addText(String(i + 1), {
+                            x: 11.2, y: 5.15, w: 1.0, h: 0.4, fontSize: 11, color: 'B0AAC8', align: 'right'
+                        });
+                    }
+                    // YouTube embed: if user provided a URL, embed it on this slide
+                    if (state.youtubeUrl && i === state.current) {
+                        var ytUrl = state.youtubeUrl;
+                        // Convert standard YouTube URL to embed format
+                        var ytMatch = ytUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]+)/);
+                        if (ytMatch) {
+                            var ytEmbed = 'https://www.youtube.com/embed/' + ytMatch[1];
+                            slide.addMedia({ type: 'online', link: ytEmbed, x: 2.5, y: 1.5, w: 7, h: 4 });
+                        }
+                    }
+                    // Playful: SVG icon + decorative shapes
+                    if (isPlayful) {
+                        var svgData = svgIconForSlide(s, i);
+                        // SVG icon top-right
+                        slide.addImage({ data: svgData, x: 10.5, y: 0.1, w: 0.6, h: 0.6, transparency: 30 });
+                        // Star shape
+                        slide.addShape('star5', { x: 11.2, y: 0.3, w: 0.35, h: 0.35, fill: { color: 'EEFF41', transparency: 40 } });
+                        // Diamond shape bottom-left
+                        slide.addShape('diamond', { x: 0.2, y: 5.0, w: 0.3, h: 0.3, fill: { color: theme.accent, transparency: 35 } });
+                    }
+                    if (s.notes) slide.addNotes(s.notes);
+                });
+
+                var safe = (state.fileName || 'Presentation').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+                pptx.writeFile({ fileName: safe + '.pptx' });
+            } catch (err) {
+                console.error(err);
+                setError('Failed to build the PowerPoint file: ' + (err.message || 'unknown error'));
+            }
+        }
+
+        /* ---------- inline settings dropdown (API key) ---------- */
+        function setSettingsMsg(kind, text) {
+            var msgEl = $('settings-test-msg');
+            if (!msgEl) return;
+            msgEl.textContent = text;
+            msgEl.classList.remove('hidden');
+            msgEl.className = 'text-[10px] mt-1.5 px-1 ' + (kind === 'ok' ? 'text-emerald-600' : 'text-red-500');
+        }
+
+        function pingGeminiKey(k) {
+            return window.SilidAPI.pingKey(k);
+        }
+        function testApiKeyNow() {
+            var btn = $('settings-test-btn');
+            var k1 = ($('settings-key-input').value || '').trim();
+            var k2 = ($('settings-key-input-2').value || '').trim();
+            if (!k1) { setSettingsMsg('fail', 'Please paste your primary API key first.'); return; }
+            if (k1.length < 20) { setSettingsMsg('fail', 'This primary key looks too short. Please copy the full key from Google AI Studio.'); return; }
+            if (k2 && k2.length < 20) { setSettingsMsg('fail', 'The backup key looks too short. Please copy the full key from Google AI Studio.'); return; }
+            btn.disabled = true;
+            btn.textContent = 'Testing…';
+            pingGeminiKey(k1).then(function (r1) {
+                if (!r1.ok) {
+                    btn.disabled = false;
+                    btn.textContent = 'Test API Key';
+                    setSettingsMsg('fail', 'Primary key: ' + r1.friendly);
+                    return;
+                }
+                if (!k2) {
+                    btn.disabled = false;
+                    btn.textContent = '✓ API Key Working';
+                    setSettingsMsg('ok', 'Your API key is working! You\'re all set to build decks.');
+                    return;
+                }
+                pingGeminiKey(k2).then(function (r2) {
+                    btn.disabled = false;
+                    if (r2.ok) {
+                        btn.textContent = '✓ Keys Working';
+                        setSettingsMsg('ok', 'Primary and backup keys are both working!');
+                    } else {
+                        btn.textContent = 'Test API Key';
+                        setSettingsMsg('fail', 'Primary key works, but the backup failed: ' + r2.friendly);
+                    }
+                }, function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Test API Key';
+                    setSettingsMsg('fail', 'Primary key works, but cannot reach Google to test the backup.');
+                });
+            }, function () {
+                btn.disabled = false;
+                btn.textContent = 'Test API Key';
+                setSettingsMsg('fail', 'Cannot reach Google. Check your internet connection and try again.');
+            });
+        }
+
+        function bindSettingsDropdown() {
+            var gear = $('settings-btn');
+            var dd = $('settings-dropdown');
+            var input = $('settings-key-input');
+            var testBtn = $('settings-test-btn');
+            if (!gear || !dd) return;
+
+            function close() { dd.classList.add('hidden'); }
+
+            gear.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var wasHidden = dd.classList.contains('hidden');
+                close();
+                if (wasHidden) {
+                    dd.classList.remove('hidden');
+                    if (input) input.focus();
+                }
+            });
+            document.addEventListener('mousedown', function (e) {
+                if (dd.classList.contains('hidden')) return;
+                if (dd.contains(e.target) || gear.contains(e.target)) return;
+                close();
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') close();
+            });
+            if (input) input.addEventListener('input', function () {
+                var v = input.value.trim();
+                if (window.SilidKeys) window.SilidKeys.set('primary', v);
+                else if (v) localStorage.setItem('gemini_api_key', v);
+                else localStorage.removeItem('gemini_api_key');
+                state.apiKey = v;
+                updateApiDot();
+                if (testBtn) { testBtn.textContent = 'Test API Key'; testBtn.disabled = false; }
+                var msgEl = $('settings-test-msg');
+                if (msgEl) msgEl.classList.add('hidden');
+            });
+            var input2 = $('settings-key-input-2');
+            if (input2) {
+                if (!input2.value) input2.value = window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || '');
+                input2.addEventListener('input', function () {
+                    var v = input2.value.trim();
+                    if (window.SilidKeys) window.SilidKeys.set('backup', v);
+                    else if (v) localStorage.setItem('gemini_api_key_2', v);
+                    else localStorage.removeItem('gemini_api_key_2');
+                    state.apiKey2 = v;
+                    if (testBtn) { testBtn.textContent = 'Test API Key'; testBtn.disabled = false; }
+                    var msgEl = $('settings-test-msg');
+                    if (msgEl) msgEl.classList.add('hidden');
+                });
+            }
+            var remember = $('remember-keys');
+            var rememberHintEl = $('remember-keys-hint');
+            if (remember) {
+                remember.checked = !!(window.SilidKeys && window.SilidKeys.isRemembered());
+                if (rememberHintEl && window.SilidKeys) rememberHintEl.textContent = window.SilidKeys.rememberHint(remember.checked);
+                remember.addEventListener('change', function () {
+                    if (!window.SilidKeys) return;
+                    var hint = window.SilidKeys.rememberHint(remember.checked);
+                    window.SilidKeys.setRemembered(remember.checked);
+                    if (rememberHintEl) rememberHintEl.textContent = hint;
+                    if (window.SilidToast) window.SilidToast.info(hint);
+                });
+            }
+            if (testBtn) testBtn.addEventListener('click', testApiKeyNow);
+        }
+
+        /* ---------- wiring ---------- */
+        // Load PDF.js for .pdf text extraction (lazy, so page loads fast)
+        function loadPdfJs() {
+            if (window.pdfjsLib) return;
+            var s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            s.onload = function () {
+                if (window.pdfjsLib) {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
+            };
+            document.head.appendChild(s);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            updateApiDot();
+            switchMode('topic');
+            loadPdfJs();
+
+            document.querySelectorAll('#mode-tabs button').forEach(function (b) {
+                b.addEventListener('click', function () { switchMode(b.getAttribute('data-mode')); });
+            });
+
+            document.querySelectorAll('.qtype-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.qtype = b.getAttribute('data-qtype');
+                    document.querySelectorAll('.qtype-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                    state.fileName = MODE_META[state.qtype].filePrefix;
+                });
+            });
+
+            // DLL source type pills
+            document.querySelectorAll('#dll-source-pills .dllsrc-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.dllInputType = b.getAttribute('data-dllsrc');
+                    document.querySelectorAll('#dll-source-pills .dllsrc-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                    var isManual = state.dllInputType === 'manual';
+                    $('dll-upload-area').classList.toggle('hidden', isManual);
+                    $('dll-manual-area').classList.toggle('hidden', !isManual);
+                });
+            });
+
+            // DLL day pills
+            document.querySelectorAll('#dll-days .day-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.selectedDay = b.getAttribute('data-day');
+                    document.querySelectorAll('#dll-days .day-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                    MODE_META.dll.filePrefix = 'Lesson_' + state.selectedDay.replace(/\s+/g, '') + '_Presentation';
+                });
+            });
+
+            // DLL theme swatches
+            document.querySelectorAll('#dll-themes .theme-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.selectedTheme = b.getAttribute('data-theme');
+                    document.querySelectorAll('#dll-themes .theme-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                    if (state.slides.length) renderPreview();
+                });
+            });
+
+            // DLL language
+            document.querySelectorAll('.lang-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.selectedLanguage = b.getAttribute('data-lang');
+                    document.querySelectorAll('.lang-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                });
+            });
+
+            // DLL assessment
+            $('dll-assessment-toggle').addEventListener('change', function () {
+                state.includeAssessment = this.checked;
+                $('dll-assessment-opts').classList.toggle('hidden', !state.includeAssessment);
+            });
+            document.querySelectorAll('.atype-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.assessmentType = b.getAttribute('data-atype');
+                    document.querySelectorAll('.atype-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                });
+            });
+            document.querySelectorAll('.adiff-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.assessmentDifficulty = b.getAttribute('data-adiff');
+                    document.querySelectorAll('.adiff-toggle').forEach(function (x) { x.classList.toggle('active', x === b); });
+                });
+            });
+            $('dll-items').addEventListener('input', function () {
+                state.assessmentItems = parseInt(this.value, 10) || 5;
+                $('dll-items-val').textContent = state.assessmentItems;
+            });
+
+            // DLL file status
+            $('dll-file-clear').addEventListener('click', function () {
+                $('dll-file').value = '';
+                $('dll-file-status').classList.add('hidden');
+                $('dll-file-label').textContent = 'Click to choose a file';
+                state.dllText = '';
+            });
+
+            bindIoToggles('card-topic');
+            bindIoToggles('card-dll');
+            bindIoToggles('card-exam');
+            bindFileInputs();
+
+            // track which IO method is active per card
+            ['topic', 'dll', 'exam'].forEach(function (mode) {
+                $(PASTE_IDS[mode]).addEventListener('input', function () { state.inputMethod = 'paste'; });
+                $(FILE_IDS[mode]).addEventListener('change', function () { state.inputMethod = 'file'; });
+            });
+
+            // Visuals selector (AI images / emoji / none)
+            var visualsHints = {
+                images: 'AI-generated illustrations powered by Gemini for slides that have a visual idea. Requires a Gemini API key.',
+                both: 'Gemini AI images for slides with a visual idea, emoji icons on the rest — the best of both worlds.',
+                emoji: 'Fast emoji icons on each slide — perfect for quick review decks or when no API key is set.',
+                none: 'Clean text-only slides — fastest option, no images at all.'
+            };
+            document.querySelectorAll('#visuals-pills button').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    state.visuals = b.getAttribute('data-visuals');
+                    document.querySelectorAll('#visuals-pills button').forEach(function (x) {
+                        x.classList.toggle('active', x === b);
+                    });
+                    var hint = $('visuals-hint');
+                    if (hint) hint.textContent = visualsHints[state.visuals] || '';
+                    // Show YouTube input only for 'images' or 'both' modes
+                    var ytWrap = $('youtube-input-wrap');
+                    if (ytWrap) ytWrap.classList.toggle('hidden', state.visuals === 'emoji' || state.visuals === 'none');
+                    if (state.slides.length) renderPreview();
+                });
+            });
+            // YouTube URL input wiring
+            var ytInput = $('youtube-url');
+            if (ytInput) ytInput.addEventListener('input', function () { state.youtubeUrl = ytInput.value.trim(); });
+
+            // Deck size dropdowns (topic mode + DLL mode have their own range)
+            var rangeSel = $('topic-slide-range');
+            if (rangeSel) rangeSel.addEventListener('change', function () { state.slideRange = this.value; });
+            var dllRangeSel = $('dll-slide-range');
+            if (dllRangeSel) dllRangeSel.addEventListener('change', function () { state.dllSlideRange = this.value; });
+
+            bindSettingsDropdown();
+
+            $('btn-topic-generate').addEventListener('click', generateTopic);
+            $('btn-dll-generate').addEventListener('click', generateDll);
+            $('btn-exam-generate').addEventListener('click', generateExam);
+
+            $('btn-review-cancel').addEventListener('click', function () {
+                state.items = [];
+                setPhase('empty');
+            });
+            $('btn-review-build').addEventListener('click', buildExamSlides);
+
+            $('btn-prev').addEventListener('click', function () {
+                if (state.current > 0) { state.current--; renderPreview(); }
+            });
+            $('btn-next').addEventListener('click', function () {
+                if (state.current < state.slides.length - 1) { state.current++; renderPreview(); }
+            });
+            $('btn-start-over').addEventListener('click', function () {
+                state.slides = []; state.items = []; state.current = 0;
+                clearSavedPptState();
+                setPhase('empty');
+            });
+            $('btn-download').addEventListener('click', downloadPptx);
+            $('btn-print-deck').addEventListener('click', printDeck);
+
+            if (window.SilidDocsUI) {
+                window.SilidDocsUI.mount({ tool: 'ppt-maker', label: 'Presentation' });
+                window.SilidDocsUI.onOpen(function (doc) {
+                    var data = null;
+                    try { data = JSON.parse(doc.content); } catch (e) { data = null; }
+                    if (!data || !Array.isArray(data.slides) || !data.slides.length) {
+                        setError('This saved presentation could not be opened.');
+                        return;
+                    }
+                    state.slides = data.slides;
+                    state.items = [];
+                    state.current = 0;
+                    if (data.presentationTitle) state.presentationTitle = data.presentationTitle;
+                    if (data.mode) state.mode = data.mode;
+                    if (data.selectedTheme && THEMES[data.selectedTheme]) state.selectedTheme = data.selectedTheme;
+                    if (data.selectedLanguage) state.selectedLanguage = data.selectedLanguage;
+                    if (data.slideRange) state.slideRange = data.slideRange;
+                    if (data.dllSlideRange) state.dllSlideRange = data.dllSlideRange;
+                    if (data.generatedImages) state.generatedImages = data.generatedImages;
+                    state.generatingImages = {};
+                    state.imageErrors = {};
+                    var tRange = $('topic-slide-range');
+                    if (tRange) tRange.value = state.slideRange;
+                    var dRange = $('dll-slide-range');
+                    if (dRange) dRange.value = state.dllSlideRange;
+                    renderPreview();
+                });
+            }
+
+            /* Start fresh on each page load — clear any previous deck */
+            clearSavedPptState();
+
+            /* A lesson plan handed over from lesson.html? Load it into DLL mode. */
+            importLessonForPpt();
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SilidPinoy</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            display: ['Fraunces', 'serif'],
+          },
+          colors: {
+            ink: '#0B0A12',
+            canvas: '#F7F6F3',
+            mist: '#EEEDF8',
+            iris: { 50:'#F1EEFE',100:'#E7E2FD',200:'#D2C9FB',500:'#6D5BF5',600:'#5B46E8',700:'#4632C9' },
+          },
+          transitionTimingFunction: {
+            spring: 'cubic-bezier(0.32,0.72,0,1)',
+            soft: 'cubic-bezier(0.22,1,0.36,1)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    * { -webkit-font-smoothing: antialiased; }
+    body { margin:0; background:#F7F6F3; }
+    body::before {
+      content:""; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0.035;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    @page { size: A4 portrait; margin: 12mm; }
+    @media print {
+      body { background:#fff !important; }
+      body::before{display:none!important;}
+      .no-print{display:none!important;}
+      #silid-toast-container{display:none!important;}
+      #silid-docs-root{display:none!important;}
+      .print-full{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important;}
+      .print-full > div{border-radius:0!important;box-shadow:none!important;min-height:0!important;}
+      .print-flow{overflow:visible!important;height:auto!important;max-height:none!important;padding:0!important;}
+      /* Tighter type on paper — the same questions fit on fewer pages. */
+      .prose{font-size:10.5pt!important;line-height:1.3!important;}
+      .prose :where(p,ul,ol,blockquote,pre,table){margin-top:0.3em!important;margin-bottom:0.3em!important;}
+      .prose :where(li){margin-top:0.05em!important;margin-bottom:0.05em!important;}
+      .prose :where(h1,h2,h3,h4){margin-top:0.55em!important;margin-bottom:0.25em!important;}
+      .prose :where(hr){margin-top:0.4em!important;margin-bottom:0.4em!important;}
+      .prose :where(p:empty,div:empty){display:none!important;}
+    }
+    .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.20) 0%,transparent 70%); }
+    .halo-2 { background:radial-gradient(30% 35% at 82% 18%,rgba(236,72,153,0.12) 0%,transparent 70%); }
+    .reveal { opacity:0; transform:translateY(28px); filter:blur(6px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s cubic-bezier(.22,1,.36,1); }
+    .reveal.in { opacity:1; transform:none; filter:none; }
+    .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1), box-shadow .5s cubic-bezier(.32,.72,0,1); }
+    .btn-spring:hover { transform:translateY(-2px); }
+    .btn-spring:active { transform:scale(.98); }
+    .icon-orb { transition: transform .5s cubic-bezier(.32,.72,0,1); }
+    .btn-spring:hover .icon-orb { transform:translate(3px,-3px) scale(1.06); }
+    .nav-link { transition: color .4s cubic-bezier(.22,1,.36,1), background .4s cubic-bezier(.22,1,.36,1); }
+    .card-bezel { border-radius:1.75rem; padding:6px; background:white; box-shadow:0 24px 70px -34px rgba(11,10,18,0.3); }
+    .card-inner { border-radius:calc(1.75rem - 6px); background:#F7F6F3; }
+    .scenario-box { border:none; border-radius:0; padding:0; margin:8px 0; background:transparent; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+    .animate-fade-in { animation:fadeIn .2s ease-out forwards; }
+    .custom-scrollbar::-webkit-scrollbar { width:6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background:transparent; border-radius:4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+  </style>
+</head>
+<body class="font-sans text-ink antialiased">
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+  <script src="deped-options.js"></script>
+  <script src="shared-api.js"></script>
+  <script src="shared-keys.js"></script>
+  <script src="shared-backup.js"></script>
+  <script src="shared-validate.js"></script>
+  <script src="shared-docs.js"></script>
+  <script src="shared-docs-ui.js"></script>
+  <script src="shared-file-utils.js"></script>
+  <script src="shared-toast.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, createElement: h } = React;
+
+    /* ============================================================
+       SVG Icon Helper
+       ============================================================ */
+    function loadLucideIcons() {
+      return new Promise((resolve) => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') { resolve(); return; }
+        const check = setInterval(() => { if (window.lucide && typeof window.lucide.createIcons === 'function') { clearInterval(check); resolve(); } }, 50);
+      });
+    }
+    const ICON_SVG_PATHS = {
+      BookOpen:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+      FileText:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/>',
+      Upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+      UploadCloud:'<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>',
+      FileType:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13v-1a2 2 0 0 1 4 0v1"/><path d="M12 12v4"/><path d="m16 16-4-4-4 4"/>',
+      CheckCircle:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+      Settings:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+      Loader2:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+      File:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>',
+      Copy:'<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+      Download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+      Trash2:'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+      AlertCircle:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+      AlertTriangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+      RotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+      Printer:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+      ChevronRight:'<path d="m9 18 6-6-6-6"/>',
+      ChevronDown:'<path d="m6 9 6 6 6-6"/>',
+      FileDigit:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+      Presentation:'<path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/>',
+      Sparkles:'<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>',
+      BrainCircuit:'<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M19.938 10.5a4 4 0 0 1 .585.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M19.967 17.484A4 4 0 0 1 18 18"/>',
+      LayoutTemplate:'<rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/>',
+      ArrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+      Table:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/>',
+      ClipboardList:'<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>',
+    };
+    function LucideIcon({ name, className = '', strokeWidth = 2, ...props }) {
+      const [loaded, setLoaded] = useState(false);
+      useEffect(() => { loadLucideIcons().then(() => setLoaded(true)); }, []);
+      if (!loaded) return null;
+      const paths = ICON_SVG_PATHS[name] || '';
+      const sizeMatch = className.match(/w-(\d+)/);
+      const size = sizeMatch ? parseInt(sizeMatch[1]) * 4 : 20;
+      return (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: paths }} {...props} />);
+    }
+
+    /* ============================================================
+       Test Types & App Component
+       ============================================================ */
+    const AVAILABLE_TEST_TYPES = [
+      { id:'mcq',label:'Multiple Choice (MCQ)' },{ id:'tf',label:'True or False' },{ id:'matching',label:'Matching Type' },
+      { id:'blanks',label:'Fill in the Blanks (Completion)' },{ id:'identification',label:'Identification' },
+      { id:'enumeration',label:'Enumeration (list answers)' },{ id:'analogy',label:'Analogy Type (A is to B as C is to ___)' },
+      { id:'error_id',label:'Error Identification (find the mistake)' },{ id:'constructed',label:'Constructed Response (Thinking-heavy)' },
+      { id:'short_answer',label:'Short Answer' },{ id:'modified_tf',label:'Modified True or False (Correct the wrong part)' },
+      { id:'essay',label:'Essay \u2013 open-ended' },{ id:'problem_solving',label:'Problem Solving (especially Math)' },
+      { id:'explanation',label:'Explanation Type (Explain why/how)' },{ id:'reflection',label:'Reflection Questions' },
+    ];
+
+     /* The blank slate used by the first render and by "Start fresh". */
+     const freshTestTypes = () => AVAILABLE_TEST_TYPES.map(t => ({ ...t, selected:false, count:5, style:t.id==='mcq'?'regular':(t.id==='blanks'?'sentence':undefined) }));
+
+     const TOOLS = [
+      { id:'test', name:'Test Creator', desc:'Generate rigorous summative & formative tests from topics or uploaded modules.', icon:'FileText', ready:true },
+      { id:'tos', name:'TOS Maker', desc:'Build a Table of Specifications aligned to Bloom’s and your curriculum.', icon:'Table', ready:true, url:'tos.html' },
+      { id:'lesson', name:'iLaw Lesson Plan', desc:'DepEd-aligned lesson plans drafted in minutes, not hours.', icon:'ClipboardList', ready:true, url:'lesson.html' },
+      { id:'ppt', name:'PPT Maker', desc:'Turn any topic, DLL, exam, or quiz into a polished slide deck automatically.', icon:'Presentation', ready:true, url:'powerpoint.html' },
+      { id:'activity', name:'Activity Sheet Maker', desc:'Turn any lesson plan into a beautiful module-style worksheet with puzzles, tables, and icons.', icon:'ClipboardCheck', ready:true, url:'activity.html' },
+    ];
+
+    /* ============================================================
+       DepEd picker lists + typeahead input
+       ============================================================ */
+    const DEPED_GRADE_LEVELS = (window.DEPED_GRADE_LEVELS) || [];
+    const DEPED_SUBJECTS = (window.DEPED_SUBJECTS) || [];
+
+    function SuggestInput({ name, value, onChange, placeholder, suggestions = [], extraClass = '' }) {
+      const [open, setOpen] = useState(false);
+      const [q, setQ] = useState('');
+      const shown = open ? (q ? suggestions.filter((s) => String(s).toLowerCase().includes(q.toLowerCase())) : suggestions).slice(0, 80) : [];
+      return (
+        <div className="relative">
+          <input type="text" name={name} value={value} autoComplete="off" placeholder={placeholder}
+            onChange={(e) => { onChange(e); setQ(e.target.value); }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 140)}
+            className={'w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm pr-9 focus:outline-none focus:ring-2 focus:ring-iris-500 ' + extraClass} />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/30"><LucideIcon name="ChevronDown" className="w-4 h-4" /></span>
+          {open && (
+            <div className="absolute z-50 mt-1.5 w-full max-h-60 overflow-y-auto rounded-xl bg-white ring-1 ring-black/5 py-1.5" style={{ boxShadow: '0 12px 40px -8px rgba(11,10,18,0.18)' }}>
+              {shown.length > 0 ? shown.map((s) => (
+                <div key={s} onMouseDown={(e) => { e.preventDefault(); onChange({ target: { name, value: s } }); setQ(''); setOpen(false); }}
+                  className="px-3.5 py-2 text-sm cursor-pointer hover:bg-iris-50 text-ink/80 truncate">{s}</div>
+              )) : (
+                <div className="px-3.5 py-2 text-xs italic text-ink/40">No match — keep typing to use your own entry</div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [currentView, setCurrentView] = useState(() => window.location.hash === '#test-maker' ? 'creator' : 'home');
+      const [mode, setMode] = useState('topic');
+      const [topic, setTopic] = useState('');
+      const [files, setFiles] = useState([]);
+      const [config, setConfig] = useState({ gradeLevel:'', subject:'', testName:'' });
+      const [testTypes, setTestTypes] = useState(freshTestTypes);
+      const [generatedTest, setGeneratedTest] = useState('');
+      const [isGenerating, setIsGenerating] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+      const [validationWarnings, setValidationWarnings] = useState([]);
+      const [apiKey, setApiKey] = useState(() => (window.SilidKeys ? window.SilidKeys.get('primary') : localStorage.getItem('gemini_api_key') || ''));
+      const [apiKey2, setApiKey2] = useState(() => (window.SilidKeys ? window.SilidKeys.get('backup') : localStorage.getItem('gemini_api_key_2') || ''));
+      const [rememberKeys, setRememberKeys] = useState(() => !!(window.SilidKeys && window.SilidKeys.isRemembered()));
+      const [showKeyInput, setShowKeyInput] = useState(() => window.location.hash === '#settings');
+      const [apiKeyTestStatus, setApiKeyTestStatus] = useState('');
+      const [apiKeyTestMsg, setApiKeyTestMsg] = useState('');
+      const [schoolInfo, setSchoolInfo] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('school_info')) || { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
+        catch { return { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
+      });
+      const fileInputRef = useRef(null);
+      const keyDropdownRef = useRef(null);
+      const [toast, setToast] = useState('');
+      const [tosDistributions, setTosDistributions] = useState(null);
+      const [backupIncludeKeys, setBackupIncludeKeys] = useState(false);
+      const [backupMsg, setBackupMsg] = useState('');
+      const [backupWarnings, setBackupWarnings] = useState([]);
+
+      const notifySoon = (name) => {
+        setToast(`${name} is coming soon — stay tuned!`);
+        window.clearTimeout(notifySoon._t);
+        notifySoon._t = window.setTimeout(() => setToast(''), 2600);
+      };
+
+      useEffect(() => {
+        if (window.SilidKeys) window.SilidKeys.set('primary', apiKey);
+        else if (apiKey) localStorage.setItem('gemini_api_key', apiKey);
+        else localStorage.removeItem('gemini_api_key');
+        setApiKeyTestStatus('');
+        setApiKeyTestMsg('');
+      }, [apiKey]);
+      useEffect(() => {
+        if (window.SilidKeys) window.SilidKeys.set('backup', apiKey2);
+        else if (apiKey2) localStorage.setItem('gemini_api_key_2', apiKey2);
+        else localStorage.removeItem('gemini_api_key_2');
+      }, [apiKey2]);
+      useEffect(() => { localStorage.setItem('school_info', JSON.stringify(schoolInfo)); }, [schoolInfo]);
+      useEffect(() => {
+        if (!showKeyInput) return;
+        const h = (e) => { if (keyDropdownRef.current && !keyDropdownRef.current.contains(e.target)) setShowKeyInput(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+      }, [showKeyInput]);
+
+      // Reveal on scroll
+      useEffect(() => {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((e, i) => { if (e.isIntersecting) { e.target.style.transitionDelay = (i % 4) * 80 + 'ms'; e.target.classList.add('in'); io.unobserve(e.target); } });
+        }, { threshold: 0.12 });
+        document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+        return () => io.disconnect();
+      });
+
+      /* Clear nav hash after reading it (so refresh doesn't re-trigger) */
+      useEffect(() => {
+        const h = window.location.hash;
+        if (h === '#settings') { setCurrentView('settings'); setShowKeyInput(false); }
+        else if (h === '#creator') { setCurrentView('creator'); }
+        if (h) {
+          /* Use the absolute URL minus the hash: on a file:// page a path-only URL is
+             treated as a separate origin and Chrome refuses it. */
+          try { window.history.replaceState(null, '', window.location.href.replace(/#.*$/, '')); } catch {}
+        }
+      }, []);
+
+      /* Auto-load TOS data from TOS Maker */
+      useEffect(() => {
+        try {
+          const raw = localStorage.getItem('tos_make_test');
+          if (!raw) return;
+          const tos = JSON.parse(raw);
+          localStorage.removeItem('tos_make_test');
+          setConfig({ gradeLevel: tos.gradeLevel || '', subject: tos.subject || '', testName: tos.testName || '' });
+          setTopic(tos.competencies || '');
+          setMode('topic');
+          setCurrentView('creator');
+          if (tos.competencyDistributions) setTosDistributions(tos.competencyDistributions);
+        } catch {}
+      }, []);
+
+      /* Restore the last generated test when coming back to this page */
+      useEffect(() => {
+        try {
+          const saved = localStorage.getItem('saved_test_output');
+          if (saved && saved.trim()) {
+            /* the stored details bring back the subject and test name for the header */
+            try {
+              const savedCfg = JSON.parse(localStorage.getItem('saved_test_config') || 'null');
+              if (savedCfg) applySavedConfig(savedCfg);
+            } catch {}
+            setGeneratedTest(stripTestTitleBlock(saved));
+            setCurrentView('creator');
+          }
+        } catch {}
+      }, []);
+
+      /* Document history drawer (shared-docs-ui.js + shared-docs.js) */
+      useEffect(() => {
+        if (!window.SilidDocsUI) return;
+        window.SilidDocsUI.mount({ tool: 'test-maker', label: 'Test' });
+        window.SilidDocsUI.onOpen(function (doc) {
+          if (!doc || !doc.content) return;
+          setValidationWarnings([]);
+          setGeneratedTest(stripTestTitleBlock(doc.content));
+          if (doc.meta) applySavedConfig(doc.meta.config);
+          setTimeout(function () { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+        });
+      }, []);
+
+      /* One-time migration of localStorage outputs to IndexedDB */
+      useEffect(() => {
+        if (window.SilidDocs) {
+          window.SilidDocs.migrateFromLocalStorage().then(function(r) {
+            if (r.migrated > 0) console.log('Migrated ' + r.migrated + ' document(s) to IndexedDB.');
+          }).catch(function(e) { console.warn('Migration failed:', e); });
+        }
+      }, []);
+
+      const handleConfigChange = (e) => setConfig({ ...config, [e.target.name]: e.target.value });
+      const toggleTestType = (id) => setTestTypes(p => p.map(t => t.id === id ? { ...t, selected: !t.selected } : t));
+      const updateTestTypeCount = (id, count) => setTestTypes(p => p.map(t => t.id === id ? { ...t, count: parseInt(count)||0 } : t));
+      const updateTestTypeStyle = (id, style) => setTestTypes(p => p.map(t => t.id === id ? { ...t, style } : t));
+      const handleSchoolInfoChange = (e) => setSchoolInfo(p => ({ ...p, [e.target.name]: e.target.value }));
+      const handleLogoUpload = (e, field) => {
+        const file = e.target.files?.[0]; if (!file) return;
+        if (file.size > 500*1024) { if(window.SilidToast) window.SilidToast.warning('Logo must be under 500 KB.'); else alert('Logo must be under 500 KB.'); return; }
+        const reader = new FileReader(); reader.onload = (ev) => setSchoolInfo(p => ({ ...p, [field]: ev.target.result })); reader.readAsDataURL(file);
+      };
+      const removeLogo = (field) => setSchoolInfo(p => ({ ...p, [field]: '' }));
+
+      const handleBackupImport = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        setBackupMsg('');
+        setBackupWarnings([]);
+        try {
+          const result = await window.SilidBackup.importBackup(file);
+          if (result.warnings && result.warnings.length) setBackupWarnings(result.warnings);
+          // Apply import (merge mode by default)
+          const applied = window.SilidBackup.applyImport(result.data, 'merge');
+          if (applied.ok) {
+            setBackupMsg('Imported ' + applied.keysWritten.length + ' items. Refreshing...');
+            // Reload school info from localStorage
+            try {
+              const si = JSON.parse(localStorage.getItem('school_info'));
+              if (si) setSchoolInfo(si);
+            } catch (_) {}
+            setTimeout(() => { e.target.value = ''; setBackupMsg('Import complete. Your data has been restored.'); }, 600);
+          }
+        } catch (err) {
+          setBackupMsg('');
+          setBackupWarnings([err.message || 'Import failed.']);
+        }
+      };
+
+      // pingKey is now provided by shared-api.js as window.SilidAPI.pingKey
+      const handleTestApiKey = async () => {
+        const k1 = apiKey.trim();
+        const k2 = apiKey2.trim();
+        if (!k1) { setApiKeyTestStatus('fail'); setApiKeyTestMsg('Please paste your primary API key first.'); return; }
+        if (k1.length < 20) { setApiKeyTestStatus('fail'); setApiKeyTestMsg('This primary key looks too short. Please copy the full key from Google AI Studio.'); return; }
+        if (k2 && k2.length < 20) { setApiKeyTestStatus('fail'); setApiKeyTestMsg('The backup key looks too short. Please copy the full key from Google AI Studio.'); return; }
+        setApiKeyTestStatus('testing');
+        setApiKeyTestMsg('');
+        try {
+          const r1 = await window.SilidAPI.pingKey(k1);
+          if (!r1.ok) { setApiKeyTestMsg('Primary key: ' + r1.friendly); setApiKeyTestStatus('fail'); return; }
+          if (!k2) { setApiKeyTestMsg('Your API key is working! You\'re all set to create tests.'); setApiKeyTestStatus('ok'); return; }
+          const r2 = await window.SilidAPI.pingKey(k2);
+          if (r2.ok) { setApiKeyTestMsg('Primary and backup keys are both working!'); setApiKeyTestStatus('ok'); }
+          else { setApiKeyTestMsg('Primary key works, but the backup failed: ' + r2.friendly); setApiKeyTestStatus('fail'); }
+        } catch (e) {
+          console.error('API test error:', e);
+          setApiKeyTestMsg('Could not test the key: ' + ((e && e.message) || 'unknown error') + '. Check your internet connection and try again.');
+          setApiKeyTestStatus('fail');
+        }
+      };
+
+      const reportFileError = (name, detail) => {
+        console.error('Could not read ' + name + ':', detail);
+        const msg = 'Could not read ' + name + ' — ' + detail;
+        if (window.SilidToast) window.SilidToast.error(msg); else alert(msg);
+      };
+
+      const extractTextFromFile = async (file) => {
+        const failed = (detail) => { reportFileError(file.name, detail); return { text: '', ok: false, error: detail }; };
+        return new Promise((resolve) => {
+          const ft = file.name.split('.').pop().toLowerCase();
+          if (['txt','csv','md'].includes(ft)) { const r=new FileReader(); r.onload=(e)=>resolve({text:e.target.result||'',ok:true}); r.onerror=()=>resolve(failed('the file could not be opened.')); r.readAsText(file); }
+          else if (ft==='pdf') {
+            if (!window.pdfjsLib) return resolve(failed('the PDF reader has not loaded yet. Check your connection and try again.'));
+            const r=new FileReader(); r.onload=async(e)=>{ try{const ta=new Uint8Array(e.target.result);const pdf=await window.pdfjsLib.getDocument(ta).promise;const maxPages=Math.min(pdf.numPages,10);let t='';for(let i=1;i<=maxPages;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();t+=c.items.map(x=>x.str).join(' ')+'\n';}const out=t.trim();if(!out)return resolve(failed('no text could be extracted — this PDF is probably a scan of an image page.'));if(window.SilidFileUtils)window.SilidFileUtils.warnAboutSource(out,'test-maker',maxPages);if(pdf.numPages>maxPages&&window.SilidToast)window.SilidToast.info('Only the first '+maxPages+' of '+pdf.numPages+' pages of this PDF were read.');resolve({text:out,ok:true});}catch(err){resolve(failed(err.message||'the PDF could not be read.'));}}; r.onerror=()=>resolve(failed('the file could not be opened.')); r.readAsArrayBuffer(file);
+          } else if (ft==='docx') {
+            if (!window.mammoth && !window.JSZip) return resolve(failed('the Word reader has not loaded yet. Check your connection and try again.'));
+            const r=new FileReader(); r.onload=async(e)=>{try{const out=await window.SilidFileUtils.extractDocxText(e.target.result);if(!out)return resolve(failed('no text could be extracted from this document.'));if(window.SilidFileUtils)window.SilidFileUtils.warnAboutSource(out,'test-maker');resolve({text:out,ok:true});}catch(err){resolve(failed(err.message||'the Word document could not be read.'));}}; r.onerror=()=>resolve(failed('the file could not be opened.')); r.readAsArrayBuffer(file);
+          } else if (ft==='doc') {
+            const r=new FileReader(); r.onload=(e)=>{try{const res=window.SilidFileUtils.extractLegacyDocText(String(e.target.result||''));if(res.error)return resolve(failed(res.error));if(!res.text)return resolve(failed('no text could be extracted from this document.'));if(window.SilidFileUtils)window.SilidFileUtils.warnAboutSource(res.text,'test-maker');resolve({text:res.text,ok:true});}catch(err){resolve(failed(err.message||'the Word document could not be read.'));}}; r.onerror=()=>resolve(failed('the file could not be opened.')); r.readAsText(file);
+          } else resolve(failed('unsupported format (.' + ft + '). Please use a .pdf, .docx, .doc, .txt, .csv or .md file.'));
+        });
+      };
+
+      const handleFileUpload = async (e) => {
+        const sf = Array.from(e.target.files); if (!sf.length) return;
+        const nf = sf.map(f => ({ id:crypto.randomUUID(), name:f.name, size:f.size, status:'parsing', text:'' }));
+        setFiles(p => [...p, ...nf]);
+        for (let i=0;i<nf.length;i++) { const fo=nf[i]; const res=await extractTextFromFile(sf[i]); setFiles(p=>p.map(f=>f.id===fo.id?{...f,status:res.ok?'done':'failed',text:res.text,error:res.error}:f)); }
+        if (fileInputRef.current) fileInputRef.current.value='';
+        /* Try to parse TOS table from uploaded files */
+        setTimeout(() => {
+          try {
+            setFiles(prev => {
+              const doneFiles = prev.filter(f => f.status === 'done' && f.text.trim());
+              const allText = doneFiles.map(f => f.text).join('\n');
+              const parsed = parseTOSFromText(allText);
+              if (parsed && parsed.competencyDistributions.length > 0) {
+                setTosDistributions(parsed.competencyDistributions);
+                if (parsed.cognitiveLevelsText) {
+                  setConfig(c => ({ ...c, testName: c.testName || parsed.testName || '' }));
+                }
+              } else {
+                setTosDistributions(null);
+              }
+              return prev;
+            });
+          } catch (err) { console.warn('Could not read a TOS table from the uploaded files:', err); }
+        }, 500);
+      };
+
+      /* Parse TOS table structure from extracted DOCX text */
+      const parseTOSFromText = (text) => {
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        /* Detect cognitive level names from header row */
+        const cogNames = ['Unistructural','Multi-structural','Relational','Extended Abstract','Remembering','Understanding','Applying','Analyzing','Evaluating','Creating','Remember','Comprehension','Application','Analysis','Synthesis'];
+        const foundLevels = [];
+        for (const lv of cogNames) {
+          if (text.toLowerCase().includes(lv.toLowerCase())) foundLevels.push(lv);
+        }
+        if (foundLevels.length === 0) return null;
+        /* Try to find competency rows — lines that have a competency name followed by numbers */
+        const competencyDistributions = [];
+        for (const line of lines) {
+          /* Match patterns like: "1. Discuss concepts 5 3 2 0" or "Discuss concepts | 5 | 3 | 2 | 0" */
+          const match = line.match(/^\d+[.)\s]+(.+?)[|\t]/);
+          if (!match) continue;
+          const compName = match[1].trim();
+          if (compName.length < 5 || compName.length > 200) continue;
+          /* Extract numbers from the rest of the line */
+          const nums = line.substring(line.indexOf(match[1]) + match[1].length)
+            .replace(/[^\d\s|\t]/g, ' ').split(/[\s|\t]+/).map(Number).filter(n => !isNaN(n) && n >= 0);
+          if (nums.length < 2) continue;
+          /* Map numbers to cognitive levels */
+          const distribution = {};
+          let totalItems = 0;
+          const levelsToUse = foundLevels.length > 4 ? foundLevels.slice(0, 4) : foundLevels;
+          levelsToUse.forEach((lv, li) => {
+            const count = nums[li] || 0;
+            if (count > 0) { distribution[lv] = count; totalItems += count; }
+          });
+          /* If there are extra numbers, they might be the total */
+          if (nums.length > levelsToUse.length && nums[nums.length - 1] > totalItems) {
+            /* Last number is likely total items, skip it */
+          }
+          if (totalItems > 0) {
+            competencyDistributions.push({ name: compName, totalItems, distribution });
+          }
+        }
+        if (competencyDistributions.length === 0) return null;
+        /* Try to extract test name */
+        let testName = '';
+        for (const line of lines.slice(0, 10)) {
+          if (/table of specifications|tos|summative/i.test(line) && line.length < 100) {
+            testName = line.replace(/[\n\r]/g, '').trim(); break;
+          }
+        }
+        return { competencyDistributions, cognitiveLevelsText: foundLevels.join(', '), testName };
+      };
+      const removeFile = (id) => setFiles(p=>p.filter(f=>f.id!==id));
+
+      /* Wipe the form and the preview so the next test starts from a blank page.
+         The API key, school info and saved documents are deliberately kept. */
+      const handleStartFresh = () => {
+        setMode('topic');
+        setTopic('');
+        setFiles([]);
+        setConfig({ gradeLevel:'', subject:'', testName:'' });
+        setTestTypes(freshTestTypes());
+        setGeneratedTest('');
+        setValidationWarnings([]);
+        setErrorMsg('');
+        setTosDistributions(null);
+        if (fileInputRef.current) fileInputRef.current.value='';
+        try { localStorage.removeItem('saved_test_output'); localStorage.removeItem('saved_test_config'); } catch {}
+        const m='Started fresh — the form is blank again.';
+        if (window.SilidToast) window.SilidToast.info(m); else alert(m);
+        window.scrollTo({ top:0, behavior:'smooth' });
+      };
+
+      // fetchGeminiCompletion is now provided by shared-api.js as window.SilidAPI.callGemini
+
+      /* Only the three fields the header needs are restored from a saved document —
+         other tools stash their own shapes under meta.config. */
+      const applySavedConfig = (c) => {
+        if (!c || typeof c !== 'object') return;
+        setConfig(prev => {
+          const next = { ...prev };
+          ['gradeLevel', 'subject', 'testName'].forEach(k => { if (typeof c[k] === 'string') next[k] = c[k]; });
+          return next;
+        });
+      };
+
+      /* The document header for a generated test — the same DepEd/school block the
+         Lesson Plan prints (Republic of the Philippines → Department of Education →
+         Region → Division → School → Address), followed by the test name and the
+         subject. Returns a single-line HTML string so it can be dropped straight
+         into the preview and the Word exports. */
+      const buildTestHeader = (forWord) => {
+        const si = schoolInfo || {};
+        const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        let h = '<div style="text-align:center;font-family:Arial,sans-serif;line-height:1.25;margin-bottom:8px;">';
+        h += '<p style="margin:0;font-size:11pt;">Republic of the Philippines</p>';
+        h += '<p style="margin:0;font-size:13pt;font-weight:bold;font-family:\'Times New Roman\',serif;">Department of Education</p>';
+        if (si.regionNo || si.regionName) {
+          let reg = 'REGION ' + (si.regionNo || '');
+          if (si.regionNo && si.regionName) reg += ' \u2013 ';
+          reg += (si.regionName || '') + ' REGION';
+          h += '<p style="margin:0;font-size:11pt;font-weight:bold;">' + esc(reg.toUpperCase()) + '</p>';
+        }
+        if (si.division) h += '<p style="margin:0;font-size:11pt;font-weight:bold;">SCHOOLS DIVISION OFFICE OF ' + esc(si.division.toUpperCase()) + '</p>';
+        if (si.schoolName) h += '<p style="margin:0;font-size:13pt;font-weight:bold;margin-top:5px;">' + esc(si.schoolName.toUpperCase()) + '</p>';
+        if (si.schoolAddress) h += '<p style="margin:0;font-size:11pt;">' + esc(si.schoolAddress) + '</p>';
+        h += '</div>';
+        if (config.testName) h += '<h1 style="text-align:center;color:#1e40af;font-size:1.5rem;font-weight:bold;text-transform:uppercase;margin:0 0 2px;">' + esc(config.testName) + '</h1>';
+        if (config.subject) h += '<p style="text-align:center;font-size:12pt;font-weight:bold;margin:0;">' + esc(config.subject) + '</p>';
+        /* Student information line — bold, always on ONE line under the header, with
+           the NAME blank the widest. On screen/print the blanks flex to fill the
+           width; the Word file uses underscores, which every word processor draws. */
+        if (forWord) {
+          h += '<div class="test-name-line" style="font-family:Arial,sans-serif;font-size:11pt;font-weight:bold;white-space:nowrap;margin:6px 0 10px;">'
+            + 'NAME: ' + '_'.repeat(34)
+            + ' &nbsp;GRADE/SECTION: ' + '_'.repeat(16)
+            + ' &nbsp;SCORE: ' + '_'.repeat(8)
+            + '</div>';
+        } else {
+          var blank = '<span style="flex:1 1 auto;min-width:60px;border-bottom:1.5px solid #000;">&nbsp;</span>';
+          h += '<div class="test-name-line" style="display:flex;align-items:flex-end;gap:16px;font-family:Arial,sans-serif;font-size:11pt;font-weight:bold;margin:6px 0 10px;">'
+            + '<span style="display:inline-flex;align-items:flex-end;flex:3 0 auto;">NAME:&nbsp;' + blank + '</span>'
+            + '<span style="display:inline-flex;align-items:flex-end;flex:2 0 auto;">GRADE/SECTION:&nbsp;' + blank + '</span>'
+            + '<span style="display:inline-flex;align-items:flex-end;flex:1 0 auto;">SCORE:&nbsp;' + blank + '</span>'
+            + '</div>';
+        }
+        return h;
+      };
+
+      /* The AI likes to open with its own block: an invented school/DepEd header,
+         a big title, and Name / Score / Subject / Grade lines. The document header
+         is printed by the app now, so that duplicate block is dropped on the way in.
+         Anything that looks like a real section ("Multiple Choice", "Answer Key", …)
+         is never touched, and if nothing safe could be removed the text is returned
+         exactly as it arrived. */
+      const stripTestTitleBlock = (text) => {
+        if (!text || typeof text !== 'string') return text;
+        const schoolRe = /^\s{0,3}(?:[-*]\s*)?(?:republic of the philippines|department of education|schools division office|deped\b|region\s+[ivx\d]|\S[^\n]*\b(school|academy|elementary|university)\b)/i;
+        const metaRe = /^\s{0,3}(?:[-*]\s*)?(?:\*\*)?(?:name(?:\s+of\s+(?:the\s+)?(?:test|examination))?|score|date|time|subject(?:\s+area)?|grade(?:\s*level)?|quarter|teacher|school|section|learner|test\s+name)(?:\*\*)?\s*[:\-\u2013\u2014]/i;
+        const sectionRe = /(multiple\s*choice|true\s*or\s*false|matching|fill\s*in|blanks?|identification|enumerat|analogy|error\s*identification|constructed|short\s*answer|essay|problem\s*solving|explanation|reflection|answer\s*key|directions?|instructions?|word\s*bank|parts?\s+of\s+the\s+test|general\s+instructions)/i;
+        const isTitleLine = (line) => {
+          const t = line.trim();
+          if (!t) return true;
+          const heading = t.match(/^#{1,6}\s+(.*)$/);
+          if (heading) return !sectionRe.test(heading[1]);
+          if (sectionRe.test(t)) return false;
+          return schoolRe.test(line) || metaRe.test(line);
+        };
+        const lines = text.replace(/\r\n/g, '\n').split('\n');
+        let i = 0, removed = 0;
+        while (i < lines.length && isTitleLine(lines[i])) {
+          if (lines[i].trim()) removed++;
+          i++;
+        }
+        if (!removed) return text;
+        const rest = lines.slice(i).join('\n').trim();
+        return rest ? rest : text;
+      };
+
+      const handleGenerateTest = async () => {
+        setErrorMsg('');
+        if (!apiKey.trim()) { setErrorMsg("Please set your Gemini API Key first (click the gear icon in the header)."); return; }
+        if (!config.testName||!config.subject||!config.gradeLevel) { setErrorMsg("Please fill in Grade Level, Subject, and Name of Test."); return; }
+        const sel=testTypes.filter(t=>t.selected&&t.count>0);
+        if (!sel.length) { setErrorMsg("Please select at least one Test Type."); return; }
+        let src="";
+        if (mode==='topic') { if(!topic.trim()){setErrorMsg("Please enter competencies or a topic.");return;} src=`Focus Topic/Competencies: ${topic}`; }
+        else { const vf=files.filter(f=>f.status==='done'&&f.text.trim()); if(!vf.length){setErrorMsg("Please upload files with valid text content.");return;} src=vf.map(f=>`--- Document: ${f.name} ---\n${f.text}\n`).join('\n\n'); }
+        const struct=sel.map(t=>`- ${t.label}: ${t.count} items`).join('\n');
+        let add=`\n**CRITICAL RULES & FORMATTING:**\n1. **Language:** If Filipino, use Filipino. Otherwise English.\n2. **Section Instructions:** Provide clear instructions below every section header.\n3. **No Cognitive Annotations:** Keep items clean.\n4. **Answer Key Randomization:** Balanced distribution.\n5. **No Document Header:** Do NOT add a school/DepEd header, a main title, or Name/Score/Date/Subject/Grade lines — the app prints them. Start with the first section header.\n`;
+        if (tosDistributions && tosDistributions.length > 0) {
+          add += `\n**COGNITIVE LEVEL DISTRIBUTION (MANDATORY — STRICTLY FOLLOW):**\n`;
+          add += `You MUST distribute test items according to the cognitive levels below. Each competency has a required number of items per cognitive level. Follow this distribution EXACTLY.\n\n`;
+          tosDistributions.forEach((comp, i) => {
+            if (comp.totalItems <= 0) return;
+            add += `Competency ${i+1}: ${comp.name} (${comp.totalItems} items total)\n`;
+            Object.entries(comp.distribution).forEach(([level, count]) => {
+              add += `  - ${level}: ${count} item(s)\n`;
+            });
+            add += `\n`;
+          });
+          add += `When creating questions:\n`;
+          add += `- Items marked Unistructural: Simple recall, recognition, basic identification.\n`;
+          add += `- Items marked Multi-structural: Multiple facts, procedures, or steps.\n`;
+          add += `- Items marked Relational: Connect, compare, analyze relationships between concepts.\n`;
+          add += `- Items marked Extended Abstract: Evaluate, create, generalize, hypothesize.\n`;
+          add += `- For levels other than Extended Abstract, the first items in each competency should cycle through them before repeating, so the test starts with progressive difficulty.\n`;
+          add += `- Extended Abstract items MUST be the LAST items of the test: place every Extended Abstract question at the end, occupying the highest item numbers. Never place them in the middle or at the beginning — all Unistructural/Multi-structural/Relational items come first.\n\n`;
+        }
+        const mcq=sel.find(t=>t.id==='mcq');
+        if(mcq){add+=`\n**MCQ Formatting:**\n- Randomize correct answer position (~25% each).\n- Option lengths similar.\n- Underline before item number.\n- WH- word start.\n- 6-8 space indent for options.\n- Layout: short=1 row, medium=2 rows, long=4 rows.\n`;if(mcq.style==='super_stem'){add+=`- SUPER STEM: Divide ALL items into scenarios of 5 questions each. Calculate the number of scenarios from the total count (e.g., 20 items = 4 scenarios). Label each scenario "For items 1-5", "For items 6-10", "For items 11-15", etc. Each scenario must follow the cognitive level distribution above. Wrap each scenario with [SCENARIO_START] and [SCENARIO_END] tags. Min 5 sentences per scenario.\n`;}}
+        const bl=sel.find(t=>t.id==='blanks');
+        if(bl){add+=`\n**Fill Blanks:** Word Bank above questions as a 2-column Markdown table (Column 1: Term, Column 2: Definition/Answer). Use a header row and a '|---|---|' delimiter row.\n`;if(bl.style==='paragraph'){add+=`- PARAGRAPH FORMAT: coherent passage with numbered blanks.\n`;}else{add+=`- SENTENCE FORMAT: isolated sentences.\n`;}}
+        if(sel.some(t=>['essay','explanation','reflection'].includes(t.id))){add+=`\n**Essay/Explanation/Reflection:** Provide Holistic Rubric formatted as a Markdown table with columns: Score | Criteria | Description. Use a header row and a '|---|---|---|' delimiter row.\n`;}
+        const prompt=`\nCreate a Summative Test.\n\n**Test Metadata:**\n- Name: ${config.testName}\n- Subject: ${config.subject}\n- Grade: ${config.gradeLevel}\n\n**Structure:**\n${struct}\n\n**Source Material:**\n${src}\n\n**Instructions:**\n1. Exact items requested per section.\n2. Separate sections with clear headers.\n3. Age-appropriate for the grade level.\n4. ANSWER KEY at end.\n5. Clean Markdown format.\n6. CRITICAL: If cognitive level distribution is provided above, you MUST follow it exactly — do NOT deviate from the item counts per level.\n${add}\n`;
+        /* A new generation replaces any previously saved test */
+        try { localStorage.removeItem('saved_test_output'); localStorage.removeItem('saved_test_config'); } catch {}
+        setIsGenerating(true);
+        try { const raw=await window.SilidAPI.callGemini({ prompt, systemPrompt: "You are an expert educator and curriculum developer. Create rigorous, well-formatted summative tests with clear answer keys based on the parameters provided. Output only the test and answer key in Markdown format, beginning with the first section header — no school header, no title block, no name/date/score lines." }); const r=stripTestTitleBlock(raw); setGeneratedTest(r); try { localStorage.setItem('saved_test_output', r); localStorage.setItem('saved_test_config', JSON.stringify(config)); } catch {} try { const v=window.SilidValidate.validateTestOutput(raw, {types: sel.map(t=>t.id)}); setValidationWarnings(v.warnings); } catch(err) { console.warn("Test validation skipped:", err); setValidationWarnings([]); } if (window.SilidDocsUI) window.SilidDocsUI.save({ name: config.testName || 'Summative Test', content: r, summary: [config.subject, config.gradeLevel].filter(Boolean).join(' · '), meta: { gradeLevel: config.gradeLevel, subject: config.subject, config: config } }); window.scrollTo({top:0,behavior:'smooth'}); }
+        catch (e) { console.error("Test generation failed:", e); setErrorMsg((e && e.message) || "Error generating test. Check connection and try again."); }
+        finally { setIsGenerating(false); }
+      };
+
+      const handleCopy = () => { navigator.clipboard.writeText(generatedTest); if(window.SilidToast) window.SilidToast.success('Copied to clipboard!'); else alert('Copied!'); };
+
+      /* The document body shared by both Word downloads: the flat .doc file and the
+         real .docx package. */
+      const buildWordHtml = () => {
+        const html=formatMarkdown(generatedTest, true).__html;
+        /* Same header as the preview and the Lesson Plan: DepEd block + test name + subject.
+           `true` selects the underscore student line, which Word draws reliably. */
+        const sh=buildTestHeader(true);
+        const hdr=`<!DOCTYPE html><html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${config.testName||'Summative Test'}</title><style>body{font-family:'Calibri','Arial',sans-serif;font-size:11pt}h1{font-size:16pt;text-align:center;font-weight:bold;margin-bottom:12pt}h2{font-size:14pt;font-weight:bold;margin-top:16pt;margin-bottom:8pt}h3{font-size:12pt;font-weight:bold;margin-top:12pt;margin-bottom:6pt}p{margin-bottom:10pt;line-height:1.15}li{margin-bottom:4pt;line-height:1.15}.scenario-box{border:none;padding:0;margin:8pt 0;background-color:transparent}</style></head><body>${sh}`;
+        return hdr+html+'</body></html>';
+      };
+      const wordFileName = (ext) => (config.testName?config.testName.replace(/[^a-z0-9]/gi,'_').toLowerCase():'summative_test')+ext;
+
+      /* Flat .doc — one HTML file that opens in any word processor, with nothing to unzip. */
+      const handleDownloadWord = () => {
+        try {
+        const blob=new Blob(['\ufeff',buildWordHtml()],{type:'application/msword'});
+        const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;
+        a.download=wordFileName('.doc');
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        } catch(e) { console.error("Word export failed:", e); const m='Could not build the Word file: '+((e&&e.message)||'unknown error'); if(window.SilidToast) window.SilidToast.error(m); else alert(m); }
+      };
+
+      /* Real .docx — an OOXML package Word opens with no format warning. The helper
+         comes from a CDN, so say so plainly when it has not loaded (e.g. offline). */
+      const handleDownloadDocx = () => {
+        if (!window.htmlDocx || !window.saveAs) {
+          const m='The DOCX helper has not loaded yet — use the Word button instead.';
+          console.error(m);
+          if(window.SilidToast) window.SilidToast.warning(m); else alert(m);
+          return;
+        }
+        try {
+          window.saveAs(window.htmlDocx.asBlob(buildWordHtml(), { orientation:'portrait', margins:{top:720,bottom:720,left:720,right:720} }), wordFileName('.docx'));
+        } catch(e) { console.error("DOCX export failed:", e); const m='Could not build the DOCX file: '+((e&&e.message)||'unknown error')+'. Try the Word button instead.'; if(window.SilidToast) window.SilidToast.error(m); else alert(m); }
+      };
+
+      /* Print / PDF gives a file that always opens, whatever the teacher has installed. */
+      const handlePrint = () => {
+        try { window.print(); }
+        catch(e) { console.error("Print failed:", e); const m='Could not open the print dialog: '+((e&&e.message)||'unknown error'); if(window.SilidToast) window.SilidToast.error(m); else alert(m); }
+      };
+
+      const handleDownloadPPT = async () => {
+        if(!window.PptxGenJS){if(window.SilidToast) window.SilidToast.warning('PPT library loading, try again.'); else alert("PPT library loading, try again.");return;}
+        try {
+          const pptx=new window.PptxGenJS(); pptx.layout='LAYOUT_16x9';
+          let sl=pptx.addSlide(); sl.background={color:"F8FAFC"};
+          sl.addText(config.testName||"Summative Test",{x:1,y:2,w:'80%',h:1.5,fontSize:44,bold:true,align:'center',color:'1E293B'});
+          sl.addText(`${config.subject} - ${config.gradeLevel}`,{x:1,y:3.5,w:'80%',h:1,fontSize:28,align:'center',color:'475569'});
+          const ct=generatedTest.replace(/\*\*/g,'').replace(/\*/g,'').replace(/\[SCENARIO_START\]/gi,'').replace(/\[SCENARIO_END\]/gi,'');
+          const lines=ct.split('\n'); let cs='',igs=false,egt=[],cqt=[];
+          const cq=()=>{if(cqt.length>0){let s=pptx.addSlide();s.background={color:"FFFFFF"};s.addText(cs,{x:.5,y:.3,w:'90%',h:.5,fontSize:16,color:'64748B',italic:true});s.addText(cqt.join('\n'),{x:.5,y:1.2,w:'90%',h:'80%',fontSize:24,color:'1E293B',valign:'top'});cqt=[];}};
+          const cg=()=>{if(egt.length>0){let s=pptx.addSlide();s.background={color:"FFFFFF"};s.addText(cs,{x:.5,y:.3,w:'90%',h:.5,fontSize:24,color:'1E293B',bold:true});s.addText(egt.join('\n'),{x:.5,y:1.2,w:'90%',h:'80%',fontSize:18,color:'1E293B',valign:'top'});egt=[];}};
+          for(let i=0;i<lines.length;i++){const l=lines[i];if(l.trim().startsWith('#')){if(igs)cg();else cq();cs=l.replace(/#/g,'').trim();const ls=cs.toLowerCase();igs=ls.includes('match')||ls.includes('key')||ls.includes('enumerat')||ls.includes('identifi')||ls.includes('error');let s=pptx.addSlide();s.background={color:"EEF2FF"};s.addText(cs,{x:1,y:2.5,w:'80%',h:1.5,fontSize:40,bold:true,align:'center',color:'4F46E5'});continue;}
+          if(l.trim()===''){if(igs&&egt.length>0&&egt[egt.length-1]!=='')egt.push('');else if(!igs&&cqt.length>0&&cqt[cqt.length-1]!=='')cqt.push('');continue;}
+          if(igs)egt.push(l);else{if(/^(___ )?\d+\./.test(l.trim())){cq();cqt.push(l);}else cqt.push(l);}}
+          if(igs)cg();else cq();
+          pptx.writeFile({fileName:(config.testName?config.testName.replace(/[^a-z0-9]/gi,'_').toLowerCase():'summative_test')+'.pptx'});
+        } catch(e){console.error("PPT Error:",e);const m='Could not build the PowerPoint file: '+((e&&e.message)||'unknown error');if(window.SilidToast) window.SilidToast.error(m); else alert(m);}
+      };
+
+      const isDelimiterRow = (s) => {
+        s = s.trim();
+        return /^[\s|:-]+$/.test(s) && /-/.test(s);
+      };
+      const splitRow = (row) => {
+        let r = row.trim();
+        if (r.startsWith('|')) r = r.slice(1);
+        if (r.endsWith('|')) r = r.slice(0, -1);
+        return r.split('|').map(c => c.trim());
+      };
+      const buildTable = (header, body) => {
+        const cs = "border:1pt solid #000;padding:4pt 8pt;";
+        let t = '<table style="border-collapse:collapse;width:100%;margin:12pt 0" border="1">';
+        t += '<thead><tr>';
+        header.forEach(h => { t += `<th style="${cs}background:#EEEEEE;font-weight:bold;text-align:left">${h}</th>`; });
+        t += '</tr></thead><tbody>';
+        body.forEach(row => {
+          t += '<tr>';
+          row.forEach(c => { t += `<td style="${cs}text-align:left">${c}</td>`; });
+          t += '</tr>';
+        });
+        t += '</tbody></table>';
+        return t;
+      };
+      const convertTables = (md) => {
+        md = md.replace(/\r\n/g, '\n');
+        const lines = md.split('\n');
+        const out = [];
+        let i = 0;
+        while (i < lines.length) {
+          const line = lines[i];
+          const next = lines[i + 1] || '';
+          if (line.includes('|') && isDelimiterRow(next)) {
+            const header = splitRow(line);
+            const body = [];
+            i += 2;
+            while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+              body.push(splitRow(lines[i]));
+              i++;
+            }
+            out.push(buildTable(header, body));
+            continue;
+          }
+          out.push(line);
+          i++;
+        }
+        return out.join('\n');
+      };
+
+      const escHtml = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const OPT_RE = /^\s*\(?([A-Da-d])[).]\s+(.+)$/;
+      const isSequential = (run) => run.every((o,k) => o.letter === String.fromCharCode(65 + k));
+      /* Width of the question's number prefix ("1. ", "12) ") so the choices line up with the
+         first word of the question above them instead of hugging the page margin. */
+      const optionIndent = (lines, i) => {
+        let q = '';
+        for (let k = i - 1; k >= 0; k--) { if (lines[k].trim()) { q = lines[k]; break; } }
+        const m = q.match(/^\s*\(?(\d+|[A-Za-z])[.)]\s/);
+        if (!m) return '1.1em';
+        return (Math.round((m[1].length * 0.6 + 0.5) * 10) / 10) + 'em';
+      };
+      const renderOptions = (run, indent, forWord) => {
+        const maxLen = Math.max(...run.map(o => o.text.length));
+        const mode = maxLen <= 22 ? 'row' : (maxLen > 45 ? 'stack' : 'grid2');
+        const cells = run.map(o => `${o.letter}) ${escHtml(o.text)}`);
+        const ind = indent || '1.1em';
+
+        /* Word (and other plain-HTML importers) ignore flexbox, grid and padding, which
+           would leave the choices at the margin and even run them together. There the
+           choices are a borderless table: each choice in its own cell, and the table
+           pushed right by margin-left so the choices line up under the first word of
+           the question rather than under its number. */
+        if (forWord) {
+          const indPt = (Math.round(parseFloat(ind) * 11 * 10) / 10) + 'pt';
+          const cell = (c, last) => `<td style="border:none;vertical-align:top;padding:2pt ${last ? '0' : '24pt'} 2pt 0;">${c}</td>`;
+          let rows = '';
+          if (mode === 'row') {
+            rows = '<tr>' + cells.map((c, i) => cell(c, i === cells.length - 1)).join('') + '</tr>';
+          } else if (mode === 'grid2') {
+            for (let i = 0; i < cells.length; i += 2) {
+              const pair = cells.slice(i, i + 2);
+              rows += '<tr>' + pair.map((c, j) => cell(c, j === pair.length - 1)).join('') + '</tr>';
+            }
+          } else {
+            rows = cells.map((c) => '<tr>' + cell(c, true) + '</tr>').join('');
+          }
+          return `<div class="mcq-opts" style="margin:4pt 0;"><table style="border-collapse:collapse;border:none;margin:0 0 0 ${indPt};"><tbody>${rows}</tbody></table></div>`;
+        }
+
+        let inner = '';
+        const optStyle = 'text-indent:-1.5em;padding-left:1.5em;margin:2pt 0;';
+        if (mode === 'row') {
+          inner = `<div style="display:flex;flex-wrap:wrap;gap:0 28pt;">` + cells.map(c => `<span style="white-space:nowrap;${optStyle}">${c}</span>`).join('') + `</div>`;
+        } else if (mode === 'grid2') {
+          inner = `<div style="display:grid;grid-template-columns:1fr 1fr;column-gap:28pt;row-gap:4pt;">` + cells.map(c => `<div style="${optStyle}">${c}</div>`).join('') + `</div>`;
+        } else {
+          inner = `<div style="display:flex;flex-direction:column;gap:4pt;">` + cells.map(c => `<div style="${optStyle}">${c}</div>`).join('') + `</div>`;
+        }
+        return `<div class="mcq-opts" style="margin:4pt 0;padding-left:${ind};">${inner}</div>`;
+      };
+      const convertOptions = (md, forWord) => {
+        const lines = md.split('\n');
+        const out = [];
+        let i = 0;
+        while (i < lines.length) {
+          const run = [];
+          let j = i;
+          while (j < lines.length) {
+            const m = lines[j].match(OPT_RE);
+            if (m) { run.push({ letter: m[1].toUpperCase(), text: m[2].trim() }); j++; }
+            else break;
+          }
+          if (run.length >= 2 && isSequential(run)) {
+            out.push(renderOptions(run, optionIndent(lines, i), forWord));
+            i = j;
+            continue;
+          }
+          out.push(lines[i]);
+          i++;
+        }
+        return out.join('\n');
+      };
+
+      const formatMarkdown = (text, forWord) => {
+        if(!text) return {__html:''};
+        const html=convertOptions(convertTables(text), forWord)
+          .replace(/\[SCENARIO_START\]\s*([\s\S]*?)\s*\[SCENARIO_END\]/gim,'<div class="scenario-box">$1</div>')
+          .replace(/^### (.*$)/gim,'<h3 class="text-xl font-bold mt-6 mb-3 text-iris-700 border-b border-black/10 pb-1">$1</h3>')
+          .replace(/^## (.*$)/gim,'<h2 class="text-2xl font-bold mt-8 mb-4 text-ink border-b-2 border-iris-200 pb-2">$1</h2>')
+          .replace(/^# (.*$)/gim,'<h1 class="font-display text-3xl font-semibold mt-8 mb-4 text-center text-ink">$1</h1>')
+          .replace(/\*\*(.*?)\*\*/gim,'<strong class="text-ink">$1</strong>')
+          .replace(/\*(.*?)\*/gim,'<em>$1</em>')
+          .replace(/^\s*-\s(.*)/gim,'<li class="ml-6 list-disc mb-1">$1</li>')
+          .replace(/ {4,}/g,(m)=>'&nbsp;'.repeat(m.length))
+          .replace(/\n/gim,'<br />');
+        return {__html:html};
+      };
+
+      /* ============================================================
+         RENDER
+         ============================================================ */
+      return (
+        <div className="min-h-screen font-sans text-ink">
+          <header className="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+            <nav className="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
+              <div className="flex items-center gap-2 pl-3 pr-2 cursor-pointer" onClick={() => setCurrentView('home')}>
+                <span className="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
+                  <span className="text-[15px] font-extrabold leading-none">S</span>
+                </span>
+                <span className="font-semibold tracking-tight text-base">Silid<span className="text-iris-600">Pinoy</span></span><span className="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
+              </div>
+              <button onClick={() => { setCurrentView('creator'); }} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='creator'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Test Maker</button>
+              <a href="tos.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
+              <a href="lesson.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
+              <a href="powerpoint.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
+              <a href="activity.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+              <span data-silid-docs-slot className="ml-1 flex items-center"></span>
+              <button onClick={() => setShowKeyInput(!showKeyInput)} className="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
+                <LucideIcon name="Settings" className="w-4 h-4" />
+                <span className={`w-2 h-2 rounded-full ${apiKey.trim()?'bg-emerald-400':'bg-red-400'}`}></span>
+              </button>
+            </nav>
+            {showKeyInput && (
+              <div ref={keyDropdownRef} className="absolute top-full right-4 mt-3 bg-white/80 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50 animate-fade-in">
+                <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Primary API Key</label>
+                <input type="password" value={apiKey} onChange={(e)=>setApiKey(e.target.value)} placeholder="Paste your API key..."
+                  className="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+                <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-2">Backup API Key <span className="normal-case font-medium text-ink/35">(optional)</span></label>
+                <input type="password" value={apiKey2} onChange={(e)=>setApiKey2(e.target.value)} placeholder="Paste a key from another account..."
+                  className="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+                <label className="flex items-start gap-2 mt-3 text-[11px] text-ink/70 cursor-pointer select-none">
+                  <input type="checkbox" checked={rememberKeys}
+                    onChange={(e) => { setRememberKeys(e.target.checked); if (window.SilidKeys) window.SilidKeys.setRemembered(e.target.checked); if (window.SilidToast && window.SilidKeys) window.SilidToast.info(window.SilidKeys.rememberHint(e.target.checked)); }}
+                    className="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
+                  <span>Remember my API key on this device</span>
+                </label>
+                <p className="text-[10px] text-ink/40 mt-1.5">{window.SilidKeys && window.SilidKeys.rememberHint(rememberKeys)} Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-iris-600 underline">Get keys</a></p>
+                <button onClick={handleTestApiKey} disabled={apiKeyTestStatus==='testing'}
+                  className={`w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${apiKeyTestStatus==='ok'?'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200':apiKeyTestStatus==='fail'?'bg-red-50 text-red-700 ring-1 ring-red-200':'bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100'}`}>
+                  {apiKeyTestStatus==='testing'?(<><LucideIcon name="Loader2" className="w-3 h-3 animate-spin"/> Testing...</>)
+                   :apiKeyTestStatus==='ok'?(<><LucideIcon name="CheckCircle" className="w-3 h-3"/> API Key Working</>)
+                   :apiKeyTestStatus==='fail'?('API Key Failed'):'Test API Key'}
+                </button>
+                {apiKeyTestStatus==='fail'&&apiKeyTestMsg&&(<p className="text-[10px] text-red-500 mt-1.5 px-1">{apiKeyTestMsg}</p>)}
+                {apiKeyTestStatus==='ok'&&(<p className="text-[10px] text-emerald-600 mt-1.5 px-1">{apiKeyTestMsg}</p>)}
+                <div className="border-t border-black/5 mt-3 pt-3">
+                  <button onClick={()=>{setShowKeyInput(false);setCurrentView('settings');}} className="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
+                    <LucideIcon name="FileText" className="w-4 h-4"/> School &amp; Personal Info
+                  </button>
+                </div>
+              </div>
+            )}
+          </header>
+
+          {/* ========== HOME ========== */}
+          {currentView==='home'?(
+            <main className="flex flex-col min-h-[100dvh]">
+              {toast && (
+                <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[70] bg-ink text-white text-sm font-medium px-5 py-3 rounded-full shadow-[0_18px_50px_-18px_rgba(11,10,18,0.6)] btn-spring">
+                  {toast}
+                </div>
+              )}
+              <section className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden pt-32 pb-24 px-4">
+                <div className="absolute inset-0 halo pointer-events-none"></div>
+                <div className="absolute inset-0 halo-2 pointer-events-none"></div>
+                <div className="relative z-10 max-w-4xl mx-auto text-center reveal">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/70 ring-1 ring-black/5 backdrop-blur px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600 mb-8 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-iris-600"></span> The AI teaching studio for educators
+                  </span>
+                  <h1 className="font-display text-[clamp(2.8rem,7vw,5.5rem)] leading-[0.98] tracking-tight font-light mb-7">
+                    Turn hours of prep into <span className="italic font-medium">minutes.</span>
+                  </h1>
+                  <p className="text-lg md:text-xl text-ink/60 max-w-2xl mx-auto leading-relaxed mb-12">
+                    One studio for every teacher task — generate rigorous tests, build your TOS and DepEd-aligned lesson plans, and spin up slide decks. Upload your modules or paste competencies and let the AI handle the rest.
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <button onClick={() => document.getElementById('tools')?.scrollIntoView({ behavior:'smooth' })} className="btn-spring w-full sm:w-auto rounded-full bg-iris-600 text-white font-semibold text-base px-10 py-4 flex items-center justify-center gap-3 shadow-[0_18px_50px_-18px_rgba(91,70,232,0.7)]">
+                      Explore All Tools <span className="icon-orb grid place-items-center w-8 h-8 rounded-full bg-white/15"><LucideIcon name="ArrowRight" className="w-4 h-4"/></span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* Tools hub */}
+              <section id="tools" className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+                <div className="reveal text-center mb-14">
+                  <span className="text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600">The Studio</span>
+                  <h2 className="font-display text-4xl md:text-5xl font-light tracking-tight mt-3">One workspace. Every teacher task.</h2>
+                  <p className="text-ink/55 mt-4 max-w-xl mx-auto">Pick a tool to begin — more are on the way.</p>
+                </div>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  {TOOLS.map((t) => (
+                    <button key={t.id} onClick={() => t.url ? window.location.href = t.url : (t.ready ? setCurrentView('creator') : notifySoon(t.name))}
+                      className={`group text-left rounded-[1.75rem] p-1.5 transition-all duration-500 ease-spring ${t.ready ? 'bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)] hover:-translate-y-1' : 'bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-34px_rgba(11,10,18,0.25)] hover:-translate-y-1'}`}>
+                      <div className={`rounded-[calc(1.75rem-0.375rem)] h-full p-6 flex flex-col gap-4 min-h-[230px] ${t.ready ? 'bg-white/5 backdrop-blur-sm text-white' : 'bg-canvas text-ink'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className={`grid place-items-center w-12 h-12 rounded-2xl ${t.ready ? 'bg-white/10 text-white' : 'bg-mist text-iris-600'}`}><LucideIcon name={t.icon} className="w-6 h-6"/></span>
+                          {!t.ready && <span className="text-[10px] uppercase tracking-wider font-bold rounded-full bg-ink/5 text-ink/45 px-2.5 py-1">Soon</span>}
+                        </div>
+                        <div className="mt-auto">
+                          <h3 className="font-semibold text-lg">{t.name}</h3>
+                          <p className={`text-sm mt-1.5 leading-relaxed ${t.ready ? 'text-white/75' : 'text-ink/55'}`}>{t.desc}</p>
+                        </div>
+                        {t.ready && <span className="icon-orb inline-flex items-center gap-1.5 text-sm font-semibold mt-1"><span>Open tool</span><LucideIcon name="ArrowRight" className="w-4 h-4"/></span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-28">
+                <div className="reveal text-center mb-16">
+                  <span className="text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600">Features</span>
+                  <h2 className="font-display text-4xl md:text-5xl font-light tracking-tight mt-3">Everything a teacher needs</h2>
+                </div>
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="reveal md:col-span-2 md:row-span-2 rounded-[2rem] p-2 bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-white/5 backdrop-blur-sm p-10 text-white flex flex-col justify-between min-h-[340px]">
+                      <span className="grid place-items-center w-12 h-12 rounded-2xl bg-white/10"><LucideIcon name="BrainCircuit" className="w-6 h-6"/></span>
+                      <div><h3 className="font-display text-3xl font-light mb-3">Context-aware generation</h3><p className="text-white/75 leading-relaxed max-w-md">Ingests your PDFs, Word docs, or competency lists and produces strictly relevant items aligned to your Table of Specifications.</p></div>
+                    </div>
+                  </div>
+                  <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[200px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-mist text-iris-600"><LucideIcon name="LayoutTemplate" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">15+ question types</h3><p className="text-ink/55 text-sm mt-1">From MCQ to analogies and problem solving.</p></div>
+                    </div>
+                  </div>
+                  <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[200px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-rose-50 text-rose-500"><LucideIcon name="Presentation" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">Word and PPT export</h3><p className="text-ink/55 text-sm mt-1">Print-ready docs or one-item-per-slide decks.</p></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <footer className="border-t border-black/5 py-10 text-center text-ink/40 text-sm">&copy; {new Date().getFullYear()} SilidPinoy. Empowering Educators.</footer>
+            </main>
+
+          /* ========== SETTINGS ========== */
+          ):currentView==='settings'?(
+            <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12">
+              <div className="card-bezel"><div className="card-inner p-8 space-y-8">
+                <div className="flex items-center justify-between">
+                  <div><h2 className="font-display text-3xl font-light tracking-tight">School &amp; Personal Info</h2><p className="text-sm text-ink/50 mt-1">Auto-populates into exported Word documents.</p></div>
+                  <button onClick={()=>setCurrentView('creator')} className="text-sm font-medium text-iris-600 hover:text-iris-700 px-4 py-2 rounded-full hover:bg-iris-50 transition-colors">&larr; Back</button>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">School Information</h3>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">School Name</label>
+                      <input type="text" name="schoolName" value={schoolInfo.schoolName} onChange={handleSchoolInfoChange} placeholder="e.g. Bacolod City National High School"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">School Address</label>
+                      <input type="text" name="schoolAddress" value={schoolInfo.schoolAddress} onChange={handleSchoolInfoChange} placeholder="e.g. Bacolod City, Negros Occidental"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Region No.</label>
+                      <input type="text" name="regionNo" value={schoolInfo.regionNo} onChange={handleSchoolInfoChange} placeholder="e.g. XI"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Region Name</label>
+                      <input type="text" name="regionName" value={schoolInfo.regionName} onChange={handleSchoolInfoChange} placeholder="e.g. DAVAO"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Schools Division Office of</label>
+                      <input type="text" name="division" value={schoolInfo.division} onChange={handleSchoolInfoChange} placeholder="e.g. DAVAO DEL SUR"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Logos (optional)</h3>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {[['schoolLogo1','School Logo'],['schoolLogo2','Division / District Logo']].map(([field,label])=>(
+                      <div key={field} className="space-y-2">
+                        <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider">{label}</label>
+                        {schoolInfo[field]?(
+                          <div className="relative group">
+                            <div className="w-full h-32 rounded-xl ring-1 ring-black/10 overflow-hidden bg-white flex items-center justify-center p-2">
+                              <img src={schoolInfo[field]} alt={label} className="max-h-full max-w-full object-contain"/></div>
+                            <button onClick={()=>removeLogo(field)} className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">&times;</button>
+                          </div>
+                        ):(
+                          <label className="flex flex-col items-center justify-center w-full h-32 rounded-xl ring-1 ring-black/10 hover:bg-iris-50/50 hover:ring-iris-300 cursor-pointer transition-all">
+                            <LucideIcon name="UploadCloud" className="w-6 h-6 text-ink/25 mb-1"/>
+                            <span className="text-[11px] font-medium text-ink/40">Upload {label}</span>
+                            <span className="text-[10px] text-ink/30">Max 500 KB</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={(e)=>handleLogoUpload(e,field)}/>
+                          </label>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Personal Details</h3>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Teacher / Author Name</label>
+                      <input type="text" name="teacherName" value={schoolInfo.teacherName} onChange={handleSchoolInfoChange} placeholder="e.g. Juan Dela Cruz"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Title / Designation</label>
+                      <input type="text" name="teacherTitle" value={schoolInfo.teacherTitle} onChange={handleSchoolInfoChange} placeholder="e.g. Teacher III"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                  </div>
+                  <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Department / Unit</label>
+                    <input type="text" name="department" value={schoolInfo.department} onChange={handleSchoolInfoChange} placeholder="e.g. Science Department"
+                      className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Signatories</h3>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Checked By — Name</label>
+                      <input type="text" name="checkedBy" value={schoolInfo.checkedBy} onChange={handleSchoolInfoChange} placeholder="e.g. Pedro Penduko"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Checked By — Position</label>
+                      <input type="text" name="checkedByPosition" value={schoolInfo.checkedByPosition} onChange={handleSchoolInfoChange} placeholder="e.g. Department Head"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Approved By — Name</label>
+                      <input type="text" name="approvedBy" value={schoolInfo.approvedBy} onChange={handleSchoolInfoChange} placeholder="e.g. Maria Clara, PhD"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Approved By — Position</label>
+                      <input type="text" name="approvedByPosition" value={schoolInfo.approvedByPosition} onChange={handleSchoolInfoChange} placeholder="e.g. School Principal II"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                  </div>
+                </div>
+                {/* Backup / Restore */}
+                <div className="border-t border-black/5 pt-6 space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Backup &amp; Restore</h3>
+                  <p className="text-sm text-ink/50">Export all your saved data (school info, generated documents, TOS configs) to a file, or import a backup from another browser.</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={()=>{ var r=window.SilidBackup.exportBackup({includeApiKeys:backupIncludeKeys}); setBackupMsg('Exported '+r.keys.length+' items ('+Math.round(r.size/1024)+' KB)'); }} className="inline-flex items-center gap-2 rounded-full bg-white ring-1 ring-black/10 px-5 py-2.5 text-sm font-medium hover:bg-iris-50 hover:ring-iris-300 transition-all">
+                      <LucideIcon name="Download" className="w-4 h-4"/> Export Backup
+                    </button>
+                    <label className="inline-flex items-center gap-2 rounded-full bg-white ring-1 ring-black/10 px-5 py-2.5 text-sm font-medium hover:bg-iris-50 hover:ring-iris-300 cursor-pointer transition-all">
+                      <LucideIcon name="Upload" className="w-4 h-4"/> Import Backup
+                      <input type="file" accept=".json" className="hidden" onChange={handleBackupImport}/>
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-ink/60 cursor-pointer select-none">
+                      <input type="checkbox" checked={backupIncludeKeys} onChange={(e)=>setBackupIncludeKeys(e.target.checked)} className="rounded border-black/20 text-iris-600 focus:ring-iris-500"/>
+                      Include API keys
+                    </label>
+                  </div>
+                  {backupMsg&&<p className="text-[11px] text-iris-600 font-medium">{backupMsg}</p>}
+                  {backupWarnings.length>0&&<ul className="text-[11px] text-amber-600 space-y-0.5">{backupWarnings.map((w,i)=><li key={i}>{w}</li>)}</ul>}
+                </div>
+                <div className="border-t border-black/5 pt-6">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40 mb-3">Document Header Preview</h3>
+                  <div className="bg-white rounded-xl ring-1 ring-black/10 p-6 text-center space-y-2">
+                    {(schoolInfo.schoolLogo1||schoolInfo.schoolLogo2)&&(<div className="flex items-center justify-center gap-4 mb-4">{schoolInfo.schoolLogo1&&<img src={schoolInfo.schoolLogo1} alt="Logo 1" className="h-16 object-contain"/>}{schoolInfo.schoolLogo2&&<img src={schoolInfo.schoolLogo2} alt="Logo 2" className="h-16 object-contain"/>}</div>)}
+                    {(schoolInfo.regionNo||schoolInfo.regionName)&&<p className="text-[11px] font-bold uppercase tracking-wide">REGION {schoolInfo.regionNo}{schoolInfo.regionNo&&schoolInfo.regionName?' – ':''}{schoolInfo.regionName} REGION</p>}
+                    {schoolInfo.division&&<p className="text-[11px] font-bold uppercase tracking-wide">SCHOOLS DIVISION OFFICE OF {schoolInfo.division}</p>}
+                    {schoolInfo.schoolName&&<p className="font-bold text-sm uppercase tracking-wide">{schoolInfo.schoolName}</p>}
+                    {schoolInfo.schoolAddress&&<p className="text-[11px] text-ink/50">{schoolInfo.schoolAddress}</p>}
+                    {schoolInfo.department&&<p className="text-[11px] text-ink/50 font-medium mt-1">{schoolInfo.department}</p>}
+                    <div className="border-t border-black/5 pt-2 mt-2">
+                      {schoolInfo.teacherName&&<p className="text-xs text-ink/60">Prepared by: <strong>{schoolInfo.teacherName}</strong>{schoolInfo.teacherTitle?`, ${schoolInfo.teacherTitle}`:''}</p>}
+                    </div>
+                  </div>
+                </div>
+              </div></div>
+            </main>
+
+          /* ========== CREATOR ========== */
+          ):(
+            <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12 print-full">
+              <div className="flex items-end justify-between mb-10">
+                <div><span className="text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600">Studio</span><h2 className="font-display text-4xl md:text-5xl font-light tracking-tight mt-2">Build your test</h2></div>
+                <div className="hidden sm:flex items-center gap-2">
+                  <button onClick={handleStartFresh} disabled={isGenerating}
+                    className={`btn-spring flex items-center gap-2 rounded-full text-sm font-semibold px-5 py-3 ring-1 ring-black/10 text-ink/70 bg-white hover:ring-black/25 transition ${isGenerating?'opacity-50 cursor-not-allowed':''}`}>
+                    <LucideIcon name="RotateCcw" className="w-4 h-4"/> Start fresh
+                  </button>
+                  <button onClick={handleGenerateTest} disabled={isGenerating}
+                    className={`btn-spring flex items-center gap-2 rounded-full text-sm font-semibold px-6 py-3 ${isGenerating?'bg-ink/50 text-white cursor-not-allowed':'bg-ink text-white'}`}>
+                    {isGenerating?(<><LucideIcon name="Loader2" className="w-4 h-4 animate-spin"/> Generating...</>):(<>{'Generate '}<span className="icon-orb grid place-items-center w-7 h-7 rounded-full bg-white/15"><LucideIcon name="ChevronRight" className="w-4 h-4"/></span></>)}
+                  </button>
+                </div>
+              </div>
+              {errorMsg&&(<div className="mb-6 bg-red-50 ring-1 ring-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3"><LucideIcon name="AlertCircle" className="w-5 h-5 flex-shrink-0 mt-0.5"/><span className="text-sm">{errorMsg}</span></div>)}
+
+              <div className="grid lg:grid-cols-[440px_1fr] gap-7 items-start">
+                {/* LEFT CONFIG */}
+                <div className="space-y-5 no-print">
+                  {/* Test Details */}
+                  <div className="card-bezel"><div className="card-inner p-6">
+                    <h3 className="font-semibold flex items-center gap-2 mb-5"><span className="text-iris-600"><LucideIcon name="Settings" className="w-5 h-5"/></span> Test details</h3>
+                    <div className="space-y-3.5">
+                      <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grade level</label>
+                        <SuggestInput name="gradeLevel" value={config.gradeLevel} onChange={handleConfigChange} placeholder="Grade 10" suggestions={DEPED_GRADE_LEVELS}
+                          className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                      <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Subject</label>
+                        <SuggestInput name="subject" value={config.subject} onChange={handleConfigChange} placeholder="Science" suggestions={DEPED_SUBJECTS}
+                          className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                      <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Name of test</label>
+                        <input type="text" name="testName" value={config.testName} onChange={handleConfigChange} placeholder="1st Quarter Exam"
+                          className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    </div>
+                  </div></div>
+
+                  {/* Source Material */}
+                  <div className="card-bezel"><div className="card-inner p-6">
+                    <h3 className="font-semibold flex items-center gap-2 mb-4"><span className="text-iris-600"><LucideIcon name="FileText" className="w-5 h-5"/></span> Source material</h3>
+                    <div className="flex bg-white ring-1 ring-black/5 p-1 rounded-xl mb-4">
+                      <button onClick={()=>setMode('topic')} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode==='topic'?'bg-iris-600 text-white':'text-ink/50'}`}>Topic</button>
+                      <button onClick={()=>setMode('files')} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode==='files'?'bg-iris-600 text-white':'text-ink/50'}`}>Files</button>
+                    </div>
+                    {tosDistributions && tosDistributions.length > 0 && (
+                      <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                        <LucideIcon name="CheckCircle" className="w-4 h-4 text-emerald-600 flex-shrink-0"/>
+                        <div className="text-xs">
+                          <span className="font-semibold text-emerald-800">TOS Cognitive Levels Detected</span>
+                          <span className="text-emerald-600 ml-1"> — {tosDistributions.length} competencies with item distribution will be followed strictly.</span>
+                  </div>
+                </div>
+                    )}
+                    {mode==='topic'&&(<textarea value={topic} onChange={(e)=>setTopic(e.target.value)} placeholder="Paste competencies, curriculum guides, or topics..."
+                      className="w-full h-28 rounded-xl bg-white ring-1 ring-black/5 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-iris-500"/>)}
+                    {mode==='files'&&(<div className="space-y-3">
+                      <div className="border-2 border-dashed border-iris-200 rounded-xl p-6 text-center hover:bg-iris-50/30 transition-colors cursor-pointer" onClick={()=>fileInputRef.current?.click()}>
+                        <LucideIcon name="UploadCloud" className="w-8 h-8 text-iris-400 mx-auto mb-2"/>
+                        <p className="text-sm font-medium text-ink/70">Click to upload files</p>
+                        <p className="text-xs text-ink/40 mt-1">.pdf, .docx, .doc, .txt, .csv</p>
+                        <input type="file" multiple ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.docx,.doc,.txt,.csv,.md"/>
+                      </div>
+                      {files.length>0&&(<div className="space-y-2 mt-3">{files.map(file=>(
+                        <div key={file.id} className="bg-white ring-1 ring-black/5 rounded-xl p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0"><LucideIcon name="FileDigit" className="w-4 h-4 text-iris-500 flex-shrink-0"/>
+                            <div className="min-w-0"><p className="text-sm font-medium truncate">{file.name}</p><p className="text-[10px] text-ink/40">{(file.size/1024).toFixed(1)} KB</p></div></div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {file.status==='parsing'?(<span className="flex items-center gap-1 text-[10px] font-semibold text-iris-600 bg-iris-50 px-2 py-1 rounded-full"><LucideIcon name="Loader2" className="w-3 h-3 animate-spin"/> Parsing</span>)
+                            :file.status==='failed'?(<span title={file.error||'This file could not be read.'} className="flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-1 rounded-full"><LucideIcon name="AlertCircle" className="w-3 h-3"/> Unreadable</span>)
+                            :(<span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full"><LucideIcon name="CheckCircle" className="w-3 h-3"/> Ready</span>)}
+                            <button onClick={()=>removeFile(file.id)} className="text-ink/30 hover:text-red-500 p-1 transition-colors"><LucideIcon name="Trash2" className="w-4 h-4"/></button>
+                          </div>
+                        </div>
+                      ))}</div>)}
+                    </div>)}
+                  </div></div>
+
+                  {/* Structure */}
+                  <div className="card-bezel"><div className="card-inner p-6">
+                    <h3 className="font-semibold flex items-center gap-2 mb-1"><span className="text-iris-600"><LucideIcon name="FileType" className="w-5 h-5"/></span> Structure</h3>
+                    <p className="text-[11px] text-ink/40 mb-3">Select test formats and item counts.</p>
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                      {testTypes.map(type=>(
+                        <div key={type.id} className={`flex items-center justify-between rounded-xl px-3.5 py-3 transition-colors ${type.selected?'bg-white ring-1 ring-iris-200':'bg-white/60'}`}>
+                          <label className="flex items-center gap-3 cursor-pointer flex-1">
+                            <input type="checkbox" checked={type.selected} onChange={()=>toggleTestType(type.id)} className="w-4 h-4 text-iris-600 rounded border-ink/20 focus:ring-iris-500"/>
+                            <span className={`text-sm font-medium ${type.selected?'text-ink':'text-ink/55'}`}>{type.label}</span>
+                          </label>
+                          {type.selected&&(<div className="flex flex-col items-end gap-1.5 flex-shrink-0 animate-fade-in">
+                            <div className="flex items-center gap-2"><span className="text-[10px] text-ink/40">Items</span>
+                              <input type="number" min="1" max="100" value={type.count} onChange={(e)=>updateTestTypeCount(type.id,e.target.value)}
+                                className="w-14 text-center rounded-lg bg-white ring-1 ring-black/10 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                            {type.id==='mcq'&&(<div className="flex bg-iris-50 rounded-lg p-0.5">
+                              <button onClick={()=>updateTestTypeStyle(type.id,'regular')} className={`px-2 py-0.5 text-[9px] uppercase font-bold rounded transition-colors ${type.style==='regular'?'bg-white shadow-sm text-iris-700':'text-ink/40'}`}>Regular</button>
+                              <button onClick={()=>updateTestTypeStyle(type.id,'super_stem')} className={`px-2 py-0.5 text-[9px] uppercase font-bold rounded transition-colors ${type.style==='super_stem'?'bg-white shadow-sm text-iris-700':'text-ink/40'}`}>Super Stem</button>
+                            </div>)}
+                            {type.id==='blanks'&&(<div className="flex bg-iris-50 rounded-lg p-0.5 mt-0.5">
+                              <button onClick={()=>updateTestTypeStyle(type.id,'sentence')} className={`px-2 py-0.5 text-[9px] uppercase font-bold rounded transition-colors ${type.style==='sentence'?'bg-white shadow-sm text-iris-700':'text-ink/40'}`}>Sentence</button>
+                              <button onClick={()=>updateTestTypeStyle(type.id,'paragraph')} className={`px-2 py-0.5 text-[9px] uppercase font-bold rounded transition-colors ${type.style==='paragraph'?'bg-white shadow-sm text-iris-700':'text-ink/40'}`}>Paragraph</button>
+                            </div>)}
+                          </div>)}
+                        </div>
+                      ))}
+                    </div>
+                  </div></div>
+
+                  {/* Mobile Generate */}
+                  <div className="sm:hidden flex gap-2">
+                    <button onClick={handleStartFresh} disabled={isGenerating}
+                      className={`flex-1 py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 btn-spring ring-1 ring-black/10 text-ink/70 bg-white ${isGenerating?'opacity-50':''}`}>
+                      <LucideIcon name="RotateCcw" className="w-5 h-5"/> Start fresh
+                    </button>
+                    <button onClick={handleGenerateTest} disabled={isGenerating}
+                      className={`flex-1 py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 btn-spring ${isGenerating?'bg-ink/50 text-white':'bg-ink text-white'}`}>
+                      {isGenerating?(<><LucideIcon name="Loader2" className="w-5 h-5 animate-spin"/> Generating...</>):<>Generate <LucideIcon name="ChevronRight" className="w-5 h-5"/></>}
+                    </button>
+                  </div>
+                </div>
+
+                {/* RIGHT PREVIEW */}
+                <div className="rounded-[1.75rem] p-1.5 bg-gradient-to-b from-iris-600/90 to-iris-700 shadow-[0_30px_90px_-34px_rgba(91,70,232,0.5)] print-full flex-1 min-w-0">
+                  <div className="rounded-[calc(1.75rem-6px)] bg-white min-h-[560px] flex flex-col">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 no-print">
+                      <h3 className="font-semibold">Live preview</h3>
+                      {generatedTest&&(<div className="flex flex-wrap gap-2">
+                        <button onClick={handleCopy} className="rounded-full bg-mist text-iris-600 text-xs font-semibold px-3 py-1.5 hover:bg-iris-100 transition-colors">Copy</button>
+                        <button onClick={handleDownloadDocx} title="A real .docx package for Microsoft Word." className="rounded-full bg-iris-50 text-iris-700 text-xs font-semibold px-3 py-1.5 hover:bg-iris-100 transition-colors">DOCX</button>
+                        <button onClick={handleDownloadWord} title="One flat .doc file — opens in any word processor, nothing to unzip." className="rounded-full bg-ink text-white text-xs font-semibold px-3 py-1.5 hover:bg-ink/80 transition-colors">Word</button>
+                        <button onClick={handleDownloadPPT} className="rounded-full bg-rose-50 text-rose-500 text-xs font-semibold px-3 py-1.5 hover:bg-rose-100 transition-colors">PPT</button>
+                        <button onClick={handlePrint} title="Print, or save as PDF — opens on any device." className="rounded-full bg-white ring-1 ring-black/10 text-ink/70 text-xs font-semibold px-3 py-1.5 hover:ring-black/25 transition-colors">Print / PDF</button>
+                      </div>)}
+                    </div>
+                    <div className="flex-1 p-8 md:p-12 overflow-y-auto print-flow">
+                      {isGenerating?(
+                        <div className="flex flex-col items-center justify-center h-full text-center">
+                          <div className="relative mb-7">
+                            <div className="absolute inset-0 bg-iris-500 rounded-full animate-ping opacity-20"></div>
+                            <div className="w-24 h-24 bg-white rounded-full shadow-xl flex items-center justify-center relative z-10 ring-1 ring-black/5">
+                              <div className="w-10 h-10 border-4 border-slate-100 border-t-iris-600 rounded-full animate-spin"></div>
+                            </div>
+                          </div>
+                          <p className="text-lg font-bold text-ink">Crafting questions...</p>
+                          <p className="text-sm text-ink/45 mt-2 max-w-sm">This usually takes a few seconds — don't close the tab.</p>
+                        </div>
+                      ):generatedTest?(
+                        <>
+                        {validationWarnings.length>0&&(
+                          <div className="bg-amber-50 ring-1 ring-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 mb-4 space-y-0.5">
+                            {validationWarnings.map((w,i)=><p key={i} className="flex items-start gap-2"><LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0"/> {w}</p>)}
+                          </div>
+                        )}
+                        <div className="prose prose-slate max-w-none break-words" dangerouslySetInnerHTML={{__html: buildTestHeader() + formatMarkdown(generatedTest).__html}}/>
+                        </>
+                      ):(
+                        <div className="flex flex-col items-center justify-center h-full text-center text-ink/40">
+                          <LucideIcon name="File" className="w-11 h-11 mb-4"/>
+                          <p className="font-medium text-ink/55">Your generated test appears here</p>
+                          <p className="text-sm mt-1">Configure the left panel, then generate.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

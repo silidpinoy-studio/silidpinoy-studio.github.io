@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TOS Maker — Table of Specifications Generator</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            display: ['Fraunces', 'serif'],
+            serif: ['"Times New Roman"', 'Times', 'serif'],
+          },
+          colors: {
+            ink: '#0B0A12',
+            canvas: '#F7F6F3',
+            mist: '#EEEDF8',
+            iris: { 50:'#F1EEFE',100:'#E7E2FD',200:'#D2C9FB',500:'#6D5BF5',600:'#5B46E8',700:'#4632C9' },
+          },
+          transitionTimingFunction: {
+            spring: 'cubic-bezier(0.32,0.72,0,1)',
+            soft: 'cubic-bezier(0.22,1,0.36,1)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    * { -webkit-font-smoothing: antialiased; }
+    body { margin:0; background:#F7F6F3; }
+    body::before {
+      content:""; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0.035;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    @media print {
+      body::before{display:none!important;}
+      .no-print{display:none!important;}
+      #silid-toast-container{display:none!important;}
+      #silid-docs-root{display:none!important;}
+      .print-card{border:none!important;box-shadow:none!important;background:transparent!important;padding:0!important;}
+      .print-serif-table{font-family:"Times New Roman",Times,serif!important;color:black!important;}
+      .print-serif-table td,.print-serif-table th{border-color:black!important;color:black!important;}
+      .meta-grid-table{border-collapse:collapse!important;width:100%!important;}
+      .meta-grid-table td{border:1px solid black!important;padding:6px 10px!important;}
+      .signature-block{page-break-inside:avoid;}
+    }
+    .classic-grid td { border: 1px solid #000000; padding: 8px 12px; }
+    .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.14) 0%,transparent 70%); }
+    .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1); }
+    .btn-spring:hover { transform:translateY(-2px); }
+    .card-bezel { border-radius:1.75rem; padding:6px; background:white; box-shadow:0 24px 70px -34px rgba(11,10,18,0.3); }
+    .card-inner { border-radius:calc(1.75rem - 6px); background:#F7F6F3; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+    .animate-fade-in { animation:fadeIn .2s ease-out forwards; }
+    .custom-scrollbar::-webkit-scrollbar { width:6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background:transparent; border-radius:4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+  </style>
+</head>
+<body class="font-sans text-ink antialiased">
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="deped-options.js"></script>
+  <script src="shared-api.js"></script>
+  <script src="shared-keys.js"></script>
+  <script src="shared-validate.js"></script>
+  <script src="shared-docs.js"></script>
+  <script src="shared-docs-ui.js"></script>
+  <script src="shared-file-utils.js"></script>
+  <script src="shared-toast.js"></script>
+  <script type="text/babel">
+    const { useState, useMemo, useRef, useEffect } = React;
+
+    /* ============================================================
+       Lucide Icon Helper (UMD)
+       ============================================================ */
+    function loadLucideIcons() {
+      return new Promise((resolve) => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') { resolve(); return; }
+        const check = setInterval(() => { if (window.lucide && typeof window.lucide.createIcons === 'function') { clearInterval(check); resolve(); } }, 50);
+      });
+    }
+    const ICON_SVG_PATHS = {
+      AlertTriangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+      BookOpen:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+      Plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+      ChevronDown:'<path d="m6 9 6 6 6-6"/>',
+      Trash2:'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+      Printer:'<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect width="12" height="8" x="6" y="14" rx="1"/>',
+      Download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+      RotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+      Sliders:'<line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/>',
+      Layers:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+      Sparkles:'<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>',
+      CheckCircle2:'<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/>',
+      UserCheck:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>',
+      ShieldCheck:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+      ArrowLeft:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+      File:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>',
+      Settings:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+      Table:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/>',
+      ArrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    };
+    function LucideIcon({ name, className = '', strokeWidth = 2, ...props }) {
+      const [loaded, setLoaded] = useState(false);
+      useEffect(() => { loadLucideIcons().then(() => setLoaded(true)); }, []);
+      if (!loaded) return null;
+      const paths = ICON_SVG_PATHS[name] || '';
+      const sizeMatch = className.match(/w-(\d+)/);
+      const size = sizeMatch ? parseInt(sizeMatch[1]) * 4 : 20;
+      return (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: paths }} {...props} />);
+    }
+
+    /* ============================================================
+       Distribution helpers
+       ============================================================ */
+    function distributeExact(total, weights) {
+      if (total <= 0 || weights.length === 0) return weights.map(() => 0);
+      const sumWeights = weights.reduce((a, b) => a + Number(b) || 0, 0);
+      if (sumWeights === 0) return weights.map(() => 0);
+      const normalizedWeights = weights.map(w => (Number(w) || 0) / sumWeights);
+      const exact = normalizedWeights.map(w => total * w);
+      const rounded = exact.map(Math.floor);
+      const remainder = total - rounded.reduce((a, b) => a + b, 0);
+      const differences = exact.map((val, idx) => ({ idx, diff: val - rounded[idx] }));
+      differences.sort((a, b) => b.diff - a.diff);
+      for (let i = 0; i < remainder; i++) { if (differences[i]) rounded[differences[i].idx]++; }
+      return rounded;
+    }
+
+    function formatItemRanges(items) {
+      if (!items || items.length === 0) return '';
+      return items.join(', ');
+    }
+
+    /* Split a standards field into individual standards — one per line. */
+    function standardLines(value) {
+      return String(value || '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+    }
+
+    const SAMPLE_COMPETENCIES = [
+      { id:1, name:"Discuss fundamental concepts of computer systems servicing.", hours:"4", manualItems:"3" },
+      { id:2, name:"Discuss elements of computer systems.", hours:"3", manualItems:"2" },
+      { id:3, name:"Perform disassembly and assembly of computer hardware.", hours:"6", manualItems:"5" },
+      { id:4, name:"Create portable bootable device.", hours:"10", manualItems:"10" },
+      { id:5, name:"Perform installation of system software and application software.", hours:"10", manualItems:"10" },
+    ];
+
+    /* ============================================================
+       App
+       ============================================================ */
+    /* ============================================================
+       DepEd picker lists + typeahead input
+       ============================================================ */
+    const DEPED_GRADE_LEVELS = (window.DEPED_GRADE_LEVELS) || [];
+    const DEPED_SUBJECTS = (window.DEPED_SUBJECTS) || [];
+    const DEPED_TERMS = (window.DEPED_TERMS) || [];
+
+    function SuggestInput({ name, value, onChange, placeholder, suggestions = [], extraClass = '' }) {
+      const [open, setOpen] = useState(false);
+      const [q, setQ] = useState('');
+      const shown = open ? (q ? suggestions.filter((s) => String(s).toLowerCase().includes(q.toLowerCase())) : suggestions).slice(0, 80) : [];
+      return (
+        <div className="relative">
+          <input type="text" name={name} value={value} autoComplete="off" placeholder={placeholder}
+            onChange={(e) => { onChange(e); setQ(e.target.value); }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 140)}
+            className={'w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm pr-9 focus:outline-none focus:ring-2 focus:ring-iris-500 ' + extraClass} />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/30"><LucideIcon name="ChevronDown" className="w-4 h-4" /></span>
+          {open && (
+            <div className="absolute z-50 mt-1.5 w-full max-h-60 overflow-y-auto rounded-xl bg-white ring-1 ring-black/5 py-1.5" style={{ boxShadow: '0 12px 40px -8px rgba(11,10,18,0.18)' }}>
+              {shown.length > 0 ? shown.map((s) => (
+                <div key={s} onMouseDown={(e) => { e.preventDefault(); onChange({ target: { name, value: s } }); setQ(''); setOpen(false); }}
+                  className="px-3.5 py-2 text-sm cursor-pointer hover:bg-iris-50 text-ink/80 truncate">{s}</div>
+              )) : (
+                <div className="px-3.5 py-2 text-xs italic text-ink/40">No match — keep typing to use your own entry</div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ============================================================
+       Format picker + School (Bloom's LOTS/HOTS) TOS engine
+       ============================================================ */
+    function formatPlacement(arr) {
+      if (!arr || arr.length === 0) return '-';
+      const ranges = [];
+      let start = arr[0], end = arr[0];
+      for (let i = 1; i < arr.length; i++) {
+        if (arr[i] === end + 1) { end = arr[i]; }
+        else { ranges.push(start === end ? `${start}` : `${start}-${end}`); start = arr[i]; end = arr[i]; }
+      }
+      ranges.push(start === end ? `${start}` : `${start}-${end}`);
+      return ranges.join(', ');
+    }
+
+    const TOS_TEMPLATES = [
+      { id:'silidpinoy', name:'SilidPinoy TOS', tag:'SOLO Taxonomy', icon:'Layers',
+        desc:'Four SOLO levels, performance and content standards, per-row level caps, saved configurations, and a Make Test handoff.' },
+      { id:'school', name:'School TOS Template', tag:'Bloom\u2019s \u2013 LOTS / HOTS', icon:'Table',
+        desc:'Six cognitive levels grouped into LOTS and HOTS, teaching-hours weighting, and No. of Days/Hours and % of Teaching Time columns.' },
+    ];
+
+    function TemplateChooser({ onPick }) {
+      return (
+        <div className="space-y-5">
+          <div className="card-bezel">
+            <div className="card-inner p-6 md:p-8 rounded-[calc(1.75rem-6px)]">
+              <div className="flex items-center gap-2.5 text-iris-600 mb-1">
+                <LucideIcon name="Layers" className="w-7 h-7" />
+                <h1 className="text-2xl font-bold tracking-tight text-ink font-display">Choose a TOS format</h1>
+              </div>
+              <p className="text-sm text-ink/50 ml-9.5">Pick the template that matches what your school requires. You can switch anytime.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {TOS_TEMPLATES.map(t => (
+              <button key={t.id} onClick={() => onPick(t.id)} className="text-left card-bezel btn-spring group">
+                <div className="card-inner p-6 rounded-[calc(1.75rem-6px)] h-full flex flex-col">
+                  <span className="grid place-items-center w-11 h-11 rounded-2xl bg-iris-100 text-iris-600 mb-4">
+                    <LucideIcon name={t.icon} className="w-5 h-5" />
+                  </span>
+                  <span className="inline-flex w-max items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-iris-50 text-iris-700 border border-iris-100 mb-2">{t.tag}</span>
+                  <h3 className="text-lg font-bold text-ink font-display">{t.name}</h3>
+                  <p className="text-sm text-ink/50 mt-1.5 leading-relaxed flex-1">{t.desc}</p>
+                  <span className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-iris-600 group-hover:gap-3 transition-all">
+                    Use this format <LucideIcon name="ArrowRight" className="w-4 h-4" />
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function SchoolTos({ onBack, openConfig, onOpenConsumed }) {
+      const [meta, setMeta] = useState(() => {
+        try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.meta || { gradeLevel:'', learningArea:'', totalItems:30 }; }
+        catch { return { gradeLevel:'', learningArea:'', totalItems:30 }; }
+      });
+      const [cognitiveLevels, setCognitiveLevels] = useState(() => {
+        const fallback = [
+          { name:'Remembering', pct:35 }, { name:'Understanding', pct:10 }, { name:'Applying', pct:5 },
+          { name:'Analyzing', pct:35 }, { name:'Evaluating', pct:10 }, { name:'Creating', pct:5 },
+        ];
+        try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.cognitiveLevels || fallback; }
+        catch { return fallback; }
+      });
+      const [competencies, setCompetencies] = useState(() => {
+        const fallback = [{ id:1, name:'', hours:'' }, { id:2, name:'', hours:'' }, { id:3, name:'', hours:'' }];
+        try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.competencies || fallback; }
+        catch { return fallback; }
+      });
+      const [lastTime, setLastTime] = useState(new Date().toLocaleTimeString());
+      const tableRef = useRef(null);
+      const mark = () => setLastTime(new Date().toLocaleTimeString());
+
+      /* Auto-save the school-template work so a reload does not lose it */
+      useEffect(() => {
+        try { localStorage.setItem('tos_current_school', JSON.stringify({ meta, cognitiveLevels, competencies })); }
+        catch { /* storage unavailable */ }
+      }, [meta, cognitiveLevels, competencies]);
+
+      /* Load a school-template document opened from My Documents */
+      useEffect(() => {
+        if (!openConfig) return;
+        if (openConfig.meta) setMeta(openConfig.meta);
+        if (Array.isArray(openConfig.cognitiveLevels)) setCognitiveLevels(openConfig.cognitiveLevels);
+        if (Array.isArray(openConfig.competencies)) setCompetencies(openConfig.competencies);
+        if (onOpenConsumed) onOpenConsumed();
+      }, [openConfig]);
+
+      /* School info shared from Settings (main app writes the same key) */
+      const [schoolInfo] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('school_info')) || {}; } catch { return {}; }
+      });
+      const hasSchoolHeader = !!(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2 || schoolInfo.schoolName);
+      const buildHeaderHtml = () => {
+        const si = schoolInfo || {};
+        if (!(si.schoolLogo1 || si.schoolLogo2 || si.schoolName)) return '';
+        let h = '<div style="text-align:center;margin-bottom:12pt;">';
+        if (si.schoolLogo1 || si.schoolLogo2) {
+          h += '<div style="margin-bottom:6pt;">';
+          if (si.schoolLogo1) h += `<img src="${si.schoolLogo1}" style="height:64pt;margin:0 12pt;vertical-align:middle;">`;
+          if (si.schoolLogo2) h += `<img src="${si.schoolLogo2}" style="height:64pt;margin:0 12pt;vertical-align:middle;">`;
+          h += '</div>';
+        }
+        if (si.schoolName) h += `<p style="font-size:13pt;font-weight:bold;text-transform:uppercase;letter-spacing:1pt;margin:0;">${si.schoolName}</p>`;
+        if (si.schoolAddress) h += `<p style="font-size:10pt;color:#666;margin:2pt 0;">${si.schoolAddress}</p>`;
+        h += '</div>';
+        return h;
+      };
+
+      const handleMetaChange = (e) => {
+        const { name, value } = e.target;
+        setMeta(p => ({ ...p, [name]: name === 'totalItems' ? Math.max(0, parseInt(value) || 0) : value }));
+        mark();
+      };
+      const handleCompetencyChange = (id, field, value) => {
+        setCompetencies(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+        mark();
+      };
+      const addCompetency = () => {
+        const newId = competencies.length ? Math.max(...competencies.map(c => c.id)) + 1 : 1;
+        setCompetencies([...competencies, { id:newId, name:'', hours:'' }]);
+        mark();
+      };
+      const deleteCompetency = (id) => {
+        if (competencies.length <= 1) return;
+        setCompetencies(competencies.filter(c => c.id !== id));
+        mark();
+      };
+      const setLevelPct = (idx, value) => {
+        setCognitiveLevels(prev => prev.map((l, i) => i === idx ? { ...l, pct: Math.max(0, parseInt(value) || 0) } : l));
+        mark();
+      };
+
+      const levelsTotal = cognitiveLevels.reduce((s, l) => s + (Number(l.pct) || 0), 0);
+      const lotsTotal = cognitiveLevels.slice(0, 3).reduce((s, l) => s + (Number(l.pct) || 0), 0);
+      const hotsTotal = cognitiveLevels.slice(3, 6).reduce((s, l) => s + (Number(l.pct) || 0), 0);
+
+      const tableData = useMemo(() => {
+        const totalHours = competencies.reduce((s, c) => s + (parseFloat(c.hours) || 0), 0);
+        const target = Number(meta.totalItems) || 0;
+        const cogWeights = cognitiveLevels.map(l => Number(l.pct) || 0);
+        const compWeights = competencies.map(c => totalHours > 0 ? (parseFloat(c.hours) || 0) / totalHours : 0);
+        const compItemsDist = distributeExact(target, compWeights);
+
+        const placementsArr = competencies.map(() => []);
+        const needs = [...compItemsDist];
+        let currentItem = 1;
+        while (currentItem <= target) {
+          let placed = false;
+          for (let i = 0; i < competencies.length; i++) {
+            if (needs[i] > 0 && currentItem <= target) { placementsArr[i].push(currentItem); needs[i]--; currentItem++; placed = true; }
+          }
+          if (!placed) break;
+        }
+
+        const sums = { hours: totalHours, items: target, levels: cognitiveLevels.map(() => 0) };
+        const rows = competencies.map((comp, idx) => {
+          const hours = parseFloat(comp.hours) || 0;
+          const percentTime = totalHours > 0 ? (hours / totalHours) * 100 : 0;
+          const rowTotal = compItemsDist[idx] || 0;
+          const levels = distributeExact(rowTotal, cogWeights);
+          levels.forEach((v, i) => { sums.levels[i] += v; });
+          return { ...comp, hours, percentTime: percentTime.toFixed(2), rowTotal, levels, placement: formatPlacement(placementsArr[idx]) };
+        });
+        return { rows, sums };
+      }, [competencies, meta.totalItems, cognitiveLevels]);
+
+      const schoolFileName = (ext) => 'TOS_' + ((meta.learningArea || 'TOS_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase()) + ext;
+
+      const buildWordHtml = () => `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Table of Specifications</title>
+          <style>
+            @page WordSection1 { size: 11.0in 8.5in; mso-page-orientation: landscape; margin: 0.5in; }
+            div.WordSection1 { page: WordSection1; }
+            body { font-family: "Times New Roman", Times, serif; font-size: 11pt; }
+            h2 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 12px; text-transform: uppercase; }
+            .meta-info { text-align: center; font-size: 11pt; margin-bottom: 16px; }
+            .meta-info span { margin: 0 12px; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle; font-size: 10pt; }
+            th { font-weight: bold; }
+            .text-left { text-align: left; }
+            .bold { font-weight: bold; }
+            .sig-table { margin-top: 40px; border: none; }
+            .sig-table td { border: none; text-align: left; vertical-align: top; padding: 10px; }
+          </style>
+        </head>
+        <body>            <div class="WordSection1">
+              ${buildHeaderHtml()}
+              <h2>Table of Specification</h2>
+            <div class="meta-info">
+              <span><b>Grade Level:</b> ${meta.gradeLevel || ''}</span>
+              <span><b>Learning Area:</b> ${meta.learningArea || ''}</span>
+              <span><b>Total Items:</b> ${meta.totalItems}</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th rowspan="3" width="26%">Learning Competencies</th>
+                  <th colspan="2">Teaching Time</th>
+                  <th rowspan="3" width="7%">No. of<br/>Test Items</th>
+                  <th colspan="${cognitiveLevels.length}">Levels of Thinking</th>
+                  <th rowspan="3" width="7%">Total</th>
+                  <th rowspan="3" width="10%">Placement</th>
+                </tr>
+                <tr>
+                  <th rowspan="2" width="7%">No. of Days/<br/>Hours</th>
+                  <th rowspan="2" width="8%">% of Teaching<br/>Time</th>
+                  <th colspan="3">Lower Order Thinking Skills<br/>${lotsTotal}%</th>
+                  <th colspan="3">Higher Order Thinking Skills<br/>${hotsTotal}%</th>
+                </tr>
+                <tr>${cognitiveLevels.map(l => `<th>${l.name}<br/>${l.pct}%</th>`).join('')}</tr>
+              </thead>
+              <tbody>
+                ${tableData.rows.map(row => `
+                  <tr>
+                    <td class="text-left">${row.name || ''}</td>
+                    <td>${row.hours > 0 ? row.hours : ''}</td>
+                    <td>${row.percentTime}%</td>
+                    <td class="bold">${row.rowTotal}</td>
+                    ${row.levels.map(v => `<td>${v > 0 ? v : ''}</td>`).join('')}
+                    <td class="bold">${row.rowTotal}</td>
+                    <td>${row.placement}</td>
+                  </tr>`).join('')}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td class="text-left bold">Total</td>
+                  <td class="bold">${tableData.sums.hours}</td>
+                  <td class="bold">100%</td>
+                  <td class="bold">${tableData.sums.items}</td>
+                  ${tableData.sums.levels.map(v => `<td class="bold">${v}</td>`).join('')}
+                  <td class="bold">${tableData.sums.items}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+            <table class="sig-table">
+              <tr>
+                <td width="33%">
+                  <b>Prepared by:</b><br/><br/><br/>
+                  <u><b>${schoolInfo.teacherName ? schoolInfo.teacherName.toUpperCase() : '________________________'}</b></u><br/>
+                  <span style="text-align:center;display:block;">${schoolInfo.teacherTitle || 'Teacher / Instructor'}</span>
+                </td>
+                <td width="33%">
+                  <b>Checked by:</b><br/><br/><br/>
+                  <u><b>${schoolInfo.checkedBy ? schoolInfo.checkedBy.toUpperCase() : '________________________'}</b></u><br/>
+                  <span style="text-align:center;display:block;">${schoolInfo.checkedByPosition || 'Department Head'}</span>
+                </td>
+                <td width="34%">
+                  <b>Approved by:</b><br/><br/><br/>
+                  <u><b>${schoolInfo.approvedBy ? schoolInfo.approvedBy.toUpperCase() : '________________________'}</b></u><br/>
+                  <span style="text-align:center;display:block;">${schoolInfo.approvedByPosition || 'School Principal'}</span>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </body>
+        </html>`;
+
+      const handleDownloadWord = () => {
+        try {
+          const blob = new Blob(['\ufeff', buildWordHtml()], { type: 'application/msword' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = schoolFileName('.doc');
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          const m = 'Could not build the Word file: ' + ((e && e.message) || 'unknown error');
+          if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+        }
+      };
+      const handleDownloadDocx = () => {
+        if (!window.htmlDocx || !window.saveAs) {
+          const m = 'The DOCX helper has not loaded yet — use Export Word (.doc) instead.';
+          if (window.SilidToast) window.SilidToast.warning(m); else alert(m);
+          return;
+        }
+        try {
+          window.saveAs(window.htmlDocx.asBlob(buildWordHtml(), { orientation: 'landscape' }), schoolFileName('.docx'));
+        } catch (e) {
+          const m = 'Could not build the DOCX file: ' + ((e && e.message) || 'unknown error') + '. Try Export Word (.doc) instead.';
+          if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+        }
+      };
+      const handlePrint = () => { try { window.print(); } catch (e) { /* ignore */ } };
+      const scrollToTable = () => tableRef.current?.scrollIntoView({ behavior:'smooth' });
+
+      /* Save this school TOS into the shared My Documents drawer */
+      const handleSave = () => {
+        if (!window.SilidDocsUI) {
+          const m = 'Saving is unavailable right now.';
+          if (window.SilidToast) window.SilidToast.warning(m); else alert(m);
+          return;
+        }
+        const proposed = ((meta.learningArea || 'School') + ' TOS').trim();
+        const name = prompt('Name this TOS configuration:', proposed);
+        if (!name) return;
+        const config = { template: 'school', meta, cognitiveLevels, competencies };
+        window.SilidDocsUI.save({
+          name: name.trim(),
+          content: JSON.stringify(config),
+          summary: [meta.learningArea, meta.gradeLevel].filter(Boolean).join(' · '),
+          meta: { totalItems: meta.totalItems, template: 'school', config: JSON.parse(JSON.stringify(config)) }
+        });
+        if (window.SilidToast) window.SilidToast.success('Saved to My Documents.');
+      };
+
+      /* A finished TOS can be handed to the Test Maker, exactly like the SOLO engine. */
+      const schoolValid = levelsTotal === 100 && Number(meta.totalItems) > 0 && tableData.rows.some(r => r.name && r.name.trim());
+      const handleMakeTest = () => {
+        if (!schoolValid) return;
+        const activeLevels = cognitiveLevels.filter(lv => Number(lv.pct) > 0);
+        const competenciesText = tableData.rows
+          .filter(r => r.name && r.name.trim())
+          .map((r, i) => (i + 1) + '. ' + r.name.trim() + ' [' + activeLevels.map(lv => lv.name + ': ' + lv.pct + '%').join(', ') + ']')
+          .join('\n');
+        const competencyDistributions = tableData.rows
+          .filter(r => r.name && r.name.trim())
+          .map(r => {
+            const distribution = {};
+            cognitiveLevels.forEach((lv, li) => { if (r.levels[li] > 0) distribution[lv.name] = r.levels[li]; });
+            return { name: r.name.trim(), totalItems: r.rowTotal, distribution };
+          });
+        const fallbackName = ((meta.learningArea || '') + ' Summative Test').trim();
+        const tosData = {
+          gradeLevel: meta.gradeLevel,
+          subject: meta.learningArea,
+          testName: fallbackName || 'Summative Test based on TOS',
+          competencies: competenciesText,
+          totalItems: meta.totalItems,
+          cognitiveLevels: activeLevels.map(l => l.name + ' (' + l.pct + '%)').join(', '),
+          competencyDistributions,
+          allocationMode: 'hours',
+        };
+        localStorage.setItem('tos_make_test', JSON.stringify(tosData));
+        window.location.href = 'index.html';
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="card-bezel no-print">
+            <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div className="flex flex-col">
+                  <div className="flex items-center space-x-2.5 text-iris-600">
+                    <LucideIcon name="Table" className="w-7 h-7" />
+                    <h1 className="text-2xl font-bold tracking-tight text-ink font-display">Table of Specifications</h1>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 ml-9.5">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-iris-50 text-iris-700 border border-iris-100">
+                      Bloom’s · LOTS / HOTS Format
+                    </span>
+                    <span className="text-xs text-ink/40">Updated {lastTime}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2.5 w-full lg:w-auto">
+                  <button onClick={handleSave} className="flex-1 lg:flex-none border border-emerald-200 hover:bg-emerald-50 text-emerald-700 px-3.5 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-semibold">
+                    <LucideIcon name="Download" className="w-4 h-4" /> <span>Save</span>
+                  </button>
+                  <button onClick={onBack} className="flex-1 lg:flex-none border border-black/10 hover:bg-white/80 text-ink/70 px-4 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-semibold">
+                    <LucideIcon name="RotateCcw" className="w-4 h-4" /> <span>Switch Format</span>
+                  </button>
+                  <button onClick={scrollToTable} className="flex-1 lg:flex-none bg-iris-600 hover:bg-iris-700 text-white px-4 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-bold shadow-md shadow-iris-200 btn-spring">
+                    <LucideIcon name="Sparkles" className="w-4 h-4 text-yellow-300" /> <span>View TOS</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card-bezel no-print">
+            <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                  <LucideIcon name="Settings" className="w-4 h-4" />
+                </span>
+                <h3 className="text-sm font-bold">Test Details</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-4">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grade Level</label>
+                  <SuggestInput name="gradeLevel" value={meta.gradeLevel} onChange={handleMetaChange}
+                    placeholder="e.g. Grade 10" suggestions={DEPED_GRADE_LEVELS} extraClass="text-center" />
+                </div>
+                <div className="md:col-span-5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Learning Area / Subject</label>
+                  <SuggestInput name="learningArea" value={meta.learningArea} onChange={handleMetaChange}
+                    placeholder="e.g. Science" suggestions={DEPED_SUBJECTS} extraClass="font-semibold text-iris-700 bg-iris-50/20" />
+                </div>
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Target Total Items</label>
+                  <input type="number" name="totalItems" value={meta.totalItems} onChange={handleMetaChange}
+                    className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-iris-500" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card-bezel no-print">
+            <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                    <LucideIcon name="Layers" className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold">Levels of Thinking (%)</h3>
+                    <p className="text-[11px] text-ink/45">First three are LOTS, last three are HOTS</p>
+                  </div>
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${levelsTotal === 100 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                  Total Weights: {levelsTotal}% {levelsTotal !== 100 && '(Target: 100%)'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                {cognitiveLevels.map((lvl, idx) => (
+                  <div key={idx} className="p-3 bg-mist rounded-xl border border-black/5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-ink/55 mb-1.5">{lvl.name}</label>
+                    <div className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden">
+                      <input type="number" value={lvl.pct} onChange={(e) => setLevelPct(idx, e.target.value)}
+                        className="w-full px-2.5 py-1.5 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold" />
+                      <span className="bg-mist text-ink/45 text-[10px] px-2 py-2 border-l border-black/5 font-semibold">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="card-bezel no-print">
+            <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                  <LucideIcon name="BookOpen" className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold">Learning Competencies</h3>
+                  <p className="text-[11px] text-ink/45">Items are distributed by teaching hours, then placed in round-robin order</p>
+                </div>
+              </div>
+              <div className="space-y-3 mb-4">
+                {competencies.map((comp, index) => (
+                  <div key={comp.id} className="flex gap-3 items-start group">
+                    <div className="flex-1">
+                      <input type="text" value={comp.name}
+                        onChange={(e) => handleCompetencyChange(comp.id, 'name', e.target.value)}
+                        placeholder={`Competency ${index + 1} description...`}
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 font-medium text-ink/70 transition" />
+                    </div>
+                    <div className="w-28">
+                      <div className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden">
+                        <input type="number" step="0.5" value={comp.hours}
+                          onChange={(e) => handleCompetencyChange(comp.id, 'hours', e.target.value)}
+                          placeholder="Hours"
+                          className="w-full px-2.5 py-2 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold" />
+                        <span className="bg-mist text-ink/45 text-[10px] px-2 py-2 border-l border-black/5 font-semibold">Hrs</span>
+                      </div>
+                    </div>
+                    <button onClick={() => deleteCompetency(comp.id)} disabled={competencies.length <= 1}
+                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition disabled:opacity-30 disabled:hover:bg-transparent">
+                      <LucideIcon name="Trash2" className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addCompetency}
+                className="flex items-center space-x-2 text-xs text-iris-600 font-bold hover:text-iris-800 p-2 rounded-xl hover:bg-iris-50/60 transition">
+                <LucideIcon name="Plus" className="w-4 h-4" /> <span>Add Learning Competency</span>
+              </button>
+            </div>
+          </div>
+
+          {levelsTotal !== 100 && (
+            <div className="no-print bg-amber-50 ring-1 ring-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
+              <LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-500" />
+              The Levels of Thinking percentages should total 100% before exporting (currently {levelsTotal}%).
+            </div>
+          )}
+
+          <div className="no-print flex flex-wrap justify-center gap-3">
+            <button onClick={handleMakeTest} disabled={!schoolValid} className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring shadow-lg ${schoolValid ? 'bg-iris-600 hover:bg-iris-700 text-white shadow-iris-200' : 'bg-ink/20 text-ink/40 cursor-not-allowed shadow-none'}`}>
+              <LucideIcon name="Sparkles" className="w-4 h-4" /> Make Test from TOS
+            </button>
+            <button onClick={handleDownloadDocx} className="bg-white ring-1 ring-black/10 hover:ring-black/25 text-ink px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+              <LucideIcon name="Download" className="w-4 h-4" /> Export DOCX
+            </button>
+            <button onClick={handleDownloadWord} title="One flat .doc file — opens in any word processor, nothing to unzip." className="bg-ink hover:bg-ink/90 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+              <LucideIcon name="Download" className="w-4 h-4" /> Export Word (.doc)
+            </button>
+            <button onClick={handlePrint} title="Print or save as PDF — works on any device, no Word needed." className="border border-black/10 hover:bg-white/80 text-ink px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+              <LucideIcon name="Printer" className="w-4 h-4" /> Print / PDF
+            </button>
+          </div>
+
+          <div ref={tableRef} className="card-bezel print-card relative">
+            <div className="card-inner p-4 md:p-12 rounded-[calc(1.75rem-6px)] overflow-x-auto">
+              <div className="mb-5 text-center font-serif">
+                {hasSchoolHeader && (
+                  <div className="mb-4">
+                    {(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2) && (
+                      <div className="mb-2 flex items-center justify-center gap-6">
+                        {schoolInfo.schoolLogo1 && <img src={schoolInfo.schoolLogo1} alt="" className="h-16 object-contain" />}
+                        {schoolInfo.schoolLogo2 && <img src={schoolInfo.schoolLogo2} alt="" className="h-16 object-contain" />}
+                      </div>
+                    )}
+                    {schoolInfo.schoolName && <p className="text-sm font-bold uppercase tracking-wide">{schoolInfo.schoolName}</p>}
+                    {schoolInfo.schoolAddress && <p className="text-xs text-ink/50">{schoolInfo.schoolAddress}</p>}
+                  </div>
+                )}
+                <h2 className="text-xl md:text-2xl font-bold tracking-wide uppercase text-ink">Table of Specification</h2>
+                <p className="text-xs text-ink/30 mt-1 md:hidden">← Scroll horizontally to see full table →</p>
+              </div>
+              <div className="mb-6 text-center font-serif text-sm">
+                <span className="mx-3"><b>Grade Level:</b> <span className="border-b border-black inline-block min-w-[80px]">{meta.gradeLevel || ''}</span></span>
+                <span className="mx-3"><b>Learning Area:</b> <span className="border-b border-black inline-block min-w-[120px]">{meta.learningArea || ''}</span></span>
+                <span className="mx-3"><b>Total Items:</b> <span className="border-b border-black inline-block min-w-[40px]">{meta.totalItems}</span></span>
+              </div>
+              <table className="w-full min-w-[820px] text-ink print-serif-table font-serif" style={{ borderCollapse:'collapse', border:'1px solid black' }}>
+                <colgroup>
+                  <col style={{width:'26%'}} />
+                  <col style={{width:'7%'}} />
+                  <col style={{width:'8%'}} />
+                  <col style={{width:'7%'}} />
+                  {cognitiveLevels.map((_, i) => (<col key={i} style={{width:'5%'}} />))}
+                  <col style={{width:'7%'}} />
+                  <col style={{width:'10%'}} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th rowSpan={3} className="p-3 text-center text-sm font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>Learning Competencies</th>
+                    <th colSpan={2} className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>Teaching Time</th>
+                    <th rowSpan={3} className="p-3 text-center text-sm font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>No. of<br/>Test Items</th>
+                    <th colSpan={cognitiveLevels.length} className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>Levels of Thinking</th>
+                    <th rowSpan={3} className="p-3 text-center text-sm font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>Total</th>
+                    <th rowSpan={3} className="p-3 text-center text-sm font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>Placement</th>
+                  </tr>
+                  <tr>
+                    <th rowSpan={2} className="p-2 text-center text-xs font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>No. of Days/<br/>Hours</th>
+                    <th rowSpan={2} className="p-2 text-center text-xs font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>% of Teaching<br/>Time</th>
+                    <th colSpan={3} className="p-2 text-center text-xs font-bold bg-mist" style={{ border:'1px solid black' }}>Lower Order Thinking Skills<br/>{lotsTotal}%</th>
+                    <th colSpan={3} className="p-2 text-center text-xs font-bold bg-mist" style={{ border:'1px solid black' }}>Higher Order Thinking Skills<br/>{hotsTotal}%</th>
+                  </tr>
+                  <tr>
+                    {cognitiveLevels.map((lvl, i) => (
+                      <th key={i} className="p-2 text-center text-[11px] font-bold bg-mist" style={{ border:'1px solid black' }}>{lvl.name}<br/>{lvl.pct}%</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.rows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="p-2.5 text-left text-sm leading-snug" style={{ border:'1px solid black' }}>{row.name || ''}</td>
+                      <td className="p-2 text-center text-sm" style={{ border:'1px solid black' }}>{row.hours > 0 ? row.hours : ''}</td>
+                      <td className="p-2 text-center text-sm" style={{ border:'1px solid black' }}>{row.percentTime}%</td>
+                      <td className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>{row.rowTotal}</td>
+                      {row.levels.map((v, i) => (
+                        <td key={i} className="p-2 text-center text-sm" style={{ border:'1px solid black' }}>{v > 0 ? v : ''}</td>
+                      ))}
+                      <td className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>{row.rowTotal}</td>
+                      <td className="p-2 text-center text-sm whitespace-nowrap" style={{ border:'1px solid black' }}>{row.placement}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ fontWeight:'bold' }}>
+                    <td className="p-2.5 text-left text-sm font-bold" style={{ border:'1px solid black' }}>Total</td>
+                    <td className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>{tableData.sums.hours}</td>
+                    <td className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>100%</td>
+                    <td className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>{tableData.sums.items}</td>
+                    {tableData.sums.levels.map((v, i) => (
+                      <td key={i} className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>{v}</td>
+                    ))}
+                    <td className="p-2 text-center text-sm font-bold" style={{ border:'1px solid black' }}>{tableData.sums.items}</td>
+                    <td style={{ border:'1px solid black' }}></td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              {/* Signatures — filled from Settings */}
+              <div className="mt-12 pt-4 grid grid-cols-1 md:grid-cols-3 gap-8 font-serif text-ink signature-block">
+                <div className="text-center">
+                  <p className="font-bold text-sm mb-10">Prepared by:</p>
+                  <p className="font-bold text-base underline uppercase tracking-wide">
+                    {schoolInfo.teacherName ? schoolInfo.teacherName : '____________________________________'}
+                  </p>
+                  <p className="text-sm font-medium mt-1 text-ink/70">{schoolInfo.teacherTitle || 'Teacher / Instructor'}</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-sm mb-10">Checked by:</p>
+                  <p className="font-bold text-base underline uppercase tracking-wide">
+                    {schoolInfo.checkedBy ? schoolInfo.checkedBy : '____________________________________'}
+                  </p>
+                  <p className="text-sm font-medium mt-1 text-ink/70">{schoolInfo.checkedByPosition || 'Department Head'}</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-sm mb-10">Approved by:</p>
+                  <p className="font-bold text-base underline uppercase tracking-wide">
+                    {schoolInfo.approvedBy ? schoolInfo.approvedBy : '____________________________________'}
+                  </p>
+                  <p className="text-sm font-medium mt-1 text-ink/70">{schoolInfo.approvedByPosition || 'School Principal'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [meta, setMeta] = useState(() => {
+        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.meta || { title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }; } catch { return { title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }; }
+      });
+      const [allocationMode, setAllocationMode] = useState(() => {
+        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.allocationMode || 'manual'; } catch { return 'manual'; }
+      });
+      const [cognitiveLevels, setCognitiveLevels] = useState(() => {
+        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.cognitiveLevels || [{ name:'Unistructural', pct:50 },
+        { name: 'Multi-structural', pct: 30 },
+        { name: 'Relational', pct: 20 },
+        { name: 'Extended Abstract', pct: 0 },
+      ]; } catch { return [{ name:'Unistructural', pct:50 },{ name:'Multi-structural', pct:30 },{ name:'Relational', pct:20 },{ name:'Extended Abstract', pct:0 }]; }
+      });
+      const [competencies, setCompetencies] = useState(() => {
+        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.competencies || [{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]; } catch { return [{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]; }
+      });
+      const [rowLevelCaps, setRowLevelCaps] = useState(() => {
+        try { const s = JSON.parse(localStorage.getItem('tos_current')); if (Array.isArray(s?.rowLevelCaps) && s.rowLevelCaps.length) return s.rowLevelCaps; } catch { /* ignore */ }
+        return [];
+      });
+      const [lastGeneratedTime, setLastGeneratedTime] = useState(new Date().toLocaleTimeString());
+      const [tosTemplate, setTosTemplate] = useState(null);
+      const [schoolDoc, setSchoolDoc] = useState(null);
+      const tosTableRef = useRef(null);
+      const [savedConfigs, setSavedConfigs] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('tos_saved_configs')) || []; } catch { return []; }
+      });
+      const [showSaveLoad, setShowSaveLoad] = useState(false);
+      const saveLoadRef = useRef(null);
+      const [showSettings, setShowSettings] = useState(false);
+      const [settingsKey, setSettingsKey] = useState(() => (window.SilidKeys ? window.SilidKeys.get('primary') : localStorage.getItem('gemini_api_key') || ''));
+      const [settingsKey2, setSettingsKey2] = useState(() => (window.SilidKeys ? window.SilidKeys.get('backup') : localStorage.getItem('gemini_api_key_2') || ''));
+      const [rememberKeys, setRememberKeys] = useState(() => !!(window.SilidKeys && window.SilidKeys.isRemembered()));
+      const [keyTestStatus, setKeyTestStatus] = useState('');
+      const [keyTestMsg, setKeyTestMsg] = useState('');
+      const settingsRef = useRef(null);
+
+      /* Auto-save current working state */
+      useEffect(() => {
+        const snapshot = { meta, allocationMode, cognitiveLevels, competencies, rowLevelCaps };
+        localStorage.setItem('tos_current', JSON.stringify(snapshot));
+      }, [meta, allocationMode, cognitiveLevels, competencies, rowLevelCaps]);
+
+      /* Persist named configs */
+      useEffect(() => {
+        localStorage.setItem('tos_saved_configs', JSON.stringify(savedConfigs));
+      }, [savedConfigs]);
+
+      /* Document history drawer (shared-docs-ui.js + shared-docs.js) */
+      useEffect(() => {
+        if (!window.SilidDocsUI) return;
+        window.SilidDocsUI.mount({ tool: 'tos', label: 'Table of Specifications' });
+        window.SilidDocsUI.onOpen(function (doc) {
+          var cfg = doc && doc.meta && doc.meta.config;
+          if (!cfg) return;
+          if (cfg.template === 'school') {
+            /* a school-template document — hand it to that engine */
+            setSchoolDoc(cfg);
+            setTosTemplate('school');
+          } else {
+            setTosTemplate('silidpinoy');
+            if (cfg.meta) setMeta(cfg.meta);
+            if (cfg.allocationMode) setAllocationMode(cfg.allocationMode);
+            if (Array.isArray(cfg.cognitiveLevels)) setCognitiveLevels(cfg.cognitiveLevels);
+            if (Array.isArray(cfg.competencies)) setCompetencies(cfg.competencies);
+            if (Array.isArray(cfg.rowLevelCaps)) setRowLevelCaps(cfg.rowLevelCaps);
+          }
+          if (window.SilidToast) window.SilidToast.success('Loaded “' + (doc.name || 'saved TOS') + '”.');
+        });
+      }, []);
+
+      /* Click outside to close save/load dropdown */
+      useEffect(() => {
+        if (!showSaveLoad) return;
+        const h = (e) => { if (saveLoadRef.current && !saveLoadRef.current.contains(e.target)) setShowSaveLoad(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+      }, [showSaveLoad]);
+
+      /* Save API key to browser + reset test state on change */
+      useEffect(() => {
+        if (window.SilidKeys) window.SilidKeys.set('primary', settingsKey);
+        else if (settingsKey.trim()) localStorage.setItem('gemini_api_key', settingsKey.trim());
+        else localStorage.removeItem('gemini_api_key');
+        setKeyTestStatus('');
+        setKeyTestMsg('');
+      }, [settingsKey]);
+      useEffect(() => {
+        if (window.SilidKeys) window.SilidKeys.set('backup', settingsKey2);
+        else if (settingsKey2.trim()) localStorage.setItem('gemini_api_key_2', settingsKey2.trim());
+        else localStorage.removeItem('gemini_api_key_2');
+      }, [settingsKey2]);
+
+      /* Click outside to close settings dropdown */
+      useEffect(() => {
+        if (!showSettings) return;
+        const h = (e) => { if (settingsRef.current && !settingsRef.current.contains(e.target)) setShowSettings(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+      }, [showSettings]);
+
+      // pingKey is now provided by shared-api.js as window.SilidAPI.pingKey
+      const handleTestApiKey = async () => {
+        const k1 = settingsKey.trim();
+        const k2 = settingsKey2.trim();
+        if (!k1) { setKeyTestStatus('fail'); setKeyTestMsg('Please paste your primary API key first.'); return; }
+        if (k1.length < 20) { setKeyTestStatus('fail'); setKeyTestMsg('This primary key looks too short. Please copy the full key from Google AI Studio.'); return; }
+        if (k2 && k2.length < 20) { setKeyTestStatus('fail'); setKeyTestMsg('The backup key looks too short. Please copy the full key from Google AI Studio.'); return; }
+        setKeyTestStatus('testing'); setKeyTestMsg('');
+        try {
+          const r1 = await window.SilidAPI.pingKey(k1);
+          if (!r1.ok) { setKeyTestStatus('fail'); setKeyTestMsg('Primary key: ' + r1.friendly); return; }
+          if (!k2) { setKeyTestStatus('ok'); setKeyTestMsg('Your API key is working! You\'re all set to build TOS documents.'); return; }
+          const r2 = await window.SilidAPI.pingKey(k2);
+          if (r2.ok) { setKeyTestStatus('ok'); setKeyTestMsg('Primary and backup keys are both working!'); }
+          else { setKeyTestStatus('fail'); setKeyTestMsg('Primary key works, but the backup failed: ' + r2.friendly); }
+        } catch (e) {
+          console.error('API test error:', e);
+          setKeyTestStatus('fail'); setKeyTestMsg('Could not test the key: ' + ((e && e.message) || 'unknown error') + '. Check your internet connection and try again.');
+        }
+      };
+
+      const handleMetaChange = (e) => {
+        const { name, value } = e.target;
+        setMeta(prev => ({ ...prev, [name]: name === 'totalItems' ? Math.max(0, parseInt(value) || 0) : value }));
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+      const handleCompetencyChange = (id, field, value) => {
+        setCompetencies(prev => prev.map(comp => comp.id === id ? { ...comp, [field]: value } : comp));
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+      const ensureCapRow = (compId) => {
+        setRowLevelCaps(prev => {
+          if (prev.find(cap => cap.compId === compId)) return prev;
+          return [...prev, { compId, caps: cognitiveLevels.map(() => '') }];
+        });
+      };
+
+      const addCompetency = () => {
+        const newId = competencies.length ? Math.max(...competencies.map(c => c.id)) + 1 : 1;
+        setCompetencies([...competencies, { id: newId, name: '', hours: '1', manualItems: '5' }]);
+        ensureCapRow(newId);
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+
+      const deleteCompetency = (id) => {
+        if (competencies.length <= 1) return;
+        setCompetencies(competencies.filter(c => c.id !== id));
+        setRowLevelCaps(prev => prev.filter(cap => cap.compId !== id));
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+      const handleCognitiveChange = (index, value) => {
+        const newLevels = [...cognitiveLevels];
+        newLevels[index].pct = Math.max(0, parseInt(value) || 0);
+        setCognitiveLevels(newLevels);
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+      const handleAddCognitiveLevel = () => {
+        setCognitiveLevels([...cognitiveLevels, { name: 'New Level', pct: 0 }]);
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+      const handleRemoveCognitiveLevel = (index) => {
+        if (cognitiveLevels.length > 1) {
+          setCognitiveLevels(cognitiveLevels.filter((_, i) => i !== index));
+          setLastGeneratedTime(new Date().toLocaleTimeString());
+        }
+      };
+      const applyRowLevelCaps = (levelCounts, compId) => {
+        const cap = (rowLevelCaps.find(c => c.compId === compId) || {}).caps || [];
+        let diff = 0;
+        const capped = levelCounts.map((count, li) => {
+          const capValue = cap[li];
+          if (capValue === '' || capValue === null || capValue === undefined) return count;
+          const limit = Math.max(0, parseInt(capValue, 10) || 0);
+          if (limit < count) { diff += count - limit; return limit; }
+          return count;
+        });
+        if (diff > 0) {
+          let idx = 0;
+          for (let n = 0; n < diff; n++) {
+            while (idx < capped.length && capped[idx] <= 0) idx++;
+            if (idx >= capped.length) break;
+            capped[idx]++;
+            idx = (idx + 1) % capped.length;
+          }
+        }
+        return capped;
+      };
+
+      const loadSampleData = () => {
+        setMeta({
+          title: "Table of Specifications for Summative Test using HOTS SOLO",
+          gradeLevel: "11", learningArea: "TVL – COMPUTER SYSTEM AND SERVICING",
+          term: "1st Quarter",
+          performanceStandard: "The learners perform setting up computer systems, adhering to occupational health and safety standards.",
+          contentStandard: "The learners demonstrate an understanding of concepts and principles in setting up computer systems.",
+          totalItems: 30,
+        });
+        setAllocationMode('manual');
+        setCognitiveLevels([
+          { name: 'Unistructural', pct: 50 }, { name: 'Multi-structural', pct: 30 },
+          { name: 'Relational', pct: 20 }, { name: 'Extended Abstract', pct: 0 },
+        ]);
+        setCompetencies(JSON.parse(JSON.stringify(SAMPLE_COMPETENCIES)));
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+      };
+      const scrollToTOS = () => {
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+        tosTableRef.current?.scrollIntoView({ behavior: 'smooth' });
+      };
+
+      const handleSaveConfig = () => {
+        const name = prompt('Name this TOS configuration:', meta.title || 'My TOS');
+        if (!name) return;
+        const config = {
+          id: Date.now(),
+          name: name.trim(),
+          timestamp: new Date().toLocaleString(),
+          meta, allocationMode, cognitiveLevels, competencies, rowLevelCaps,
+        };
+        setSavedConfigs(prev => [config, ...prev]);
+        setShowSaveLoad(false);
+      };
+
+      const handleLoadConfig = (config) => {
+        setMeta(config.meta);
+        setAllocationMode(config.allocationMode);
+        setCognitiveLevels(config.cognitiveLevels);
+        setCompetencies(config.competencies);
+        setRowLevelCaps(Array.isArray(config.rowLevelCaps) ? config.rowLevelCaps : []);
+        setLastGeneratedTime(new Date().toLocaleTimeString());
+        setShowSaveLoad(false);
+      };
+
+      const handleDeleteConfig = (id) => {
+        if (!confirm('Delete this saved TOS?')) return;
+        setSavedConfigs(prev => prev.filter(c => c.id !== id));
+      };
+
+      const handleMakeTest = () => {
+        if (!tosValid) return; // validation prevents proceeding
+        const activeLevels = cognitiveLevels.filter(lv => lv.pct > 0);
+        const cogWeights = cognitiveLevels.map(lv => Number(lv.pct) || 0);
+        const competenciesText = competencies
+          .filter(c => c.name && c.name.trim())
+          .map((c, i) => {
+            const cogParts = activeLevels
+              .map(lv => lv.name + ': ' + lv.pct + '%')
+              .join(', ');
+            return (i + 1) + '. ' + c.name.trim() + ' [' + cogParts + ']';
+          })
+          .join('\n');
+        /* Build per-competency cognitive level item distribution */
+        const totalHours = competencies.reduce((sum, c) => sum + (parseFloat(c.hours) || 0), 0);
+        let computedItems = [];
+        if (allocationMode === 'hours') {
+          const targetTotal = Number(meta.totalItems) || 0;
+          const compWeights = competencies.map(c => totalHours > 0 ? (parseFloat(c.hours) || 0) / totalHours : 0);
+          computedItems = distributeExact(targetTotal, compWeights);
+        } else {
+          computedItems = competencies.map(c => Math.max(0, parseInt(c.manualItems) || 0));
+        }
+        const competencyDistributions = competencies
+          .filter(c => c.name && c.name.trim())
+          .map((c, idx) => {
+            const itemCount = computedItems[idx] || 0;
+            const levelCounts = applyRowLevelCaps(distributeExact(itemCount, cogWeights), c.id);
+            const distribution = {};
+            cognitiveLevels.forEach((lv, li) => {
+              if (levelCounts[li] > 0) distribution[lv.name] = levelCounts[li];
+            });
+            return {
+              name: c.name.trim(),
+              totalItems: levelCounts.reduce((a, b) => a + b, 0),
+              distribution
+            };
+          });
+        const tosData = {
+          gradeLevel: meta.gradeLevel,
+          subject: meta.learningArea,
+          testName: meta.title || 'Summative Test based on TOS',
+          competencies: competenciesText,
+          totalItems: meta.totalItems,
+          cognitiveLevels: activeLevels.map(l => l.name + ' (' + l.pct + '%)').join(', '),
+          competencyDistributions: competencyDistributions,
+          allocationMode: allocationMode,
+        };
+        localStorage.setItem('tos_make_test', JSON.stringify(tosData));
+        if (window.SilidDocsUI) window.SilidDocsUI.save({
+          name: meta.title || 'Summative Test (TOS)',
+          content: JSON.stringify({ meta, allocationMode, cognitiveLevels, competencies }),
+          summary: [meta.learningArea || meta.subject, meta.gradeLevel].filter(Boolean).join(' · '),
+          meta: { totalItems: meta.totalItems, config: JSON.parse(JSON.stringify({ meta, allocationMode, cognitiveLevels, competencies })) }
+        });
+        window.location.href = 'index.html';
+      };
+
+      const totalCognitiveWeight = cognitiveLevels.reduce((sum, lvl) => sum + (Number(lvl.pct) || 0), 0);
+
+      // Validation: compute allocated items total and check against target
+      const allocatedTotal = useMemo(() => {
+        if (allocationMode === 'hours') {
+          const totalHours = competencies.reduce((sum, c) => sum + (parseFloat(c.hours) || 0), 0);
+          const targetTotal = Number(meta.totalItems) || 0;
+          const compWeights = competencies.map(c => totalHours > 0 ? (parseFloat(c.hours) || 0) / totalHours : 0);
+          const base = distributeExact(targetTotal, compWeights);
+          return base.reduce((sum, count, idx) => sum + applyRowLevelCaps(distributeExact(count, cognitiveLevels.map(lvl => Number(lvl.pct) || 0)), competencies[idx]?.id).reduce((a, b) => a + b, 0), 0);
+        }
+        const manualCounts = competencies.map(c => Math.max(0, parseInt(c.manualItems) || 0));
+        const cogWeights = cognitiveLevels.map(lvl => Number(lvl.pct) || 0);
+        return manualCounts.reduce((sum, count, idx) => sum + applyRowLevelCaps(distributeExact(count, cogWeights), competencies[idx]?.id).reduce((a, b) => a + b, 0), 0);
+      }, [competencies, meta.totalItems, allocationMode, cognitiveLevels, rowLevelCaps]);
+
+      const tosValid = totalCognitiveWeight === 100 && allocatedTotal === Number(meta.totalItems);
+      const cognitiveError = totalCognitiveWeight !== 100 ? `Cognitive percentages total ${totalCognitiveWeight}% (must be 100%)` : null;
+      const allocationError = allocatedTotal !== Number(meta.totalItems) ? `Allocated items: ${allocatedTotal} / Target: ${meta.totalItems}` : null;
+
+      const rebalanceCognitive = () => {
+        if (cognitiveLevels.length === 0) return;
+        const diff = 100 - totalCognitiveWeight;
+        const lastIdx = cognitiveLevels.length - 1;
+        const newLevels = [...cognitiveLevels];
+        newLevels[lastIdx] = { ...newLevels[lastIdx], pct: Math.max(0, (Number(newLevels[lastIdx].pct) || 0) + diff) };
+        setCognitiveLevels(newLevels);
+      };
+
+      const rebalanceAllocation = () => {
+        if (competencies.length === 0) return;
+        const diff = Number(meta.totalItems) - allocatedTotal;
+        const lastIdx = competencies.length - 1;
+        const newComps = [...competencies];
+        const currentLast = Math.max(0, parseInt(newComps[lastIdx].manualItems) || 0);
+        newComps[lastIdx] = { ...newComps[lastIdx], manualItems: String(Math.max(0, currentLast + diff)) };
+        setCompetencies(newComps);
+      };
+
+      const tableData = useMemo(() => {
+        const totalHours = competencies.reduce((sum, c) => sum + (parseFloat(c.hours) || 0), 0);
+        let computedItems = [];
+        if (allocationMode === 'hours') {
+          const targetTotalItems = Number(meta.totalItems) || 0;
+          const compWeights = competencies.map(c => totalHours > 0 ? (parseFloat(c.hours) || 0) / totalHours : 0);
+          computedItems = distributeExact(targetTotalItems, compWeights);
+        } else {
+          computedItems = competencies.map(c => Math.max(0, parseInt(c.manualItems) || 0));
+        }
+        const totalItemsCount = computedItems.reduce((a, b) => a + b, 0);
+        const cogWeights = cognitiveLevels.map(lvl => Number(lvl.pct) || 0);
+        const levelCountsPerRow = computedItems.map((itemCount, idx) => {
+          const compId = competencies[idx]?.id;
+          const raw = distributeExact(itemCount, cogWeights);
+          return applyRowLevelCaps(raw, compId);
+        });
+
+        /* Extended Abstract items always occupy the LAST item numbers of the whole test,
+           grouped at the end after every other cognitive level. Everything else keeps the
+           progressive round-robin so a competency still opens with easier items. */
+        const eaIdx = cognitiveLevels.findIndex(lvl => /extended\s*abstract/i.test(String(lvl.name || '')));
+        const eaTotal = eaIdx >= 0 ? levelCountsPerRow.reduce((sum, lc) => sum + (lc[eaIdx] || 0), 0) : 0;
+
+        const rowPlacements = [];
+        const rowLevelBuckets = [];
+        let currentItemTracker = 1;
+        let eaItemTracker = totalItemsCount - eaTotal + 1;
+        computedItems.forEach((itemCount, idx) => {
+          const levelItemCounts = levelCountsPerRow[idx];
+          const eaCount = eaIdx >= 0 ? (levelItemCounts[eaIdx] || 0) : 0;
+          const nonEaNumbers = [];
+          for (let i = 0; i < itemCount - eaCount; i++) nonEaNumbers.push(currentItemTracker++);
+          const eaNumbers = [];
+          for (let i = 0; i < eaCount; i++) eaNumbers.push(eaItemTracker++);
+          /* Round-robin: cycle through the non-Extended-Abstract levels so items are
+             progressive. E.g. targets [3,1,1] with items [1,2,3,4,5] →
+             U:1,4,5  M:2  R:3 — first 3 items cover all 3 levels */
+          const buckets = levelItemCounts.map(() => []);
+          if (eaIdx >= 0) buckets[eaIdx] = eaNumbers;
+          const remaining = levelItemCounts.map((c, li) => li === eaIdx ? 0 : c);
+          let ri = 0;
+          const numLevels = buckets.length;
+          for (let n = 0; n < nonEaNumbers.length; n++) {
+            /* Skip levels already at their target */
+            while (remaining[ri] <= 0) ri = (ri + 1) % numLevels;
+            buckets[ri].push(nonEaNumbers[n]);
+            remaining[ri]--;
+            ri = (ri + 1) % numLevels;
+          }
+          rowPlacements.push([...nonEaNumbers, ...eaNumbers]);
+          rowLevelBuckets.push(buckets);
+        });
+
+        const rows = competencies.map((comp, idx) => {
+          const rowTotalItems = computedItems[idx];
+          const rowItemNumbers = rowPlacements[idx] || [];
+          const levelItemCounts = levelCountsPerRow[idx];
+          const levelItemStrings = (rowLevelBuckets[idx] || []).map((bucket) => bucket.length ? formatItemRanges(bucket) : "");
+          const percentTime = totalHours > 0 ? (((parseFloat(comp.hours) || 0) / totalHours) * 100).toFixed(1) : "0.0";
+          return { ...comp, rowTotalItems, percentTime, placementStr: formatItemRanges(rowItemNumbers), levelItemStrings, levelItemCounts };
+        });
+        const cogTotals = cognitiveLevels.map((_, colIdx) => rows.reduce((sum, r) => sum + (r.levelItemCounts[colIdx] || 0), 0));
+        return { rows, totalItemsCount, totalHours, cogTotals };
+      }, [competencies, meta.totalItems, allocationMode, cognitiveLevels]);
+
+      /* ---- Load school info from localStorage (shared with main app) ---- */
+      const [schoolInfo] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('school_info')) || {}; } catch { return {}; }
+      });
+
+      /* Standard preambles — DepEd wording, in Filipino when the subject is Filipino */
+      const isFilipinoSubject = /filipino|pilipino/i.test(String(meta.learningArea || ''));
+      const PERFORMANCE_PREFIX = isFilipinoSubject
+        ? 'Sa pagtatapos ng termino, ang mga mag-aaral ay may kakayahang…'
+        : 'By the end of the term, the learners are able to…';
+      const CONTENT_PREFIX = isFilipinoSubject
+        ? 'Ang mga mag-aaral ay dapat may kaalaman at pag-unawa sa…'
+        : 'The learners should have knowledge and understanding of…';
+
+      /* Standards cell — preamble on its own line, then each standard on its own line. */
+      const renderStandardBlock = (prefix, value) => {
+        const lines = standardLines(value);
+        return (
+          <>
+            <span className="font-bold italic">{prefix}</span>
+            {lines.map((line, i) => (
+              <span key={i} className="block">{line}</span>
+            ))}
+          </>
+        );
+      };
+      const standardBlockHtml = (prefix, value) => {
+        const lines = standardLines(value);
+        const body = lines.map(l => `<br>${l}`).join('');
+        return `<b><i>${prefix}</i></b>${body}`;
+      };
+
+      /* The document used by both Word downloads: the flat .doc file and the real .docx. */
+      const buildTosWordHtml = () => {
+        /* School header */
+        let sh = '';
+        if (schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2 || schoolInfo.schoolName) {
+          sh = '<div style="text-align:center;margin-bottom:16pt;">';
+          if (schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2) {
+            sh += '<div style="margin-bottom:8pt;">';
+            if (schoolInfo.schoolLogo1) sh += `<img src="${schoolInfo.schoolLogo1}" style="height:72pt;margin:0 12pt;vertical-align:middle;">`;
+            if (schoolInfo.schoolLogo2) sh += `<img src="${schoolInfo.schoolLogo2}" style="height:72pt;margin:0 12pt;vertical-align:middle;">`;
+            sh += '</div>';
+          }
+          if (schoolInfo.schoolName) sh += `<p style="font-size:13pt;font-weight:bold;text-transform:uppercase;letter-spacing:1pt;margin:0;">${schoolInfo.schoolName}</p>`;
+          if (schoolInfo.schoolAddress) sh += `<p style="font-size:10pt;color:#666;margin:2pt 0;">${schoolInfo.schoolAddress}</p>`;
+          sh += '<hr style="border:none;border-top:1pt solid #ccc;margin:10pt 0;"></div>';
+        }
+
+        const htmlContent = `
+          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head>
+            <meta charset='utf-8'>
+            <title>${meta.title || 'Table of Specifications'}</title>
+            <style>
+              @page WordSection1 { size: 11.0in 8.5in; mso-page-orientation: landscape; margin: 0.5in; }
+              div.WordSection1 { page: WordSection1; }
+              body { font-family: "Times New Roman", Times, serif; font-size: 11pt; line-height: 1.3; }
+              .title { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }
+              table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+              td, th { border: 1px solid black; padding: 6px; font-size: 10pt; vertical-align: middle; text-align: center; }
+              .text-left { text-align: left !important; }
+              .font-bold { font-weight: bold; }
+              .meta-table td { padding: 4px 8px; text-align: left; }
+              .sig-table { margin-top: 40px; border: none; }
+              .sig-table td { border: none; text-align: left; vertical-align: top; padding: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="WordSection1">
+              ${sh}
+              <div class="title">${meta.title || 'TABLE OF SPECIFICATIONS'}</div>
+              <table class="meta-table">
+                <tr>
+                  <td class="font-bold" width="15%">Grade Level:</td>
+                  <td width="20%">${meta.gradeLevel || ''}</td>
+                  <td class="font-bold" width="15%">Learning Area:</td>
+                  <td width="35%">${meta.learningArea || ''}</td>
+                  <td class="font-bold" width="8%">Term:</td>
+                  <td width="7%">${meta.term || ''}</td>
+                </tr>
+              </table>
+              <p style="margin:0;line-height:12pt;font-size:1pt;">&nbsp;</p>
+              <table class="meta-table">
+                <tr>
+                  <td class="font-bold" width="15%">Performance Standard:</td>
+                  <td width="85%">${standardBlockHtml(PERFORMANCE_PREFIX, meta.performanceStandard)}</td>
+                </tr>
+                <tr>
+                  <td class="font-bold" width="15%">Content Standard:</td>
+                  <td width="85%">${standardBlockHtml(CONTENT_PREFIX, meta.contentStandard)}</td>
+                </tr>
+              </table>
+              <p style="margin:0;line-height:20pt;font-size:1pt;">&nbsp;</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th rowspan="2" width="40%">Competencies</th>
+                    <th rowspan="2" width="15%">Item Number/s<br/>(Placement)</th>
+                    <th colspan="${cognitiveLevels.length}" width="35%">Cognitive Level</th>
+                    <th rowspan="2" width="10%">Total<br/>Items</th>
+                  </tr>
+                  <tr>${cognitiveLevels.map(lvl => `<th>${lvl.name}</th>`).join('')}</tr>
+                </thead>
+                <tbody>
+                  ${tableData.rows.map(row => `
+                    <tr>
+                      <td class="text-left">${row.name || 'Untitled Competency'}</td>
+                      <td>${row.placementStr || '-'}</td>
+                      ${row.levelItemStrings.map(itemStr => `<td>${itemStr || ''}</td>`).join('')}
+                      <td class="font-bold">${row.rowTotalItems}</td>
+                    </tr>
+                  `).join('')}
+                  <tr class="font-bold">
+                    <td class="text-left" style="text-align: center;">Subtotal</td>
+                    <td>${tableData.totalItemsCount}</td>
+                    ${tableData.cogTotals.map(tot => `<td>${tot || ''}</td>`).join('')}
+                    <td>${tableData.totalItemsCount}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <br/>
+              <table class="sig-table">
+                <tr>
+                  <td width="33%">
+                    <b>Prepared by:</b><br/><br/><br/>
+                    <u><b>${schoolInfo.teacherName ? schoolInfo.teacherName.toUpperCase() : '________________________'}</b></u><br/>
+                    <span style="text-align:center;display:block;">${schoolInfo.teacherTitle || 'Teacher / Instructor'}</span>
+                  </td>
+                  <td width="33%">
+                    <b>Checked by:</b><br/><br/><br/>
+                    <u><b>${schoolInfo.checkedBy ? schoolInfo.checkedBy.toUpperCase() : '________________________'}</b></u><br/>
+                    <span style="text-align:center;display:block;">${schoolInfo.checkedByPosition || 'Department Head'}</span>
+                  </td>
+                  <td width="34%">
+                    <b>Approved by:</b><br/><br/><br/>
+                    <u><b>${schoolInfo.approvedBy ? schoolInfo.approvedBy.toUpperCase() : '________________________'}</b></u><br/>
+                    <span style="text-align:center;display:block;">${schoolInfo.approvedByPosition || 'School Principal'}</span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </body>
+          </html>
+        `;
+        return htmlContent;
+      };
+
+      const tosFileName = (ext) => 'TOS_' + (meta.learningArea || 'TOS_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase() + ext;
+
+      /* Flat .doc — one HTML file that opens in any word processor, with nothing to unzip. */
+      const handleDownloadWord = () => {
+        const blob = new Blob(['\ufeff', buildTosWordHtml()], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = tosFileName('.doc');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+
+      /* Real .docx — an OOXML package Word opens with no format warning. The helper
+         comes from a CDN, so say so plainly when it has not loaded (e.g. offline). */
+      const handleDownloadDocx = () => {
+        if (!window.htmlDocx || !window.saveAs) {
+          const m = 'The DOCX helper has not loaded yet — use Export Word (.doc) instead.';
+          console.error(m);
+          if (window.SilidToast) window.SilidToast.warning(m); else alert(m);
+          return;
+        }
+        try {
+          window.saveAs(window.htmlDocx.asBlob(buildTosWordHtml(), { orientation: 'landscape' }), tosFileName('.docx'));
+        } catch (e) {
+          console.error('DOCX export failed:', e);
+          const m = 'Could not build the DOCX file: ' + ((e && e.message) || 'unknown error') + '. Try Export Word (.doc) instead.';
+          if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+        }
+      };
+
+      /* Print / PDF — the one export that always opens, even with no Word installed. */
+      const handlePrint = () => {
+        try { window.print(); }
+        catch (e) {
+          console.error('Print failed:', e);
+          const m = 'Could not open the print dialog: ' + ((e && e.message) || 'unknown error');
+          if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+        }
+      };
+
+      /* ============================================================
+         RENDER
+         ============================================================ */
+      return (
+        <div className="min-h-screen font-sans text-ink">
+          <style>{`
+            @media print {
+              @page { size: landscape; margin: 0.5in; }
+              body { background: white; color: black; margin: 0; padding: 0; }
+              .no-print { display: none !important; }
+              .print-card { border: none !important; box-shadow: none !important; background: transparent !important; padding: 0 !important; }
+              .print-card > div { border: none !important; box-shadow: none !important; background: transparent !important; padding: 0 !important; overflow: visible !important; }
+              .print-full { width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; background: none !important; box-shadow: none !important; }
+              .print-full > div { border-radius: 0 !important; box-shadow: none !important; min-height: 0 !important; }
+              .print-flow { overflow: visible !important; height: auto !important; max-height: none !important; padding: 0 !important; }
+            }
+          `}</style>
+
+          {/* ---- Header nav ---- */}
+          <header className="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+            <nav className="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
+              <a href="index.html" className="flex items-center gap-2 pl-3 pr-2 cursor-pointer">
+                <span className="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
+                  <span className="text-[15px] font-extrabold leading-none">S</span>
+                </span>
+                <span className="font-semibold tracking-tight text-base">Silid<span className="text-iris-600">Pinoy</span></span><span className="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
+              </a>
+              <a href="index.html#test-maker" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Test Maker</a>
+              <span className="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">TOS Maker</span>
+              <a href="lesson.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
+              <a href="powerpoint.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
+              <a href="activity.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+              {tosTemplate !== null && (
+                <button onClick={() => setTosTemplate(null)} className="nav-link ml-1 rounded-full bg-iris-50 text-iris-700 text-sm font-semibold px-4 py-2.5 flex items-center gap-2 hover:bg-iris-100" title="Switch TOS format">
+                  <LucideIcon name="Layers" className="w-4 h-4" /><span className="hidden sm:inline">Format</span>
+                </button>
+              )}
+              <span data-silid-docs-slot className="ml-1 flex items-center"></span>
+              <button onClick={() => setShowSettings(!showSettings)} className="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
+                <LucideIcon name="Settings" className="w-4 h-4" />
+                <span className="settings-dot" style={{width:8,height:8,borderRadius:'50%',background: settingsKey.trim() ? '#34d399' : '#f87171'}}></span>
+              </button>
+            </nav>
+            {showSettings && (
+              <div ref={settingsRef} className="absolute top-full right-4 mt-3 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50">
+                <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Primary API Key</label>
+                <input type="password" value={settingsKey} onChange={(e) => setSettingsKey(e.target.value)} placeholder="Paste your API key..." autoComplete="off"
+                  className="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+                <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-2">Backup API Key <span className="normal-case font-medium text-ink/35">(optional)</span></label>
+                <input type="password" value={settingsKey2} onChange={(e) => setSettingsKey2(e.target.value)} placeholder="Paste a key from another account..." autoComplete="off"
+                  className="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+                <label className="flex items-start gap-2 mt-3 text-[11px] text-ink/70 cursor-pointer select-none">
+                  <input type="checkbox" checked={rememberKeys}
+                    onChange={(e) => { setRememberKeys(e.target.checked); if (window.SilidKeys) window.SilidKeys.setRemembered(e.target.checked); if (window.SilidToast && window.SilidKeys) window.SilidToast.info(window.SilidKeys.rememberHint(e.target.checked)); }}
+                    className="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
+                  <span>Remember my API key on this device</span>
+                </label>
+                <p className="text-[10px] text-ink/40 mt-1.5">{window.SilidKeys && window.SilidKeys.rememberHint(rememberKeys)} Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-iris-600 underline">Get keys</a></p>
+                <button onClick={handleTestApiKey} disabled={keyTestStatus === 'testing'}
+                  className={`w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${keyTestStatus === 'ok' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : keyTestStatus === 'fail' ? 'bg-red-50 text-red-700 ring-1 ring-red-200' : 'bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100'}`}>
+                  {keyTestStatus === 'testing' ? 'Testing…' : keyTestStatus === 'ok' ? '✓ API Key Working' : keyTestStatus === 'fail' ? 'API Key Failed' : 'Test API Key'}
+                </button>
+                {keyTestStatus === 'fail' && keyTestMsg && (<p className="text-[10px] text-red-500 mt-1.5 px-1">{keyTestMsg}</p>)}
+                {keyTestStatus === 'ok' && keyTestMsg && (<p className="text-[10px] text-emerald-600 mt-1.5 px-1">{keyTestMsg}</p>)}
+                <div className="border-t border-black/5 mt-3 pt-3">
+                  <a href="index.html#settings" className="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    School &amp; Personal Info
+                  </a>
+                </div>
+              </div>
+            )}
+          </header>
+
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-28 pb-16 space-y-4 print-full print-flow">
+
+            {tosTemplate === null ? (
+              <TemplateChooser onPick={setTosTemplate} />
+            ) : tosTemplate === 'school' ? (
+              <SchoolTos onBack={() => setTosTemplate(null)} openConfig={schoolDoc} onOpenConsumed={() => setSchoolDoc(null)} />
+            ) : (
+              <>
+
+            {/* ---- Card: Header & Actions ---- */}
+            <div className="card-bezel no-print">
+              <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                  <div className="flex flex-col">
+                    <div className="flex items-center space-x-2.5 text-iris-600">
+                      <LucideIcon name="Layers" className="w-7 h-7" />
+                      <h1 className="text-2xl font-bold tracking-tight text-ink font-display">Table of Specifications Generator</h1>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 ml-9.5">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <LucideIcon name="CheckCircle2" className="w-3.5 h-3.5" /> Real-time Live Calculations Active
+                      </span>
+                      <span className="text-xs text-ink/40">Updated {lastGeneratedTime}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2.5 w-full lg:w-auto">
+                    <button onClick={loadSampleData} className="flex-1 lg:flex-none border border-black/10 hover:bg-white/80 text-ink/70 px-3.5 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-semibold">
+                      <LucideIcon name="RotateCcw" className="w-4 h-4" /> <span>Load Sample</span>
+                    </button>
+                    <button onClick={handleSaveConfig} className="flex-1 lg:flex-none border border-emerald-200 hover:bg-emerald-50 text-emerald-700 px-3.5 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-semibold">
+                      <LucideIcon name="Download" className="w-4 h-4" /> <span>Save</span>
+                    </button>
+                    <div className="relative" ref={saveLoadRef}>
+                      <button onClick={() => setShowSaveLoad(!showSaveLoad)} className="flex-1 lg:flex-none border border-iris-200 hover:bg-iris-50 text-iris-700 px-3.5 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-semibold">
+                        <LucideIcon name="File" className="w-4 h-4" /> <span>My Saved ({savedConfigs.length})</span>
+                      </button>
+                      {showSaveLoad && (
+                        <div className="absolute top-full left-0 mt-2 w-72 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-3 z-50 animate-fade-in max-h-72 overflow-y-auto custom-scrollbar">
+                          {savedConfigs.length === 0 ? (
+                            <p className="text-xs text-ink/40 text-center py-4">No saved TOS yet. Click <strong>Save</strong> to store one.</p>
+                          ) : savedConfigs.map((cfg) => (
+                            <div key={cfg.id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-iris-50 transition group">
+                              <button onClick={() => handleLoadConfig(cfg)} className="flex-1 text-left min-w-0">
+                                <p className="text-xs font-semibold text-ink truncate">{cfg.name}</p>
+                                <p className="text-[10px] text-ink/40">{cfg.timestamp}</p>
+                              </button>
+                              <button onClick={() => handleDeleteConfig(cfg.id)} className="text-rose-400 hover:text-rose-600 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition flex-shrink-0" title="Delete">
+                                <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => { if (!confirm('Clear all fields and start fresh?')) return; setMeta({ title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }); setCognitiveLevels([{ name:'Unistructural', pct:50 },{ name:'Multi-structural', pct:30 },{ name:'Relational', pct:20 },{ name:'Extended Abstract', pct:0 }]);          setCompetencies([{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]);
+          setRowLevelCaps([]);
+          setAllocationMode('manual'); setLastGeneratedTime(new Date().toLocaleTimeString()); }} className="flex-1 lg:flex-none border border-rose-200 hover:bg-rose-50 text-rose-600 px-3.5 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-semibold">
+                      <LucideIcon name="Trash2" className="w-4 h-4" /> <span>Reset</span>
+                    </button>
+                    <button onClick={scrollToTOS} className="flex-1 lg:flex-none bg-iris-600 hover:bg-iris-700 text-white px-4 py-2 rounded-xl flex items-center justify-center space-x-2 transition text-xs font-bold shadow-md shadow-iris-200 btn-spring">
+                      <LucideIcon name="Sparkles" className="w-4 h-4 text-yellow-300 animate-pulse" /> <span>View TOS</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ---- Card: Test Details ---- */}
+            <div className="card-bezel no-print">
+              <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                    <LucideIcon name="Settings" className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-sm font-bold">Test Details</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                  <div className="md:col-span-8">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Document Title</label>
+                    <input type="text" name="title" value={meta.title} onChange={handleMetaChange}
+                      placeholder="e.g. TABLE OF SPECIFICATIONS IN TVL 11"
+                      className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grade Level</label>
+                    <SuggestInput name="gradeLevel" value={meta.gradeLevel} onChange={handleMetaChange}
+                      placeholder="e.g. Grade 11" suggestions={DEPED_GRADE_LEVELS} extraClass="text-center" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Term / Quarter</label>
+                    <SuggestInput name="term" value={meta.term} onChange={handleMetaChange}
+                      placeholder="e.g. 1st Quarter" suggestions={DEPED_TERMS} extraClass="text-center" />
+                  </div>
+                  <div className="md:col-span-12">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Learning Area / Subject</label>
+                    <SuggestInput name="learningArea" value={meta.learningArea} onChange={handleMetaChange}
+                      placeholder="e.g. TVL - Computer Systems Servicing" suggestions={DEPED_SUBJECTS} extraClass="font-semibold text-iris-700 bg-iris-50/20" />
+                  </div>
+                  <div className="md:col-span-6">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Performance Standard <span className="text-ink/35 font-normal normal-case">(one per line)</span></label>
+                    <textarea name="performanceStandard" value={meta.performanceStandard} onChange={handleMetaChange} rows={3}
+                      placeholder="Enter performance standard... (press Enter for another)"
+                      className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-iris-500" />
+                  </div>
+                  <div className="md:col-span-6">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Content Standard <span className="text-ink/35 font-normal normal-case">(one per line)</span></label>
+                    <textarea name="contentStandard" value={meta.contentStandard} onChange={handleMetaChange} rows={3}
+                      placeholder="Enter content standard... (press Enter for another)"
+                      className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-iris-500" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ---- Card: Item Distribution ---- */}
+            <div className="card-bezel no-print">
+              <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                    <LucideIcon name="Sliders" className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold">Item Distribution Method</h3>
+                    <p className="text-[11px] text-ink/45">Choose how items are allocated per competency row.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 p-1 bg-white ring-1 ring-black/5 rounded-xl">
+                  <button onClick={() => { setAllocationMode('manual'); setLastGeneratedTime(new Date().toLocaleTimeString()); }}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${allocationMode === 'manual' ? 'bg-iris-600 text-white shadow-sm' : 'text-ink/50 hover:text-ink'}`}>
+                    Direct Manual Specification
+                  </button>
+                  <button onClick={() => { setAllocationMode('hours'); setLastGeneratedTime(new Date().toLocaleTimeString()); }}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${allocationMode === 'hours' ? 'bg-iris-600 text-white shadow-sm' : 'text-ink/50 hover:text-ink'}`}>
+                    Proportional Teaching Hours
+                  </button>
+                </div>
+                {allocationMode === 'hours' && (
+                  <div className="mt-4 p-4 bg-iris-50/50 rounded-xl border border-iris-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-iris-900">Total Test Items Target</h3>
+                      <p className="text-xs text-iris-600">Items calculated proportionally based on teaching hours.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="number" name="totalItems" value={meta.totalItems} onChange={handleMetaChange}
+                        className="w-24 px-3 py-1.5 border border-iris-200 rounded-xl focus:ring-2 focus:ring-iris-500 outline-none font-bold text-center bg-white" />
+                      <span className="text-xs font-semibold text-iris-700">total items</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ---- Card: Cognitive Levels ---- */}
+            <div className="card-bezel no-print">
+              <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                      <LucideIcon name="Layers" className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold">Cognitive Levels Allocation (%)</h3>
+                      <p className="text-[11px] text-ink/45">Customize cognitive target percentages</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${totalCognitiveWeight === 100 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                      Total Weights: {totalCognitiveWeight}% {totalCognitiveWeight !== 100 && '(Target: 100%)'}
+                    </span>
+                    <button onClick={handleAddCognitiveLevel}
+                      className="text-xs text-iris-600 hover:text-iris-700 font-semibold p-1 hover:bg-iris-50 rounded">
+                      + Add Category
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {cognitiveLevels.map((lvl, idx) => (
+                    <div key={idx} className="p-3 bg-mist rounded-xl border border-black/5 relative group">
+                      {cognitiveLevels.length > 1 && (
+                        <button onClick={() => handleRemoveCognitiveLevel(idx)}
+                          className="absolute top-2 right-2 text-rose-500 hover:bg-rose-50 p-1 rounded-md opacity-0 group-hover:opacity-100 transition">
+                          <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <input type="text" value={lvl.name}
+                        onChange={(e) => { const newLevels = [...cognitiveLevels]; newLevels[idx].name = e.target.value; setCognitiveLevels(newLevels); setLastGeneratedTime(new Date().toLocaleTimeString()); }}
+                        className="block w-4/5 text-xs font-bold uppercase tracking-wider text-ink/60 mb-1.5 bg-transparent border-b border-dashed border-black/15 focus:border-iris-500 outline-none" />
+                      <div className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden">
+                        <input type="number" value={lvl.pct}
+                          onChange={(e) => handleCognitiveChange(idx, e.target.value)}
+                          className="w-full px-2.5 py-1.5 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold" />
+                        <span className="bg-mist text-ink/45 text-[10px] px-2 py-2 border-l border-black/5 font-semibold">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ---- Card: Competencies ---- */}
+            <div className="card-bezel no-print">
+              <div className="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="grid place-items-center w-7 h-7 rounded-lg bg-iris-100 text-iris-600">
+                      <LucideIcon name="BookOpen" className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold">Learning Competencies</h3>
+                      <p className="text-[11px] text-ink/45">Automatic sequential placement</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3 mb-4">
+                  {competencies.map((comp, index) => (
+                    <div key={comp.id} className="flex gap-3 items-start group">
+                      <div className="flex-1">
+                        <input type="text" value={comp.name}
+                          onChange={(e) => handleCompetencyChange(comp.id, 'name', e.target.value)}
+                          placeholder={`Competency ${index + 1} description...`}
+                          className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 font-medium text-ink/70 transition" />
+                      </div>
+                      {allocationMode === 'hours' ? (
+                        <div className="w-28">
+                          <div className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden">
+                            <input type="number" step="0.5" value={comp.hours}
+                              onChange={(e) => handleCompetencyChange(comp.id, 'hours', e.target.value)}
+                              placeholder="Hours"
+                              className="w-full px-2.5 py-2 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold" />
+                            <span className="bg-mist text-ink/45 text-[10px] px-2 py-2 border-l border-black/5 font-semibold">Hrs</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-28">
+                          <div className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden">
+                            <input type="number" value={comp.manualItems}
+                              onChange={(e) => handleCompetencyChange(comp.id, 'manualItems', e.target.value)}
+                              placeholder="Items"
+                              className="w-full px-2.5 py-2 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-bold text-iris-700 bg-iris-50/20" />
+                            <span className="bg-iris-50/50 text-iris-600 text-[10px] px-2 py-2 border-l border-black/5 font-bold">Items</span>
+                          </div>
+                        </div>
+                      )}
+                      {cognitiveLevels.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(() => { const capRow = rowLevelCaps.find(cap => cap.compId === comp.id); return (capRow && capRow.caps) || []; })().map((capValue, li) => (
+                            <div key={li} className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden" title={cognitiveLevels[li]?.name}>
+                              <input
+                                type="number"
+                                min="0"
+                                value={capValue}
+                                onChange={(e) => {
+                                  const next = [...(rowLevelCaps.find(cap => cap.compId === comp.id) || { caps: cognitiveLevels.map(() => '') }).caps];
+                                  next[li] = e.target.value;
+                                  setRowLevelCaps(prev => {
+                                    const existing = prev.findIndex(c => c.compId === comp.id);
+                                    if (existing >= 0) {
+                                      const updated = [...prev];
+                                      updated[existing] = { compId: comp.id, caps: next };
+                                      return updated;
+                                    }
+                                    return [...prev, { compId: comp.id, caps: next }];
+                                  });
+                                  setLastGeneratedTime(new Date().toLocaleTimeString());
+                                }}
+                                placeholder="auto"
+                                className="w-14 px-1.5 py-2 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold"
+                              />
+                              <span className="bg-mist text-ink/45 text-[9px] px-1 py-2 border-l border-black/5 font-semibold truncate">
+                                {cognitiveLevels[li]?.name || `L${li+1}`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={() => deleteCompetency(comp.id)} disabled={competencies.length <= 1}
+                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition disabled:opacity-30 disabled:hover:bg-transparent">
+                        <LucideIcon name="Trash2" className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
+                  <button onClick={addCompetency}
+                    className="flex items-center space-x-2 text-xs text-iris-600 font-bold hover:text-iris-800 p-2 rounded-xl hover:bg-iris-50/60 transition">
+                    <LucideIcon name="Plus" className="w-4 h-4" /> <span>Add Learning Competency</span>
+                  </button>
+                  <button onClick={scrollToTOS}
+                    className="w-full sm:w-auto bg-iris-600 hover:bg-iris-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-iris-200 flex items-center justify-center gap-2 transition btn-spring">
+                    <LucideIcon name="Sparkles" className="w-4 h-4 text-yellow-300" /> <span>View TOS Below</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ---- Validation messages ---- */}
+            {(cognitiveError || allocationError) && (
+              <div className="no-print bg-amber-50 ring-1 ring-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 space-y-1">
+                {cognitiveError && <p className="flex items-center gap-2"><LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-500"/> {cognitiveError}</p>}
+                {allocationError && <p className="flex items-center gap-2"><LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-500"/> {allocationError}</p>}
+                <div className="flex gap-2 pt-1">
+                  {cognitiveError && <button onClick={rebalanceCognitive} className="text-xs font-semibold text-amber-700 underline hover:text-amber-900">Rebalance Cognitive %</button>}
+                  {allocationError && <button onClick={rebalanceAllocation} className="text-xs font-semibold text-amber-700 underline hover:text-amber-900">Rebalance Items</button>}
+                </div>
+              </div>
+            )}
+
+            {/* ---- Export buttons ---- */}
+            <div className="no-print flex flex-wrap justify-center gap-3">
+              <button onClick={handleMakeTest} disabled={!tosValid} className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring shadow-lg ${tosValid ? 'bg-iris-600 hover:bg-iris-700 text-white shadow-iris-200' : 'bg-ink/20 text-ink/40 cursor-not-allowed shadow-none'}`}>
+                <LucideIcon name="Sparkles" className="w-4 h-4" /> Make Test from TOS
+              </button>
+              <button onClick={handleDownloadDocx} className="bg-white ring-1 ring-black/10 hover:ring-black/25 text-ink px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+                <LucideIcon name="Download" className="w-4 h-4" /> Export DOCX
+              </button>
+              <button onClick={handleDownloadWord} title="One flat .doc file — opens in any word processor, nothing to unzip." className="bg-ink hover:bg-ink/90 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+                <LucideIcon name="Download" className="w-4 h-4" /> Export Word (.doc)
+              </button>
+              <button onClick={handlePrint} title="Print or save as PDF — works on any device, no Word needed." className="border border-black/10 hover:bg-white/80 text-ink px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition text-sm btn-spring">
+                <LucideIcon name="Printer" className="w-4 h-4" /> Print / PDF
+              </button>
+            </div>
+
+            {/* ---- Generated TOS Table ---- */}
+            <div ref={tosTableRef} className="card-bezel print-card relative">
+              <div className="card-inner p-4 md:p-12 rounded-[calc(1.75rem-6px)] overflow-x-auto">
+                {/* Title */}
+                <div className="mb-5 text-center font-serif">
+                  {(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2 || schoolInfo.schoolName) && (
+                    <div className="mb-4">
+                      {(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2) && (
+                        <div className="mb-2 flex items-center justify-center gap-6">
+                          {schoolInfo.schoolLogo1 && <img src={schoolInfo.schoolLogo1} alt="" className="h-16 object-contain" />}
+                          {schoolInfo.schoolLogo2 && <img src={schoolInfo.schoolLogo2} alt="" className="h-16 object-contain" />}
+                        </div>
+                      )}
+                      {schoolInfo.schoolName && <p className="text-sm font-bold uppercase tracking-wide">{schoolInfo.schoolName}</p>}
+                      {schoolInfo.schoolAddress && <p className="text-xs text-ink/50">{schoolInfo.schoolAddress}</p>}
+                    </div>
+                  )}
+                  <h2 className="text-xl md:text-2xl font-bold tracking-wide uppercase text-ink">
+                    {meta.title || "TABLE OF SPECIFICATIONS"}
+                  </h2>
+                  <p className="text-xs text-ink/30 mt-1 md:hidden">← Scroll horizontally to see full table →</p>
+                </div>
+
+                {/* Meta box — Row 1: Grade, Learning Area, Term */}
+                <div className="mb-3 overflow-hidden">
+                  <table className="w-full min-w-[640px] text-sm font-serif classic-grid text-ink border-collapse meta-grid-table">
+                    <tbody>
+                      <tr>
+                        <td className="font-bold text-[13px] bg-mist w-[15%]" style={{border:'1px solid black'}}>Grade Level:</td>
+                        <td className="text-[13px] w-[20%]" style={{border:'1px solid black'}}>{meta.gradeLevel || '-'}</td>
+                        <td className="font-bold text-[13px] bg-mist w-[15%]" style={{border:'1px solid black'}}>Learning Area:</td>
+                        <td className="text-[13px] font-semibold w-[35%]" style={{border:'1px solid black'}}>{meta.learningArea || '-'}</td>
+                        <td className="font-bold text-[13px] bg-mist w-[10%]" style={{border:'1px solid black'}}>Term:</td>
+                        <td className="text-[13px] w-[10%]" style={{border:'1px solid black'}}>{meta.term || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Meta box — Row 2: Performance & Content Standards */}
+                <div className="mb-6 overflow-hidden">
+                  <table className="w-full text-sm font-serif classic-grid text-ink border-collapse meta-grid-table">
+                    <tbody>
+                      <tr>
+                        <td className="font-bold text-[13px] bg-mist w-[15%]" style={{border:'1px solid black'}}>Performance Standard:</td>
+                        <td className="text-[13px] leading-relaxed text-ink/80" style={{border:'1px solid black'}}>
+                          {renderStandardBlock(PERFORMANCE_PREFIX, meta.performanceStandard)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="font-bold text-[13px] bg-mist w-[15%]" style={{border:'1px solid black'}}>Content Standard:</td>
+                        <td className="text-[13px] leading-relaxed text-ink/80" style={{border:'1px solid black'}}>
+                          {renderStandardBlock(CONTENT_PREFIX, meta.contentStandard)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Main TOS table */}
+                <table className="w-full min-w-[720px] text-ink print-serif-table font-serif" style={{ borderCollapse:'collapse', border:'1px solid black' }}>
+                  <colgroup>
+                    <col style={{width:'42%'}} />
+                    <col style={{width:'18%'}} />
+                    {cognitiveLevels.map((_, index) => (
+                      <col key={index} style={{width:`${30 / cognitiveLevels.length}%`}} />
+                    ))}
+                    <col style={{width:'10%'}} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th rowSpan={2} className="p-3 text-center text-sm font-bold" style={{ borderRight:'1px solid black', borderBottom:'1px solid black', verticalAlign:'middle' }}>
+                        Competencies
+                      </th>
+                      <th rowSpan={2} className="p-3 text-center text-sm font-bold" style={{ borderRight:'1px solid black', borderBottom:'1px solid black', verticalAlign:'middle' }}>
+                        Item<br/>Number/s<br/>(Placement)
+                      </th>
+                      <th colSpan={cognitiveLevels.length} className="p-2 text-center text-sm font-bold" style={{ borderRight:'1px solid black', borderBottom:'1px solid black' }}>
+                        Cognitive Level
+                      </th>
+                      <th rowSpan={2} className="p-3 text-center text-sm font-bold" style={{ verticalAlign:'middle' }}>
+                        Total<br/>Items
+                      </th>
+                    </tr>
+                    <tr>
+                      {cognitiveLevels.map((lvl, index) => (
+                        <th key={index} className="p-2 text-center text-xs font-bold bg-mist"
+                          style={{ borderRight:'1px solid black' }}>
+                          {lvl.name || `Level ${index + 1}`}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableData.rows.map((row) => (
+                      <tr key={row.id} style={{ borderBottom:'1px solid black' }}>
+                        <td className="p-2.5 text-left text-sm leading-snug" style={{ borderRight:'1px solid black' }}>
+                          {row.name || 'Untitled Competency'}
+                        </td>
+                        <td className="p-2 text-center text-sm tracking-wide font-medium" style={{ borderRight:'1px solid black' }}>
+                          {row.placementStr || '-'}
+                        </td>
+                        {row.levelItemStrings.map((itemStr, levelIdx) => (
+                          <td key={levelIdx} className="p-2 text-center text-sm tracking-wide"
+                            style={{ borderRight:'1px solid black' }}>
+                            {itemStr || '-'}
+                          </td>
+                        ))}
+                        <td className="p-2 text-center text-sm font-bold" style={{ borderLeft:'1px solid black' }}>
+                          {row.rowTotalItems}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Spacer row */}
+                    <tr style={{ height:'20px', borderBottom:'1px solid black' }}>
+                      <td style={{ borderRight:'1px solid black' }}></td>
+                      <td style={{ borderRight:'1px solid black' }}></td>
+                      {cognitiveLevels.map((_, i) => (
+                        <td key={i} style={{ borderRight:'1px solid black' }}></td>
+                      ))}
+                      <td></td>
+                    </tr>
+                    {/* Subtotal */}
+                    <tr style={{ fontWeight:'bold', borderTop:'2px solid black' }}>
+                      <td className="p-2.5 text-center text-sm italic font-bold" style={{ borderRight:'1px solid black' }}>
+                        Subtotal
+                      </td>
+                      <td className="p-2 text-center text-sm font-bold" style={{ borderRight:'1px solid black' }}>
+                        {tableData.totalItemsCount}
+                      </td>
+                      {tableData.cogTotals.map((tot, idx) => (
+                        <td key={idx} className="p-2 text-center text-sm font-bold" style={{ borderRight:'1px solid black' }}>
+                          {tot}
+                        </td>
+                      ))}
+                      <td className="p-2 text-center text-sm font-bold bg-mist">
+                        {tableData.totalItemsCount}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Signatures */}
+                <div className="mt-12 pt-4 grid grid-cols-1 md:grid-cols-3 gap-8 font-serif text-ink signature-block">
+                  <div className="text-center">
+                    <p className="font-bold text-sm mb-10">Prepared by:</p>
+                    <p className="font-bold text-base underline uppercase tracking-wide">
+                      {schoolInfo.teacherName ? schoolInfo.teacherName : '____________________________________'}
+                    </p>
+                    <p className="text-sm font-medium mt-1 text-ink/70">
+                      {schoolInfo.teacherTitle || 'Teacher / Instructor'}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-sm mb-10">Checked by:</p>
+                    <p className="font-bold text-base underline uppercase tracking-wide">
+                      {schoolInfo.checkedBy ? schoolInfo.checkedBy : '____________________________________'}
+                    </p>
+                    <p className="text-sm font-medium mt-1 text-ink/70">
+                      {schoolInfo.checkedByPosition || 'Department Head'}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-sm mb-10">Approved by:</p>
+                    <p className="font-bold text-base underline uppercase tracking-wide">
+                      {schoolInfo.approvedBy ? schoolInfo.approvedBy : '____________________________________'}
+                    </p>
+                    <p className="text-sm font-medium mt-1 text-ink/70">
+                      {schoolInfo.approvedByPosition || 'School Principal'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            </>
+          )}
+
+            {/* Footer */}
+            <footer className="no-print border-t border-black/5 py-10 text-center text-ink/40 text-sm">
+              &copy; {new Date().getFullYear()} SilidPinoy — TOS Maker. Built for educators.
+            </footer>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

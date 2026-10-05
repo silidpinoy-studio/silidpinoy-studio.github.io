@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Template Engine Sandbox — SilidPinoy</title>
+  <meta name="description" content="Upload .docx or .xlsx templates, fill placeholders with data, and download pixel-perfect documents — 100% in-browser." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            display: ['Fraunces', 'serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            ink: '#0B0A12',
+            canvas: '#F7F6F3',
+            mist: '#EEEDF8',
+            iris: { 50:'#F1EEFE',100:'#E7E2FD',200:'#D2C9FB',500:'#6D5BF5',600:'#5B46E8',700:'#4632C9' },
+          },
+          transitionTimingFunction: {
+            spring: 'cubic-bezier(0.32,0.72,0,1)',
+            soft: 'cubic-bezier(0.22,1,0.36,1)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    * { -webkit-font-smoothing: antialiased; }
+    body { margin:0; background:#F7F6F3; }
+    html.dark body { background:#09090b; }
+    body::before {
+      content:""; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0.035;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.20) 0%,transparent 70%); }
+    .halo-2 { background:radial-gradient(30% 35% at 82% 18%,rgba(236,72,153,0.12) 0%,transparent 70%); }
+
+    /* Reveal animation */
+    .reveal { opacity:0; transform:translateY(24px); filter:blur(4px); transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1), filter .7s cubic-bezier(.22,1,.36,1); }
+    .reveal.in { opacity:1; transform:none; filter:none; }
+
+    /* Upload zone */
+    .drop-zone { transition: border-color .3s, background .3s, box-shadow .3s; }
+    .drop-zone.drag-over { border-color:#6D5BF5 !important; background:rgba(109,91,245,0.08) !important; box-shadow:0 0 0 4px rgba(109,91,245,0.15); }
+    .drop-zone:hover { border-color:#6D5BF5; }
+
+    /* Spring button */
+    .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .4s ease, box-shadow .4s ease; }
+    .btn-spring:hover:not(:disabled) { transform:translateY(-2px); }
+    .btn-spring:active:not(:disabled) { transform:scale(.97); }
+
+    /* Spinner */
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .animate-spin { animation: spin 1s linear infinite; }
+
+    /* Fade in */
+    @keyframes fadeSlideIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .animate-fade-in { animation: fadeSlideIn .45s cubic-bezier(.22,1,.36,1) forwards; }
+
+    /* Pulse glow */
+    @keyframes pulseGlow { 0%,100%{box-shadow:0 0 0 0 rgba(109,91,245,0.3);} 50%{box-shadow:0 0 0 12px rgba(109,91,245,0);} }
+    .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+
+    /* Success pop */
+    @keyframes popIn { 0%{transform:scale(0.6);opacity:0;} 60%{transform:scale(1.08);} 100%{transform:scale(1);opacity:1;} }
+    .animate-pop { animation: popIn .4s cubic-bezier(.32,.72,0,1) forwards; }
+
+    /* Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width:6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background:transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+
+    /* Tag chip */
+    .tag-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:500; font-family:'JetBrains Mono',monospace; }
+  </style>
+</head>
+<body class="font-sans text-ink antialiased">
+  <div class="fixed inset-0 halo pointer-events-none z-0"></div>
+  <div class="fixed inset-0 halo-2 pointer-events-none z-0"></div>
+  <div id="root"></div>
+
+  <!-- ── Engine Dependencies ── -->
+  <script src="https://cdn.jsdelivr.net/npm/pizzip/dist/pizzip.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docxtemplater/build/docxtemplater.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver/dist/FileSaver.min.js"></script>
+
+  <!-- ── React ── -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    /* ================================================================
+       SVG Icon Paths (Lucide subset)
+       ================================================================ */
+    const ICON_PATHS = {
+      Upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+      FileText:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/>',
+      Sheet:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/>',
+      Check:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+      Alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+      Download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+      Plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+      Trash:'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+      Code:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+      Form:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h4"/>',
+      Moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+      Sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+      Loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+      X:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      Sparkles:'<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>',
+      ArrowLeft:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+      Info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+      Repeat:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+      Copy:'<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    };
+
+    function Icon({ name, size = 20, className = '', strokeWidth = 2 }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round"
+          strokeLinejoin="round" className={className}
+          dangerouslySetInnerHTML={{ __html: ICON_PATHS[name] || '' }} />
+      );
+    }
+
+    /* ================================================================
+       Utilities
+       ================================================================ */
+    function readFileAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function detectFileType(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext === 'docx') return 'docx';
+      if (ext === 'xlsx' || ext === 'xls') return 'xlsx';
+      return null;
+    }
+
+    function getCellText(cell) {
+      if (cell == null || cell.value == null) return '';
+      if (typeof cell.value === 'string') return cell.value;
+      if (cell.value.richText) return cell.value.richText.map(r => r.text || '').join('');
+      if (typeof cell.value === 'object' && cell.value.text) return String(cell.value.text);
+      return String(cell.value);
+    }
+
+    /* ================================================================
+       DOCX Engine
+       ================================================================ */
+    const Docxtemplater = window.docxtemplater && (window.docxtemplater.Docxtemplater || window.docxtemplater);
+    const PZ = window.PizZip;
+
+    function extractDocxPlaceholders(buffer) {
+      const zip = new PZ(buffer);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: '{{', end: '}}' },
+      });
+
+      // Collect full text from all document parts
+      let allText = '';
+      try { allText += doc.getFullText() + '\n'; } catch(e) {}
+
+      // Scan headers and footers
+      const fileNames = Object.keys(zip.files);
+      const hfFiles = fileNames.filter(n => /^word\/(header|footer)\d+\.xml$/i.test(n));
+      for (const f of hfFiles) {
+        try { allText += doc.getFullText(f) + '\n'; } catch(e) {}
+      }
+
+      // Extract loop sections first (so we can remove inner fields from simple set)
+      const loops = {};
+      const loopRegex = /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
+      let lm;
+      while ((lm = loopRegex.exec(allText)) !== null) {
+        const name = lm[1];
+        const body = lm[2];
+        const inner = [];
+        const innerRe = /\{\{(\w+)\}\}/g;
+        let im;
+        while ((im = innerRe.exec(body)) !== null) {
+          if (!inner.includes(im[1])) inner.push(im[1]);
+        }
+        loops[name] = inner;
+      }
+
+      // Collect all loop inner fields into a set for exclusion
+      const loopFields = new Set();
+      Object.values(loops).forEach(arr => arr.forEach(f => loopFields.add(f)));
+
+      // Extract simple placeholders (exclude loop markers and loop inner fields)
+      const simple = [];
+      const simpleRe = /\{\{(\w+)\}\}/g;
+      let sm;
+      while ((sm = simpleRe.exec(allText)) !== null) {
+        if (!loopFields.has(sm[1]) && !simple.includes(sm[1])) {
+          simple.push(sm[1]);
+        }
+      }
+
+      return { simple, loops };
+    }
+
+    function generateDocx(buffer, data) {
+      const zip = new PZ(buffer);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: '{{', end: '}}' },
+        nullGetter(part) { return ''; },
+      });
+      doc.render(data);
+      return doc.getZip().generate({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+    }
+
+    /* ================================================================
+       XLSX Engine
+       ================================================================ */
+    async function extractXlsxPlaceholders(buffer) {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+
+      const simple = [];
+      const loops = {};
+
+      wb.eachSheet((ws) => {
+        let currentLoop = null;
+        let loopBody = [];
+
+        ws.eachRow((row) => {
+          row.eachCell((cell) => {
+            const val = getCellText(cell);
+
+            // Loop start
+            const startM = val.match(/\{\{#(\w+)\}\}/);
+            if (startM) { currentLoop = startM[1]; loopBody = []; return; }
+
+            // Loop end
+            const endM = val.match(/\{\{\/(\w+)\}\}/);
+            if (endM && currentLoop === endM[1]) {
+              loops[currentLoop] = [...loopBody];
+              currentLoop = null;
+              loopBody = [];
+              return;
+            }
+
+            // Simple fields
+            const re = /\{\{(\w+)\}\}/g;
+            let m;
+            while ((m = re.exec(val)) !== null) {
+              if (currentLoop) {
+                if (!loopBody.includes(m[1])) loopBody.push(m[1]);
+              } else {
+                if (!simple.includes(m[1])) simple.push(m[1]);
+              }
+            }
+          });
+        });
+      });
+
+      return { simple, loops };
+    }
+
+    async function generateXlsx(buffer, data) {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+
+      wb.eachSheet((ws) => {
+        /* ── Pass 1: Expand loop sections ── */
+        const loopSections = [];
+        let curLoop = null;
+
+        ws.eachRow((row, rowNum) => {
+          row.eachCell((cell) => {
+            const val = getCellText(cell);
+            const startM = val.match(/\{\{#(\w+)\}\}/);
+            const endM   = val.match(/\{\{\/(\w+)\}\}/);
+            if (startM) curLoop = { name: startM[1], startRow: rowNum, endRow: null };
+            if (endM && curLoop && curLoop.name === endM[1]) {
+              curLoop.endRow = rowNum;
+              loopSections.push(curLoop);
+              curLoop = null;
+            }
+          });
+        });
+
+        // Process in reverse to keep row indices stable
+        for (const loop of loopSections.reverse()) {
+          const items = data[loop.name];
+          if (!Array.isArray(items) || items.length === 0) {
+            // Clear marker rows and template rows
+            for (let r = loop.startRow; r <= loop.endRow; r++) {
+              const row = ws.getRow(r);
+              row.eachCell(c => { c.value = ''; });
+            }
+            continue;
+          }
+
+          // Collect template row (single row between markers for MVP)
+          const templateRowNum = loop.startRow + 1;
+          if (templateRowNum >= loop.endRow) continue; // malformed
+
+          const templateRow = ws.getRow(templateRowNum);
+          const templateCells = [];
+          templateRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+            templateCells.push({
+              col: colNum,
+              value: cell.value,
+              style: cell.style ? JSON.parse(JSON.stringify(cell.style)) : {},
+            });
+          });
+          const templateHeight = templateRow.height;
+
+          // Clear start marker
+          ws.getRow(loop.startRow).eachCell(c => { c.value = ''; });
+          // Clear end marker
+          ws.getRow(loop.endRow).eachCell(c => { c.value = ''; });
+
+          // Duplicate template row for additional items
+          if (items.length > 1) {
+            try {
+              ws.duplicateRow(templateRowNum, items.length - 1, true);
+            } catch(e) {
+              // Fallback: manual row insertion if duplicateRow fails
+              for (let i = 1; i < items.length; i++) {
+                const newRow = ws.getRow(templateRowNum + i);
+                for (const tc of templateCells) {
+                  const cell = newRow.getCell(tc.col);
+                  cell.value = tc.value;
+                  try { cell.style = JSON.parse(JSON.stringify(tc.style)); } catch(e2) {}
+                }
+                if (templateHeight) newRow.height = templateHeight;
+              }
+            }
+          }
+
+          // Fill data into each row
+          for (let i = 0; i < items.length; i++) {
+            const row = ws.getRow(templateRowNum + i);
+            for (const tc of templateCells) {
+              const cell = row.getCell(tc.col);
+              let val = typeof tc.value === 'string' ? tc.value : getCellText(cell);
+              if (typeof val === 'string') {
+                for (const [key, v] of Object.entries(items[i])) {
+                  val = val.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(v ?? ''));
+                }
+                cell.value = val;
+              }
+              try { cell.style = JSON.parse(JSON.stringify(tc.style)); } catch(e3) {}
+            }
+          }
+        }
+
+        /* ── Pass 2: Replace simple placeholders ── */
+        ws.eachRow((row) => {
+          row.eachCell((cell) => {
+            if (typeof cell.value === 'string') {
+              let val = cell.value;
+              let changed = false;
+              for (const [key, v] of Object.entries(data)) {
+                if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                  const next = val.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(v));
+                  if (next !== val) { val = next; changed = true; }
+                }
+              }
+              // Clear any remaining markers
+              val = val.replace(/\{\{[#\/]\w+\}\}/g, '');
+              if (changed || val !== cell.value) cell.value = val;
+            }
+          });
+        });
+      });
+
+      const outBuf = await wb.xlsx.writeBuffer();
+      return new Blob([outBuf], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    }
+
+    /* ================================================================
+       Build initial form data from extracted placeholders
+       ================================================================ */
+    function buildInitialFormData(ph) {
+      const data = {};
+      for (const key of ph.simple) data[key] = '';
+      for (const [loopName, fields] of Object.entries(ph.loops)) {
+        const row = {};
+        for (const f of fields) row[f] = '';
+        data[loopName] = [{ ...row }];
+      }
+      return data;
+    }
+
+    /* ================================================================
+       COMPONENTS
+       ================================================================ */
+
+    /* ── Upload Zone ── */
+    function UploadZone({ onFile, fileInfo, status, onClear }) {
+      const [dragOver, setDragOver] = useState(false);
+      const inputRef = useRef(null);
+
+      const handleDrop = useCallback((e) => {
+        e.preventDefault(); setDragOver(false);
+        const f = e.dataTransfer.files[0];
+        if (f) onFile(f);
+      }, [onFile]);
+
+      const handleSelect = useCallback((e) => {
+        const f = e.target.files[0];
+        if (f) onFile(f);
+      }, [onFile]);
+
+      if (fileInfo && status !== 'error') {
+        const icon = fileInfo.type === 'docx' ? 'FileText' : 'Sheet';
+        const color = fileInfo.type === 'docx' ? 'text-blue-500' : 'text-emerald-500';
+        const bgColor = fileInfo.type === 'docx' ? 'bg-blue-50 dark:bg-blue-950/40' : 'bg-emerald-50 dark:bg-emerald-950/40';
+        return (
+          <div className="animate-fade-in">
+            <div className={`flex items-center gap-4 px-5 py-4 rounded-2xl ${bgColor} ring-1 ring-black/5 dark:ring-white/10`}>
+              <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${fileInfo.type === 'docx' ? 'bg-blue-100 dark:bg-blue-900/50' : 'bg-emerald-100 dark:bg-emerald-900/50'}`}>
+                <Icon name={icon} size={24} className={color} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate dark:text-white">{fileInfo.name}</p>
+                <p className="text-xs text-ink/50 dark:text-white/50 mt-0.5">
+                  {formatBytes(fileInfo.size)} · <span className="uppercase font-mono font-medium">{fileInfo.type}</span>
+                  {fileInfo.placeholderCount != null && (
+                    <span> · <span className="text-iris-600 dark:text-iris-200 font-medium">{fileInfo.placeholderCount} placeholder{fileInfo.placeholderCount !== 1 ? 's' : ''}</span>
+                    {fileInfo.loopCount > 0 && <span>, {fileInfo.loopCount} loop section{fileInfo.loopCount !== 1 ? 's' : ''}</span>}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <button onClick={onClear} className="flex-shrink-0 p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors" title="Remove file">
+                <Icon name="X" size={18} className="text-ink/40 dark:text-white/40" />
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className={`drop-zone relative cursor-pointer rounded-2xl border-2 border-dashed border-ink/15 dark:border-white/15 bg-white/50 dark:bg-white/5 hover:bg-iris-50/40 dark:hover:bg-iris-500/5 transition-all ${dragOver ? 'drag-over' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+        >
+          <input ref={inputRef} type="file" accept=".docx,.xlsx,.xls" className="hidden" onChange={handleSelect} />
+          <div className="flex flex-col items-center justify-center py-12 px-6">
+            <div className={`w-16 h-16 rounded-2xl bg-iris-50 dark:bg-iris-500/15 flex items-center justify-center mb-4 transition-transform ${dragOver ? 'scale-110' : ''}`}>
+              <Icon name="Upload" size={28} className="text-iris-500" />
+            </div>
+            <p className="font-semibold text-sm dark:text-white">Drag & drop your template here</p>
+            <p className="text-xs text-ink/40 dark:text-white/40 mt-1">or click to browse · .docx and .xlsx supported</p>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── Loop Section (repeatable rows) ── */
+    function LoopSection({ name, fields, rows, onChange }) {
+      const addRow = () => {
+        const empty = {};
+        fields.forEach(f => { empty[f] = ''; });
+        onChange([...rows, empty]);
+      };
+      const removeRow = (idx) => {
+        if (rows.length <= 1) return;
+        onChange(rows.filter((_, i) => i !== idx));
+      };
+      const updateCell = (rowIdx, field, value) => {
+        const next = rows.map((r, i) => i === rowIdx ? { ...r, [field]: value } : r);
+        onChange(next);
+      };
+
+      return (
+        <div className="animate-fade-in">
+          <div className="flex items-center gap-2 mb-3">
+            <Icon name="Repeat" size={16} className="text-iris-500" />
+            <span className="text-xs font-bold uppercase tracking-wider text-iris-600 dark:text-iris-200">{name}</span>
+            <span className="tag-chip bg-iris-100 dark:bg-iris-500/20 text-iris-600 dark:text-iris-200 ml-1">repeating</span>
+          </div>
+          <div className="space-y-2">
+            {rows.map((row, ri) => (
+              <div key={ri} className="flex items-start gap-2 p-3 rounded-xl bg-white/70 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 animate-fade-in">
+                <span className="flex-shrink-0 w-6 h-6 rounded-md bg-iris-100 dark:bg-iris-500/20 text-iris-600 dark:text-iris-200 text-xs font-bold flex items-center justify-center mt-1">{ri + 1}</span>
+                <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(fields.length, 3)}, 1fr)` }}>
+                  {fields.map(f => (
+                    <div key={f}>
+                      <label className="block text-[11px] font-medium text-ink/40 dark:text-white/40 mb-1 font-mono">{f}</label>
+                      <input type="text" value={row[f] || ''} onChange={e => updateCell(ri, f, e.target.value)}
+                        className="w-full rounded-lg bg-canvas dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 dark:text-white transition-shadow" />
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => removeRow(ri)} disabled={rows.length <= 1}
+                  className="flex-shrink-0 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-ink/25 dark:text-white/25 hover:text-red-500 transition-colors disabled:opacity-30 mt-1">
+                  <Icon name="Trash" size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={addRow}
+            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-iris-600 dark:text-iris-200 hover:bg-iris-50 dark:hover:bg-iris-500/10 transition-colors">
+            <Icon name="Plus" size={14} /> Add Row
+          </button>
+        </div>
+      );
+    }
+
+    /* ── Data Form ── */
+    function DataForm({ placeholders, formData, setFormData, rawJsonMode, setRawJsonMode }) {
+      const [rawJson, setRawJson] = useState('');
+      const [jsonError, setJsonError] = useState('');
+
+      // Sync form → JSON when switching to raw mode
+      useEffect(() => {
+        if (rawJsonMode) setRawJson(JSON.stringify(formData, null, 2));
+      }, [rawJsonMode]);
+
+      const handleJsonChange = (val) => {
+        setRawJson(val);
+        try {
+          const parsed = JSON.parse(val);
+          setFormData(parsed);
+          setJsonError('');
+        } catch(e) {
+          setJsonError('Invalid JSON');
+        }
+      };
+
+      const handleSimpleChange = (key, val) => {
+        setFormData(prev => ({ ...prev, [key]: val }));
+      };
+
+      const handleLoopChange = (loopName, rows) => {
+        setFormData(prev => ({ ...prev, [loopName]: rows }));
+      };
+
+      const hasSimple = placeholders.simple.length > 0;
+      const hasLoops = Object.keys(placeholders.loops).length > 0;
+
+      return (
+        <div className="animate-fade-in">
+          {/* Mode toggle */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setRawJsonMode(false)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${!rawJsonMode ? 'bg-iris-500 text-white shadow-md shadow-iris-500/25' : 'text-ink/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                <Icon name="Form" size={14} /> Form
+              </button>
+              <button onClick={() => setRawJsonMode(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${rawJsonMode ? 'bg-iris-500 text-white shadow-md shadow-iris-500/25' : 'text-ink/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                <Icon name="Code" size={14} /> JSON
+              </button>
+            </div>
+            {!rawJsonMode && (
+              <span className="text-xs text-ink/35 dark:text-white/35">
+                {placeholders.simple.length + Object.keys(placeholders.loops).length} field{(placeholders.simple.length + Object.keys(placeholders.loops).length) !== 1 ? 's' : ''} detected
+              </span>
+            )}
+          </div>
+
+          {rawJsonMode ? (
+            <div className="animate-fade-in">
+              <textarea value={rawJson} onChange={e => handleJsonChange(e.target.value)} spellCheck={false}
+                className={`w-full h-72 rounded-xl bg-gray-900 text-emerald-400 font-mono text-sm px-5 py-4 focus:outline-none focus:ring-2 focus:ring-iris-500 resize-y custom-scrollbar ${jsonError ? 'ring-2 ring-red-400' : 'ring-1 ring-white/10'}`} />
+              {jsonError && <p className="mt-2 text-xs text-red-500 font-medium flex items-center gap-1"><Icon name="Alert" size={13} /> {jsonError}</p>}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Simple fields */}
+              {hasSimple && (
+                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(placeholders.simple.length, 2)}, 1fr)` }}>
+                  {placeholders.simple.map(key => (
+                    <div key={key} className="animate-fade-in">
+                      <label className="block text-xs font-semibold text-ink/50 dark:text-white/50 mb-1.5 font-mono">{'{{' + key + '}}'}</label>
+                      <input type="text" value={formData[key] || ''} onChange={e => handleSimpleChange(key, e.target.value)} placeholder={`Enter ${key.replace(/_/g, ' ')}`}
+                        className="w-full rounded-xl bg-white dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 dark:text-white transition-shadow" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Divider */}
+              {hasSimple && hasLoops && <hr className="border-ink/8 dark:border-white/8" />}
+
+              {/* Loop sections */}
+              {Object.entries(placeholders.loops).map(([name, fields]) => (
+                <LoopSection key={name} name={name} fields={fields}
+                  rows={Array.isArray(formData[name]) ? formData[name] : [{}]}
+                  onChange={(rows) => handleLoopChange(name, rows)} />
+              ))}
+
+              {/* Empty state */}
+              {!hasSimple && !hasLoops && (
+                <div className="text-center py-8 text-ink/30 dark:text-white/30">
+                  <Icon name="Info" size={28} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm font-medium">No placeholders detected</p>
+                  <p className="text-xs mt-1">Use <code className="font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{field_name}}'}</code> syntax in your template</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ================================================================
+       MAIN APP
+       ================================================================ */
+    function App() {
+      const [darkMode, setDarkMode] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches || false);
+      const [fileInfo, setFileInfo] = useState(null);
+      const [templateBuffer, setTemplateBuffer] = useState(null);
+      const [placeholders, setPlaceholders] = useState({ simple: [], loops: {} });
+      const [formData, setFormData] = useState({});
+      const [rawJsonMode, setRawJsonMode] = useState(false);
+      const [status, setStatus] = useState('idle'); // idle | reading | extracting | ready | generating | done | error
+      const [error, setError] = useState('');
+      const [resultBlob, setResultBlob] = useState(null);
+      const [resultFilename, setResultFilename] = useState('');
+      const [libsReady, setLibsReady] = useState(false);
+
+      // Check library availability
+      useEffect(() => {
+        const check = () => {
+          const ok = !!(window.PizZip && (window.docxtemplater?.Docxtemplater || window.docxtemplater) && window.ExcelJS && window.saveAs);
+          setLibsReady(ok);
+          if (!ok) setTimeout(check, 200);
+        };
+        check();
+      }, []);
+
+      // Dark mode class toggle
+      useEffect(() => {
+        document.documentElement.classList.toggle('dark', darkMode);
+      }, [darkMode]);
+
+      // Reveal animation
+      useEffect(() => {
+        const obs = new IntersectionObserver((entries) => {
+          entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+        return () => obs.disconnect();
+      }, [status]);
+
+      const handleFile = useCallback(async (file) => {
+        setError('');
+        setResultBlob(null);
+        const type = detectFileType(file);
+        if (!type) {
+          setError('Unsupported file type. Please upload a .docx or .xlsx file.');
+          setStatus('error');
+          return;
+        }
+
+        setFileInfo({ name: file.name, size: file.size, type, placeholderCount: null, loopCount: 0 });
+        setStatus('reading');
+
+        try {
+          const buffer = await readFileAsArrayBuffer(file);
+          setTemplateBuffer(buffer);
+          setStatus('extracting');
+
+          let ph;
+          if (type === 'docx') {
+            ph = extractDocxPlaceholders(buffer);
+          } else {
+            ph = await extractXlsxPlaceholders(buffer);
+          }
+
+          setPlaceholders(ph);
+          const initialData = buildInitialFormData(ph);
+          setFormData(initialData);
+          setFileInfo(prev => ({
+            ...prev,
+            placeholderCount: ph.simple.length + Object.values(ph.loops).reduce((a, v) => a + v.length, 0),
+            loopCount: Object.keys(ph.loops).length,
+          }));
+          setStatus('ready');
+        } catch(e) {
+          console.error('Extraction error:', e);
+          setError(`Failed to process file: ${e.message || 'Unknown error'}. Ensure it's a valid template.`);
+          setStatus('error');
+        }
+      }, []);
+
+      const handleClear = useCallback(() => {
+        setFileInfo(null);
+        setTemplateBuffer(null);
+        setPlaceholders({ simple: [], loops: {} });
+        setFormData({});
+        setResultBlob(null);
+        setStatus('idle');
+        setError('');
+      }, []);
+
+      const handleGenerate = useCallback(async () => {
+        if (!templateBuffer || !fileInfo) return;
+        setStatus('generating');
+        setError('');
+        setResultBlob(null);
+
+        try {
+          let blob;
+          if (fileInfo.type === 'docx') {
+            blob = generateDocx(templateBuffer, formData);
+          } else {
+            blob = await generateXlsx(templateBuffer, formData);
+          }
+
+          const baseName = fileInfo.name.replace(/\.\w+$/, '');
+          const ext = fileInfo.type === 'docx' ? '.docx' : '.xlsx';
+          const filename = `${baseName}_filled${ext}`;
+          setResultBlob(blob);
+          setResultFilename(filename);
+          setStatus('done');
+        } catch(e) {
+          console.error('Generation error:', e);
+          let msg = e.message || 'Unknown error';
+          if (e.properties && e.properties.errors) {
+            msg = e.properties.errors.map(err => err.message || JSON.stringify(err)).join('; ');
+          }
+          setError(`Generation failed: ${msg}`);
+          setStatus('error');
+        }
+      }, [templateBuffer, fileInfo, formData]);
+
+      const handleDownload = useCallback(() => {
+        if (resultBlob && resultFilename) {
+          window.saveAs(resultBlob, resultFilename);
+        }
+      }, [resultBlob, resultFilename]);
+
+      const totalPlaceholders = placeholders.simple.length + Object.keys(placeholders.loops).length;
+      const isReady = status === 'ready' || status === 'done';
+
+      return (
+        <div className="relative z-10 min-h-screen pb-16">
+          {/* ── Header ── */}
+          <header className="sticky top-0 z-50 backdrop-blur-xl bg-canvas/80 dark:bg-gray-950/80 border-b border-ink/5 dark:border-white/5">
+            <div className="max-w-3xl mx-auto flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-3">
+                <a href="index.html" className="flex items-center gap-2 text-ink/40 dark:text-white/40 hover:text-iris-500 transition-colors text-sm" title="Back to SilidPinoy">
+                  <Icon name="ArrowLeft" size={16} />
+                </a>
+                <div>
+                  <h1 className="text-base font-bold dark:text-white flex items-center gap-2">
+                    <Icon name="Sparkles" size={18} className="text-iris-500" />
+                    Template Engine
+                  </h1>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="tag-chip bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 mr-1">Sandbox</span>
+                <button onClick={() => setDarkMode(!darkMode)}
+                  className="p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors" title="Toggle dark mode">
+                  <Icon name={darkMode ? 'Sun' : 'Moon'} size={18} className="text-ink/50 dark:text-white/50" />
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-3xl mx-auto px-5 pt-8">
+            {/* ── Hero ── */}
+            <div className="text-center mb-10 reveal">
+              <h2 className="text-2xl md:text-3xl font-display font-semibold dark:text-white leading-tight">
+                Fill templates with data
+              </h2>
+              <p className="text-sm text-ink/50 dark:text-white/50 mt-2 max-w-md mx-auto">
+                Upload a <code className="font-mono bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded text-xs">.docx</code> or <code className="font-mono bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded text-xs">.xlsx</code> template, fill in placeholder values, and download a pixel-perfect document. 100% in-browser.
+              </p>
+            </div>
+
+            {/* Library loading state */}
+            {!libsReady && (
+              <div className="text-center py-12 animate-fade-in">
+                <div className="w-10 h-10 mx-auto mb-3 flex items-center justify-center">
+                  <Icon name="Loader" size={24} className="text-iris-500 animate-spin" />
+                </div>
+                <p className="text-sm text-ink/50 dark:text-white/50">Loading engine libraries…</p>
+              </div>
+            )}
+
+            {libsReady && (
+              <div className="space-y-6">
+
+                {/* ═══════════════ STEP 1: Upload ═══════════════ */}
+                <section className="reveal">
+                  <div className="bg-white/60 dark:bg-white/[0.04] backdrop-blur-sm rounded-3xl ring-1 ring-black/5 dark:ring-white/10 p-6 shadow-xl shadow-black/[0.03]">
+                    <div className="flex items-center gap-3 mb-5">
+                      <span className="w-7 h-7 rounded-lg bg-iris-500 text-white text-xs font-bold flex items-center justify-center shadow-md shadow-iris-500/30">1</span>
+                      <h3 className="text-sm font-bold dark:text-white">Upload Template</h3>
+                      {status !== 'idle' && status !== 'error' && (
+                        <span className="ml-auto tag-chip bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                          <Icon name="Check" size={12} /> loaded
+                        </span>
+                      )}
+                    </div>
+                    <UploadZone onFile={handleFile} fileInfo={fileInfo} status={status} onClear={handleClear} />
+                    {status === 'reading' && (
+                      <div className="flex items-center gap-2 mt-3 text-xs text-ink/50 dark:text-white/50 animate-fade-in">
+                        <Icon name="Loader" size={14} className="animate-spin" /> Reading file…
+                      </div>
+                    )}
+                    {status === 'extracting' && (
+                      <div className="flex items-center gap-2 mt-3 text-xs text-iris-600 dark:text-iris-200 animate-fade-in">
+                        <Icon name="Loader" size={14} className="animate-spin" /> Scanning for placeholders…
+                      </div>
+                    )}
+
+                    {/* Placeholder guide */}
+                    {status === 'idle' && (
+                      <details className="mt-5 group">
+                        <summary className="text-xs text-ink/35 dark:text-white/35 cursor-pointer hover:text-iris-500 transition-colors flex items-center gap-1">
+                          <Icon name="Info" size={13} /> How to prepare your template
+                        </summary>
+                        <div className="mt-3 p-4 rounded-xl bg-iris-50/50 dark:bg-iris-500/5 text-xs text-ink/60 dark:text-white/60 space-y-2 animate-fade-in">
+                          <p>Add placeholders inside your Word or Excel file using double curly braces:</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            <code className="tag-chip bg-white dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10">{'{{teacher_name}}'}</code>
+                            <code className="tag-chip bg-white dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10">{'{{school_name}}'}</code>
+                            <code className="tag-chip bg-white dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10">{'{{date}}'}</code>
+                          </div>
+                          <p className="mt-2">For repeating rows (like a student list), wrap them in loop tags:</p>
+                          <div className="p-3 rounded-lg bg-white dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10 font-mono space-y-1">
+                            <p className="text-iris-600 dark:text-iris-200">{'{{#students}}'}</p>
+                            <p className="pl-4">{'{{name}} — {{grade}} — {{score}}'}</p>
+                            <p className="text-iris-600 dark:text-iris-200">{'{{/students}}'}</p>
+                          </div>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                </section>
+
+                {/* ═══════════════ STEP 2: Fill Data ═══════════════ */}
+                {isReady && (
+                  <section className="reveal in">
+                    <div className="bg-white/60 dark:bg-white/[0.04] backdrop-blur-sm rounded-3xl ring-1 ring-black/5 dark:ring-white/10 p-6 shadow-xl shadow-black/[0.03] animate-fade-in">
+                      <div className="flex items-center gap-3 mb-5">
+                        <span className="w-7 h-7 rounded-lg bg-iris-500 text-white text-xs font-bold flex items-center justify-center shadow-md shadow-iris-500/30">2</span>
+                        <h3 className="text-sm font-bold dark:text-white">Fill Data</h3>
+                      </div>
+                      <DataForm
+                        placeholders={placeholders}
+                        formData={formData}
+                        setFormData={setFormData}
+                        rawJsonMode={rawJsonMode}
+                        setRawJsonMode={setRawJsonMode}
+                      />
+                    </div>
+                  </section>
+                )}
+
+                {/* ═══════════════ STEP 3: Generate ═══════════════ */}
+                {isReady && (
+                  <section className="reveal in">
+                    <div className="bg-white/60 dark:bg-white/[0.04] backdrop-blur-sm rounded-3xl ring-1 ring-black/5 dark:ring-white/10 p-6 shadow-xl shadow-black/[0.03] animate-fade-in">
+                      <div className="flex items-center gap-3 mb-5">
+                        <span className="w-7 h-7 rounded-lg bg-iris-500 text-white text-xs font-bold flex items-center justify-center shadow-md shadow-iris-500/30">3</span>
+                        <h3 className="text-sm font-bold dark:text-white">Generate & Download</h3>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-4">
+                        <button onClick={handleGenerate} disabled={status === 'generating'}
+                          className="btn-spring w-full max-w-xs inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-iris-500 to-iris-600 hover:from-iris-600 hover:to-iris-700 text-white font-semibold text-sm shadow-lg shadow-iris-500/30 disabled:opacity-50 disabled:cursor-wait">
+                          {status === 'generating' ? (
+                            <><Icon name="Loader" size={18} className="animate-spin" /> Generating…</>
+                          ) : (
+                            <><Icon name="Sparkles" size={18} /> Fill & Generate Document</>
+                          )}
+                        </button>
+
+                        {/* Result */}
+                        {status === 'done' && resultBlob && (
+                          <div className="w-full animate-pop">
+                            <div className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/30">
+                              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+                                <Icon name="Check" size={24} className="text-emerald-600 dark:text-emerald-300" />
+                              </div>
+                              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Document generated successfully!</p>
+                              <p className="text-xs text-emerald-600/70 dark:text-emerald-300/70">{resultFilename} · {formatBytes(resultBlob.size)}</p>
+                              <button onClick={handleDownload}
+                                className="btn-spring inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-600/30 pulse-glow">
+                                <Icon name="Download" size={18} /> Download File
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* ═══════════════ Error Banner ═══════════════ */}
+                {error && (
+                  <div className="animate-fade-in p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 ring-1 ring-red-200 dark:ring-red-500/30 flex items-start gap-3">
+                    <Icon name="Alert" size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-800 dark:text-red-200">Something went wrong</p>
+                      <p className="text-xs text-red-600/80 dark:text-red-300/80 mt-1">{error}</p>
+                    </div>
+                    <button onClick={() => setError('')} className="ml-auto flex-shrink-0 p-1 rounded hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">
+                      <Icon name="X" size={16} className="text-red-400" />
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            )}
+          </main>
+
+          {/* ── Footer ── */}
+          <footer className="text-center mt-16 pb-8">
+            <p className="text-xs text-ink/25 dark:text-white/25">
+              Template Engine Sandbox · 100% client-side · Your files never leave your browser
+            </p>
+          </footer>
+        </div>
+      );
+    }
+
+    /* ── Mount ── */
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
