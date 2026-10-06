@@ -111,25 +111,42 @@
 <body class="font-sans text-ink antialiased min-h-screen flex flex-col">
 
     <!-- Premium Header Nav -->
-    <header class="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
-        <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
-            <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer">
+    <header class="fixed top-4 md:top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+        <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-full md:w-max md:max-w-[95vw] justify-between md:justify-center">
+            <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0">
                 <span class="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
                     <span class="text-[15px] font-extrabold leading-none">S</span>
                 </span>
                 <span class="font-semibold tracking-tight text-base">Silid<span class="text-iris-600">Pinoy</span></span><span class="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
             </a>
+            <div class="hidden md:flex items-center gap-1">
             <a href="index.html#test-maker" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Test Maker</a>
             <a href="tos.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
             <a href="lesson.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
             <a href="powerpoint.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
             <span class="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">Activity Sheet</span>
-            <span data-silid-docs-slot class="ml-1 flex items-center"></span>
+            </div>
+            <span data-silid-docs-slot class="ml-1 hidden sm:flex items-center"></span>
+            <span class="flex items-center gap-1 shrink-0">
             <button id="settings-btn" type="button" class="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                 <span id="api-status-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>
             </button>
+            <button id="nav-burger" type="button" aria-label="Open menu" aria-expanded="false" class="md:hidden ml-1 rounded-full bg-white ring-1 ring-black/10 text-ink p-2.5 flex items-center justify-center btn-spring" title="Menu">
+                <svg id="nav-burger-icon-open" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+                <svg id="nav-burger-icon-close" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+            </span>
         </nav>
+
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden absolute top-full inset-x-4 mt-2 rounded-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 p-2 z-50" style="box-shadow:0 24px 70px -30px rgba(11,10,18,0.4)">
+            <a href="index.html#test-maker" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Test Maker</a>
+            <a href="tos.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">TOS Maker</a>
+            <a href="lesson.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Lesson Plan</a>
+            <a href="powerpoint.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">PPT Maker</a>
+            <span class="block px-4 py-3 rounded-xl text-sm font-semibold bg-black/5 text-ink">Activity Sheet</span>
+        </div>
 
         <!-- Inline Settings dropdown (API key) -->
         <div id="settings-dropdown" class="hidden absolute top-full right-4 mt-3 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50">
@@ -1579,6 +1596,37 @@
             setSettingsMsg('fail', 'Cannot reach Google. Check your internet connection and try again.');
         });
     }
+    function bindMobileNav() {
+        var burger = $('nav-burger');
+        var menu = $('mobile-menu');
+        var iconOpen = $('nav-burger-icon-open');
+        var iconClose = $('nav-burger-icon-close');
+        if (!burger || !menu) return;
+        function setOpen(open) {
+            menu.classList.toggle('hidden', !open);
+            burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (iconOpen) iconOpen.classList.toggle('hidden', open);
+            if (iconClose) iconClose.classList.toggle('hidden', !open);
+        }
+        burger.addEventListener('click', function (e) {
+            e.stopPropagation();
+            setOpen(menu.classList.contains('hidden'));
+        });
+        menu.addEventListener('click', function (e) {
+            if (e.target.closest('a')) setOpen(false);
+        });
+        document.addEventListener('mousedown', function (e) {
+            if (menu.classList.contains('hidden')) return;
+            if (menu.contains(e.target) || burger.contains(e.target)) return;
+            setOpen(false);
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') setOpen(false);
+        });
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 768) setOpen(false);
+        });
+    }
     function bindSettingsDropdown() {
         var gear = $('settings-btn');
         var dd = $('settings-dropdown');
@@ -1653,6 +1701,7 @@
         if (keyInput2) keyInput2.value = savedKey2;
         updateApiDot();
         bindSettingsDropdown();
+        bindMobileNav();
         bindAutocomplete($('custom-grade'), $('custom-grade-list'), window.DEPED_GRADE_LEVELS || []);
         bindAutocomplete($('custom-subject'), $('custom-subject-list'), window.DEPED_SUBJECTS || []);
         bindFileInput();

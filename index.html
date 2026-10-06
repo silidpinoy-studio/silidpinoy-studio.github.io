@@ -136,6 +136,8 @@
       BrainCircuit:'<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M19.938 10.5a4 4 0 0 1 .585.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M19.967 17.484A4 4 0 0 1 18 18"/>',
       LayoutTemplate:'<rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/>',
       ArrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+      Menu:'<line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>',
+      X:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
       Table:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/>',
       ClipboardList:'<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>',
     };
@@ -220,6 +222,7 @@
       const [apiKey2, setApiKey2] = useState(() => (window.SilidKeys ? window.SilidKeys.get('backup') : localStorage.getItem('gemini_api_key_2') || ''));
       const [rememberKeys, setRememberKeys] = useState(() => !!(window.SilidKeys && window.SilidKeys.isRemembered()));
       const [showKeyInput, setShowKeyInput] = useState(() => window.location.hash === '#settings');
+      const [mobileOpen, setMobileOpen] = useState(false);
       const [apiKeyTestStatus, setApiKeyTestStatus] = useState('');
       const [apiKeyTestMsg, setApiKeyTestMsg] = useState('');
       const [schoolInfo, setSchoolInfo] = useState(() => {
@@ -849,25 +852,41 @@
          ============================================================ */
       return (
         <div className="min-h-screen font-sans text-ink">
-          <header className="fixed top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
-            <nav className="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-max max-w-[95vw]">
-              <div className="flex items-center gap-2 pl-3 pr-2 cursor-pointer" onClick={() => setCurrentView('home')}>
+          <header className="fixed top-4 md:top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
+            <nav className="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-full md:w-max md:max-w-[95vw] justify-between md:justify-center">
+              <div className="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0" onClick={() => setCurrentView('home')}>
                 <span className="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
                   <span className="text-[15px] font-extrabold leading-none">S</span>
                 </span>
                 <span className="font-semibold tracking-tight text-base">Silid<span className="text-iris-600">Pinoy</span></span><span className="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
               </div>
+              <div className="hidden md:flex items-center gap-1">
               <button onClick={() => { setCurrentView('creator'); }} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='creator'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Test Maker</button>
               <a href="tos.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
               <a href="lesson.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
               <a href="powerpoint.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
               <a href="activity.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
-              <span data-silid-docs-slot className="ml-1 flex items-center"></span>
+              </div>
+              <span data-silid-docs-slot className="ml-1 hidden sm:flex items-center"></span>
+              <span className="flex items-center gap-1 shrink-0">
               <button onClick={() => setShowKeyInput(!showKeyInput)} className="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
                 <LucideIcon name="Settings" className="w-4 h-4" />
                 <span className={`w-2 h-2 rounded-full ${apiKey.trim()?'bg-emerald-400':'bg-red-400'}`}></span>
               </button>
+              <button onClick={() => setMobileOpen(!mobileOpen)} aria-label="Open menu" aria-expanded={mobileOpen} className="md:hidden ml-1 rounded-full bg-white ring-1 ring-black/10 text-ink p-2.5 flex items-center justify-center btn-spring" title="Menu">
+                <LucideIcon name={mobileOpen ? 'X' : 'Menu'} className="w-[18px] h-[18px]" />
+              </button>
+              </span>
             </nav>
+            {mobileOpen && (
+              <div className="md:hidden absolute top-full inset-x-4 mt-2 rounded-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 p-2 z-50 animate-fade-in" style={{ boxShadow: '0 24px 70px -30px rgba(11,10,18,0.4)' }}>
+                <button onClick={() => { setCurrentView('creator'); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Test Maker</button>
+                <a href="tos.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">TOS Maker</a>
+                <a href="lesson.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Lesson Plan</a>
+                <a href="powerpoint.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">PPT Maker</a>
+                <a href="activity.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Activity Sheet</a>
+              </div>
+            )}
             {showKeyInput && (
               <div ref={keyDropdownRef} className="absolute top-full right-4 mt-3 bg-white/80 backdrop-blur-2xl rounded-2xl shadow-[0_24px_70px_-30px_rgba(11,10,18,0.4)] ring-1 ring-black/5 p-4 w-80 z-50 animate-fade-in">
                 <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-2">Primary API Key</label>
