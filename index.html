@@ -70,6 +70,15 @@
     .card-bezel { border-radius:1.75rem; padding:6px; background:white; box-shadow:0 24px 70px -34px rgba(11,10,18,0.3); }
     .card-inner { border-radius:calc(1.75rem - 6px); background:#F7F6F3; }
     .scenario-box { border:none; border-radius:0; padding:0; margin:8px 0; background:transparent; }
+    /* MathJax output: a formula never overruns the paper, and display math is centered. */
+    mjx-container { max-width:100%; color:inherit; }
+    mjx-container[display="true"] { display:block; text-align:center; margin:0.6em 0; overflow-x:auto; }
+    /* Inline math warnings: an amber chip on the offending line, screen only —
+       the printed paper must stay clean. Wrapped in <code>, which MathJax skips,
+       so the $...$ written inside a warning is never typeset. */
+    .prose code.math-warn-chip, code.math-warn-chip { display:inline-block; font-family:inherit; font-size:.78em; font-weight:600; color:#92400e; background:#FEF3C7; border:1px solid #FDE68A; border-radius:9999px; padding:0 8px; margin-left:6px; vertical-align:middle; line-height:1.6; white-space:normal; }
+    .prose code.math-warn-chip::before, .prose code.math-warn-chip::after, code.math-warn-chip::before, code.math-warn-chip::after { content:none; }
+    @media print { .prose code.math-warn-chip, code.math-warn-chip { display:none !important; } }
     @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
     .animate-fade-in { animation:fadeIn .2s ease-out forwards; }
     .custom-scrollbar::-webkit-scrollbar { width:6px; }
@@ -90,6 +99,25 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+  <!-- PptxGenJS builds the .pptx export. -->
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <!-- MathJax typesets the $...$ / $$...$$ formulas a math test is written in.
+       startup.typeset:false — the preview typesets itself once React has painted. -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']], processEscapes: true },
+      options: { enableMenu: false, skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+      startup: { typeset: false }
+    };
+  </script>
+  <script id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <!-- mathml2omml (LGPL-3.0-or-later, loaded unmodified from the CDN) turns MathJax's
+       MathML into the OMML that PowerPoint stores as a native, editable equation. -->
+  <script>
+    import('https://cdn.jsdelivr.net/npm/mathml2omml@0.5.0/dist/index.js')
+      .then((m) => { window.mml2omml = m.mml2omml; })
+      .catch((e) => console.warn('mathml2omml did not load:', e));
+  </script>
   <script src="deped-options.js"></script>
   <script src="shared-api.js"></script>
   <script src="shared-keys.js"></script>
@@ -167,6 +195,10 @@
      /* The blank slate used by the first render and by "Start fresh". */
      const freshTestTypes = () => AVAILABLE_TEST_TYPES.map(t => ({ ...t, selected:false, count:5, style:t.id==='mcq'?'regular':(t.id==='blanks'?'sentence':undefined) }));
 
+     /* Subjects whose tests are written with formulas — used to auto-select Math mode. */
+     const MATH_SUBJECT_RE = /math|algebra|geometry|trigonometry|statistics|probability|calculus|arithmetic|measurement/i;
+     const looksLikeMathSubject = (subject) => MATH_SUBJECT_RE.test(String(subject || ''));
+
      const TOOLS = [
       { id:'test', name:'Test Creator', desc:'Generate rigorous summative & formative tests from topics or uploaded modules.', icon:'FileText', ready:true },
       { id:'tos', name:'TOS Maker', desc:'Build a Table of Specifications aligned to Bloom’s and your curriculum.', icon:'Table', ready:true, url:'tos.html' },
@@ -214,10 +246,13 @@
       const [files, setFiles] = useState([]);
       const [config, setConfig] = useState({ gradeLevel:'', subject:'', testName:'' });
       const [testTypes, setTestTypes] = useState(freshTestTypes);
+      /* null = auto: math mode turns itself on for Mathematics subjects. */
+      const [mathOverride, setMathOverride] = useState(null);
       const [generatedTest, setGeneratedTest] = useState('');
       const [isGenerating, setIsGenerating] = useState(false);
       const [errorMsg, setErrorMsg] = useState('');
       const [validationWarnings, setValidationWarnings] = useState([]);
+      const [mathWarnDetails, setMathWarnDetails] = useState([]);
       const [apiKey, setApiKey] = useState(() => (window.SilidKeys ? window.SilidKeys.get('primary') : localStorage.getItem('gemini_api_key') || ''));
       const [apiKey2, setApiKey2] = useState(() => (window.SilidKeys ? window.SilidKeys.get('backup') : localStorage.getItem('gemini_api_key_2') || ''));
       const [rememberKeys, setRememberKeys] = useState(() => !!(window.SilidKeys && window.SilidKeys.isRemembered()));
@@ -322,6 +357,7 @@
         window.SilidDocsUI.onOpen(function (doc) {
           if (!doc || !doc.content) return;
           setValidationWarnings([]);
+          setMathWarnDetails([]);
           setGeneratedTest(stripTestTitleBlock(doc.content));
           if (doc.meta) applySavedConfig(doc.meta.config);
           setTimeout(function () { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
@@ -335,6 +371,45 @@
             if (r.migrated > 0) console.log('Migrated ' + r.migrated + ' document(s) to IndexedDB.');
           }).catch(function(e) { console.warn('Migration failed:', e); });
         }
+      }, []);
+
+      /* Math mode only changes the prompt and the temperature — a non-math test is
+         generated exactly as it was before. */
+      const mathMode = mathOverride === null ? looksLikeMathSubject(config.subject) : mathOverride;
+
+      /* MathJax loads asynchronously, so keep trying for a few seconds; typeset the
+         preview after every generation and again right before the print dialog. */
+      const previewRef = useRef(null);
+      const typesetBusy = useRef(false); /* one typeset pass at a time */
+      const typesetNow = () => {
+        /* Re-typesetting a node that already holds output duplicates every formula —
+           MathJax leaves the previous output in place — and a pass must never run
+           twice at once. A check that is blocked (still loading, or the previous pass
+           is still running) retries instead of giving up, because the preview may have
+           been remounted behind the spinner with fresh, un-typeset content. */
+        const attempt = (tries) => {
+          const node = previewRef.current;
+          if (!node || node.querySelector('mjx-container')) return; /* nothing to do */
+          const ready = window.MathJax && typeof window.MathJax.typesetPromise === 'function';
+          if (ready && !typesetBusy.current) {
+            typesetBusy.current = true;
+            Promise.resolve(window.MathJax.typesetPromise([node]))
+              .catch((e) => console.warn('MathJax typeset error:', e))
+              .then(() => { typesetBusy.current = false; });
+            return;
+          }
+          if (tries < 50) window.setTimeout(() => attempt(tries + 1), 100);
+        };
+        attempt(0);
+      };
+      /* isGenerating is a dependency because the preview unmounts behind the spinner:
+         a second generation with identical text leaves generatedTest unchanged, so
+         without it the freshly mounted preview would never be typeset. */
+      useEffect(() => { if (generatedTest && !isGenerating) typesetNow(); }, [generatedTest, currentView, isGenerating]);
+      useEffect(() => {
+        const onBeforePrint = () => typesetNow();
+        window.addEventListener('beforeprint', onBeforePrint);
+        return () => window.removeEventListener('beforeprint', onBeforePrint);
       }, []);
 
       const handleConfigChange = (e) => setConfig({ ...config, [e.target.name]: e.target.value });
@@ -507,6 +582,7 @@
         setTestTypes(freshTestTypes());
         setGeneratedTest('');
         setValidationWarnings([]);
+        setMathWarnDetails([]);
         setErrorMsg('');
         setTosDistributions(null);
         if (fileInputRef.current) fileInputRef.current.value='';
@@ -582,7 +658,7 @@
         if (!text || typeof text !== 'string') return text;
         const schoolRe = /^\s{0,3}(?:[-*]\s*)?(?:republic of the philippines|department of education|schools division office|deped\b|region\s+[ivx\d]|\S[^\n]*\b(school|academy|elementary|university)\b)/i;
         const metaRe = /^\s{0,3}(?:[-*]\s*)?(?:\*\*)?(?:name(?:\s+of\s+(?:the\s+)?(?:test|examination))?|score|date|time|subject(?:\s+area)?|grade(?:\s*level)?|quarter|teacher|school|section|learner|test\s+name)(?:\*\*)?\s*[:\-\u2013\u2014]/i;
-        const sectionRe = /(multiple\s*choice|true\s*or\s*false|matching|fill\s*in|blanks?|identification|enumerat|analogy|error\s*identification|constructed|short\s*answer|essay|problem\s*solving|explanation|reflection|answer\s*key|directions?|instructions?|word\s*bank|parts?\s+of\s+the\s+test|general\s+instructions)/i;
+        const sectionRe = /(multiple\s*choice|true\s*or\s*false|matching|fill\s*in|blanks?|identification|enumerat|analogy|error\s*identification|constructed|short\s*answer|essay|problem\s*solving|explanation|reflection|answer\s*key|directions?|instructions?|word\s*bank|parts?\s+of\s+the\s+test|general\s+instructions|maramihang\s+pagpipilian|binagong\s+tama\s+o\s+mali|tama\s+o\s+mali|punan\s+ang\s+patlang|punan\s+ang\s+blangko|pagtutugma|pagtatambal|pagkakakilanlan|kilalanin|pagbilang|isahin|analohiya|pagkilala\s+ng\s+mali|tugon|maikling\s+sagot|sanaysay|paglutas\s+ng\s+suliranin|paliwanag|pagninilay|susi\s+sa\s+pagwawasto|batayan\s+ng\s+sagot)/i;
         const isTitleLine = (line) => {
           const t = line.trim();
           if (!t) return true;
@@ -637,11 +713,22 @@
         const bl=sel.find(t=>t.id==='blanks');
         if(bl){add+=`\n**Fill Blanks:** Word Bank above questions as a 2-column Markdown table (Column 1: Term, Column 2: Definition/Answer). Use a header row and a '|---|---|' delimiter row.\n`;if(bl.style==='paragraph'){add+=`- PARAGRAPH FORMAT: coherent passage with numbered blanks.\n`;}else{add+=`- SENTENCE FORMAT: isolated sentences.\n`;}}
         if(sel.some(t=>['essay','explanation','reflection'].includes(t.id))){add+=`\n**Essay/Explanation/Reflection:** Provide Holistic Rubric formatted as a Markdown table with columns: Score | Criteria | Description. Use a header row and a '|---|---|---|' delimiter row.\n`;}
+        if (mathMode) {
+          add += `\n**MATH FORMATTING (MANDATORY):**\n`;
+          add += `- Every formula, equation, fraction, exponent, root, variable, coordinate, unit and quantity MUST be written in LaTeX between single dollar signs: $2x + 3 = 7$, $\\frac{3}{4}$, $x^{2}$, $\\sqrt{25}$, $(3,-4)$, $A = \\pi r^{2}$.\n`;
+          add += `- Put working and long derivations between double dollar signs, e.g. $$2x = 10 \\Rightarrow x = 5$$\n`;
+          add += `- Never use plain-text shorthand for math: no x^2, x2, 3/4, sqrt, pi, or Unicode superscripts and fractions. If it is math, it is inside $...$.\n`;
+          add += `- Choices, word banks, tables and the answer key follow the same rule.\n`;
+          add += `- Geometry, trigonometry, measurement and graph items that need a picture must carry a simple inline <svg> figure (own viewBox, black strokes, no external images) inside the item.\n`;
+          add += `- Compute every answer yourself before writing the item and check it against the numbers given. The answer key must agree with the items exactly; show the worked steps for problem-solving items and keep the final answer in $...$.\n`;
+          add += `- No Markdown emphasis (* or _) inside $...$.\n`;
+        }
+        const sysPrompt = "You are an expert educator and curriculum developer. Create rigorous, well-formatted summative tests with clear answer keys based on the parameters provided. Output only the test and answer key in Markdown format, beginning with the first section header — no school header, no title block, no name/date/score lines." + (mathMode ? " You are also a mathematics assessment specialist: every formula is LaTeX between single dollar signs, diagrams are inline <svg>, and every answer is computed and verified before it is written." : "");
         const prompt=`\nCreate a Summative Test.\n\n**Test Metadata:**\n- Name: ${config.testName}\n- Subject: ${config.subject}\n- Grade: ${config.gradeLevel}\n\n**Structure:**\n${struct}\n\n**Source Material:**\n${src}\n\n**Instructions:**\n1. Exact items requested per section.\n2. Separate sections with clear headers.\n3. Age-appropriate for the grade level.\n4. ANSWER KEY at end.\n5. Clean Markdown format.\n6. CRITICAL: If cognitive level distribution is provided above, you MUST follow it exactly — do NOT deviate from the item counts per level.\n${add}\n`;
         /* A new generation replaces any previously saved test */
         try { localStorage.removeItem('saved_test_output'); localStorage.removeItem('saved_test_config'); } catch {}
         setIsGenerating(true);
-        try { const raw=await window.SilidAPI.callGemini({ prompt, systemPrompt: "You are an expert educator and curriculum developer. Create rigorous, well-formatted summative tests with clear answer keys based on the parameters provided. Output only the test and answer key in Markdown format, beginning with the first section header — no school header, no title block, no name/date/score lines." }); const r=stripTestTitleBlock(raw); setGeneratedTest(r); try { localStorage.setItem('saved_test_output', r); localStorage.setItem('saved_test_config', JSON.stringify(config)); } catch {} try { const v=window.SilidValidate.validateTestOutput(raw, {types: sel.map(t=>t.id)}); setValidationWarnings(v.warnings); } catch(err) { console.warn("Test validation skipped:", err); setValidationWarnings([]); } if (window.SilidDocsUI) window.SilidDocsUI.save({ name: config.testName || 'Summative Test', content: r, summary: [config.subject, config.gradeLevel].filter(Boolean).join(' · '), meta: { gradeLevel: config.gradeLevel, subject: config.subject, config: config } }); window.scrollTo({top:0,behavior:'smooth'}); }
+        try { const raw=await window.SilidAPI.callGemini({ prompt, systemPrompt: sysPrompt, temperature: mathMode ? 0.35 : undefined }); const r=stripTestTitleBlock(raw); setGeneratedTest(r); try { localStorage.setItem('saved_test_output', r); localStorage.setItem('saved_test_config', JSON.stringify(config)); } catch {} try { const v=window.SilidValidate.validateTestOutput(r, {types: sel.map(t=>t.id), math: mathMode}); setValidationWarnings(v.warnings); setMathWarnDetails(v.details || []); } catch(err) { console.warn("Test validation skipped:", err); setValidationWarnings([]); setMathWarnDetails([]); } if (window.SilidDocsUI) window.SilidDocsUI.save({ name: config.testName || 'Summative Test', content: r, summary: [config.subject, config.gradeLevel].filter(Boolean).join(' · '), meta: { gradeLevel: config.gradeLevel, subject: config.subject, config: config } }); window.scrollTo({top:0,behavior:'smooth'}); }
         catch (e) { console.error("Test generation failed:", e); setErrorMsg((e && e.message) || "Error generating test. Check connection and try again."); }
         finally { setIsGenerating(false); }
       };
@@ -690,6 +777,98 @@
         catch(e) { console.error("Print failed:", e); const m='Could not open the print dialog: '+((e&&e.message)||'unknown error'); if(window.SilidToast) window.SilidToast.error(m); else alert(m); }
       };
 
+      /* A slide shows text, never `$...$`, so a finished .pptx is unzipped and every
+         formula token left in a text run is replaced by a paragraph carrying <m:oMath> —
+         the same mc:AlternateContent → a14:m → m:oMathPara shape PowerPoint itself writes
+         when an equation is inserted. PowerPoint then shows a native, editable equation. */
+      const bakePptxMath = async (blob, spans) => {
+        try {
+          const zip = await window.JSZip.loadAsync(blob);
+          const names = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+          for (const name of names) {
+            let xml = await zip.file(name).async('string');
+            if (!/@@M\d+@@/.test(xml)) continue;
+            xml = xml.replace(/<a:p>([\s\S]*?)<\/a:p>/g, (para, inner) => {
+              if (!/@@M\d+@@/.test(inner)) return para;
+              /* equations pick up the size of the line they replace */
+              const size = (inner.match(/<a:rPr[^>]*\bsz="(\d+)"/) || [])[1];
+              const texts = inner.match(/<a:t(?:\s[^>]*)?>[\s\S]*?<\/a:t>/g) || [];
+              /* Paragraph without exactly one text run: drop the tokens and stack the
+                 equations underneath — never rebuild what is not understood. */
+              if (texts.length !== 1) {
+                const eqs = [];
+                const body = inner.replace(/@@M(\d+)@@/g, (m, i) => {
+                  const span = spans[+i];
+                  if (span === undefined) return m;
+                  const eq = pptMathParagraph(span, size);
+                  if (!eq) return escHtml(span); /* conversion failed — keep the formula as text */
+                  eqs.push(eq);
+                  return '';
+                });
+                return '<a:p>' + body + '</a:p>' + eqs.join('');
+              }
+              /* One run holding the whole block (pptxgenjs keeps the line breaks as
+                 characters): rebuild it line by line, so each equation lands directly
+                 under the line that asked for it instead of after the whole block. */
+              const tTag = texts[0];
+              const tHead = tTag.slice(0, tTag.indexOf('>') + 1);
+              const content = tTag.slice(tHead.length, -'</a:t>'.length);
+              const pPr = (inner.match(/<a:pPr[\s\S]*?<\/a:pPr>|<a:pPr[^>]*\/>/) || [''])[0];
+              const rPr = (inner.match(/<a:rPr[\s\S]*?<\/a:rPr>|<a:rPr[^>]*\/>/) || [''])[0];
+              const endPr = (inner.match(/<a:endParaRPr[\s\S]*?<\/a:endParaRPr>|<a:endParaRPr[^>]*\/>/) || [''])[0];
+              const out = [];
+              for (const line of content.split(/\r?\n/)) {
+                const hadEq = /@@M\d+@@/.test(line);
+                const eqs = [];
+                let txt = line.replace(/@@M(\d+)@@/g, (m, i) => {
+                  const span = spans[+i];
+                  if (span === undefined) return m;
+                  const eq = pptMathParagraph(span, size);
+                  if (!eq) return escHtml(span);
+                  eqs.push(eq);
+                  return '';
+                });
+                /* tidy the line the formula left behind: “matches ?” → “matches?” */
+                if (hadEq) txt = txt.replace(/\s{2,}/g, ' ').replace(/\s+([:;,?!])/g, '$1');
+                txt = txt.replace(/\s+$/, '');
+                if (txt) out.push('<a:p>' + pPr + '<a:r>' + rPr + tHead + txt + '</a:t></a:r>' + endPr + '</a:p>');
+                out.push(...eqs);
+              }
+              return out.join('') || para;
+            });
+            zip.file(name, xml);
+          }
+          return zip.generateAsync({ type: 'blob' });
+        } catch (e) {
+          console.warn('PPT math bake failed:', e);
+          return blob;
+        }
+      };
+      const pptMathParagraph = (span, size) => {
+        try {
+          const display = span.startsWith('$$');
+          const tex = display ? span.slice(2, -2) : span.slice(1, -1);
+          /* mml2omml decodes the input entities and writes raw text back, so `<` from
+             `$a<b$` would land unescaped in <m:t> and corrupt the whole package — the
+             text is re-escaped here before the equation is embedded. */
+          const omml = window.mml2omml(window.MathJax.tex2mml(tex, { display }))
+            .replace(/(<m:t(?:\s[^>]*)?>)([\s\S]*?)(<\/m:t>)/g, (s, o, t, c) =>
+              o + t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + c);
+          const body = size ? omml.replace(/<m:r>/g, '<m:r><a:rPr sz="' + size + '"/>') : omml;
+          const rpr = size ? '<a:rPr sz="' + size + '"/>' : '';
+          return '<a:p><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">'
+            + '<mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14">'
+            + '<a14:m><m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
+            + '<m:oMathParaPr><m:jc m:val="left"/></m:oMathParaPr>' + body
+            + '</m:oMathPara></a14:m></mc:Choice>'
+            + '<mc:Fallback><a:r>' + rpr + '<a:t>' + escHtml(tex) + '</a:t></a:r></mc:Fallback>'
+            + '</mc:AlternateContent></a:p>';
+        } catch (e) {
+          console.warn('equation export failed:', e);
+          return null;
+        }
+      };
+
       const handleDownloadPPT = async () => {
         if(!window.PptxGenJS){if(window.SilidToast) window.SilidToast.warning('PPT library loading, try again.'); else alert("PPT library loading, try again.");return;}
         try {
@@ -697,7 +876,13 @@
           let sl=pptx.addSlide(); sl.background={color:"F8FAFC"};
           sl.addText(config.testName||"Summative Test",{x:1,y:2,w:'80%',h:1.5,fontSize:44,bold:true,align:'center',color:'1E293B'});
           sl.addText(`${config.subject} - ${config.gradeLevel}`,{x:1,y:3.5,w:'80%',h:1,fontSize:28,align:'center',color:'475569'});
-          const ct=generatedTest.replace(/\*\*/g,'').replace(/\*/g,'').replace(/\[SCENARIO_START\]/gi,'').replace(/\[SCENARIO_END\]/gi,'');
+          /* Formulas come out first — the same token pass the preview uses — so the
+             emphasis stripping below can never eat an asterisk inside $a*b$, and each
+             token can be baked back as a real equation afterwards. Non-math tests keep
+             their text exactly as it was. */
+          const mathBake = mathMode && window.MathJax && typeof window.MathJax.tex2mml === 'function' && window.mml2omml && window.JSZip;
+          const math = mathBake ? extractMath(generatedTest) : { text: generatedTest, spans: [] };
+          const ct=math.text.replace(/\*\*/g,'').replace(/\*/g,'').replace(/\[SCENARIO_START\]/gi,'').replace(/\[SCENARIO_END\]/gi,'');
           const lines=ct.split('\n'); let cs='',igs=false,egt=[],cqt=[];
           const cq=()=>{if(cqt.length>0){let s=pptx.addSlide();s.background={color:"FFFFFF"};s.addText(cs,{x:.5,y:.3,w:'90%',h:.5,fontSize:16,color:'64748B',italic:true});s.addText(cqt.join('\n'),{x:.5,y:1.2,w:'90%',h:'80%',fontSize:24,color:'1E293B',valign:'top'});cqt=[];}};
           const cg=()=>{if(egt.length>0){let s=pptx.addSlide();s.background={color:"FFFFFF"};s.addText(cs,{x:.5,y:.3,w:'90%',h:.5,fontSize:24,color:'1E293B',bold:true});s.addText(egt.join('\n'),{x:.5,y:1.2,w:'90%',h:'80%',fontSize:18,color:'1E293B',valign:'top'});egt=[];}};
@@ -705,7 +890,10 @@
           if(l.trim()===''){if(igs&&egt.length>0&&egt[egt.length-1]!=='')egt.push('');else if(!igs&&cqt.length>0&&cqt[cqt.length-1]!=='')cqt.push('');continue;}
           if(igs)egt.push(l);else{if(/^(___ )?\d+\./.test(l.trim())){cq();cqt.push(l);}else cqt.push(l);}}
           if(igs)cg();else cq();
-          pptx.writeFile({fileName:(config.testName?config.testName.replace(/[^a-z0-9]/gi,'_').toLowerCase():'summative_test')+'.pptx'});
+          const fileName=(config.testName?config.testName.replace(/[^a-z0-9]/gi,'_').toLowerCase():'summative_test')+'.pptx';
+          let deck=await pptx.write({outputType:'blob'});
+          if (math.spans.length) deck=await bakePptxMath(deck, math.spans);
+          window.saveAs(deck, fileName);
         } catch(e){console.error("PPT Error:",e);const m='Could not build the PowerPoint file: '+((e&&e.message)||'unknown error');if(window.SilidToast) window.SilidToast.error(m); else alert(m);}
       };
 
@@ -832,9 +1020,43 @@
         return out.join('\n');
       };
 
+      /* `$...$` formulas must survive the Markdown passes below untouched: a pipe in
+         $|x|$ would split a table, an asterisk in $a*b$ would start emphasis, and a
+         newline inside $$...$$ would become <br>. Each span is swapped for a token with
+         no Markdown-significant characters and put back verbatim afterwards, so a false
+         positive (a price, say) costs nothing — the original text is restored exactly. */
+      const MATH_TOKEN_RE = /@@M(\d+)@@/g;
+      const extractMath = (src) => {
+        const spans = [];
+        const keep = (m) => { spans.push(m); return '@@M' + (spans.length - 1) + '@@'; };
+        const text = String(src || '').replace(/\r\n/g, '\n')
+          .replace(/@@M\d+@@/g, '') /* never let a stray token in the source hijack the restore */
+          .replace(/\$\$[\s\S]*?\$\$/g, keep)
+          .replace(/\$[^$\n]*?\$/g, keep);
+        return { text, spans };
+      };
+      const restoreMath = (html, spans, asEquations) => String(html).replace(MATH_TOKEN_RE, (m, i) => {
+        if (spans[i] === undefined) return m;
+        const span = spans[i];
+        if (asEquations) {
+          /* Word reads a <math> element out of the exported HTML and converts it to a
+             native equation, so the span goes back as MathML built from its TeX. A TeX
+             error keeps the literal text instead — a formula is never lost. */
+          const display = span.startsWith('$$');
+          try {
+            return window.MathJax.tex2mml(display ? span.slice(2, -2) : span.slice(1, -1), { display });
+          } catch (e) { console.warn('tex2mml failed, keeping the literal formula:', e); }
+        }
+        /* A `<` inside a formula would otherwise open a tag — `$a<b$` starts <b> — so
+           the span goes back HTML-escaped. The parser turns it straight back into
+           text, and MathJax reads the formula from textContent, so nothing is lost. */
+        return span.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      });
+
       const formatMarkdown = (text, forWord) => {
         if(!text) return {__html:''};
-        const html=convertOptions(convertTables(text), forWord)
+        const math = extractMath(text);
+        const html = restoreMath(convertOptions(convertTables(math.text), forWord)
           .replace(/\[SCENARIO_START\]\s*([\s\S]*?)\s*\[SCENARIO_END\]/gim,'<div class="scenario-box">$1</div>')
           .replace(/^### (.*$)/gim,'<h3 class="text-xl font-bold mt-6 mb-3 text-iris-700 border-b border-black/10 pb-1">$1</h3>')
           .replace(/^## (.*$)/gim,'<h2 class="text-2xl font-bold mt-8 mb-4 text-ink border-b-2 border-iris-200 pb-2">$1</h2>')
@@ -843,8 +1065,48 @@
           .replace(/\*(.*?)\*/gim,'<em>$1</em>')
           .replace(/^\s*-\s(.*)/gim,'<li class="ml-6 list-disc mb-1">$1</li>')
           .replace(/ {4,}/g,(m)=>'&nbsp;'.repeat(m.length))
-          .replace(/\n/gim,'<br />');
+          .replace(/\n/gim,'<br />'), math.spans,
+          !!(forWord && mathMode && window.MathJax && typeof window.MathJax.tex2mml === 'function'));
         return {__html:html};
+      };
+
+      /* Inline math warnings: every finding is tagged onto its own source line as
+         a token (the same trick extractMath uses), the tagged text goes through
+         formatMarkdown, and the tokens come back out as amber chips — so the
+         warning sits next to the item that caused it, not only in the banner.
+         A finding inside a $$…$$ block moves to the line after it: a token inside
+         the formula would be typeset as TeX. */
+      const MATH_WARN_RE = /@@W(\d+)@@/g;
+      const applyMathWarnings = (text, details) => {
+        const chips = [];
+        if (!text || !details || !details.length) return { text, chips };
+        const src = String(text).replace(/\r\n/g, '\n');
+        const lines = src.split('\n');
+        const lineAt = (s, i) => (s.slice(0, i).match(/\n/g) || []).length;
+        const ranges = [];
+        const dispRe = /\$\$[\s\S]*?\$\$/g;
+        let dm;
+        while ((dm = dispRe.exec(src))) ranges.push([lineAt(src, dm.index), lineAt(src, dm.index + dm[0].length)]);
+        details.forEach((d) => {
+          if (typeof d.line !== 'number' || d.line < 0 || d.line >= lines.length) return;
+          let at = d.line;
+          for (let tries = 0; tries < 2; tries++) {
+            const hit = ranges.find((r) => at >= r[0] && at <= r[1]);
+            if (!hit) break;
+            at = (hit[1] + 1 < lines.length) ? hit[1] + 1 : hit[0] - 1;
+          }
+          if (at < 0 || ranges.some((r) => at >= r[0] && at <= r[1])) return;
+          chips.push(d.message);
+          lines[at] += '@@W' + (chips.length - 1) + '@@';
+        });
+        return { text: lines.join('\n'), chips };
+      };
+      const renderMathChips = (html, chips) => !chips.length ? html : String(html).replace(MATH_WARN_RE, (m, i) =>
+        chips[i] === undefined ? '' :
+          '<code class="math-warn-chip" title="' + escHtml(chips[i]).replace(/"/g, '&quot;') + '">' + escHtml(chips[i]) + '</code>');
+      const buildPreviewHtml = () => {
+        const w = applyMathWarnings(generatedTest, mathWarnDetails);
+        return buildTestHeader() + renderMathChips(formatMarkdown(w.text).__html, w.chips);
       };
 
       /* ============================================================
@@ -1158,6 +1420,16 @@
                       <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Name of test</label>
                         <input type="text" name="testName" value={config.testName} onChange={handleConfigChange} placeholder="1st Quarter Exam"
                           className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Math mode</label>
+                        <div className="flex bg-iris-50 rounded-lg p-0.5 w-max">
+                          {[['auto','Auto' + (looksLikeMathSubject(config.subject) ? ' \u00b7 on' : ' \u00b7 off')],['on','On'],['off','Off']].map(([key,label]) => (
+                            <button key={key} type="button" onClick={()=>setMathOverride(key==='auto' ? null : key==='on')}
+                              className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${(mathOverride===null ? key==='auto' : mathMode===(key==='on')) ? 'bg-white shadow-sm text-iris-700' : 'text-ink/40'}`}>{label}</button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-ink/40 mt-1.5">Formulas are written in LaTeX ($x^2$) and typeset in the preview. Auto turns on for Mathematics subjects.</p>
+                      </div>
                     </div>
                   </div></div>
 
@@ -1275,7 +1547,7 @@
                             {validationWarnings.map((w,i)=><p key={i} className="flex items-start gap-2"><LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0"/> {w}</p>)}
                           </div>
                         )}
-                        <div className="prose prose-slate max-w-none break-words" dangerouslySetInnerHTML={{__html: buildTestHeader() + formatMarkdown(generatedTest).__html}}/>
+                        <div ref={previewRef} className="prose prose-slate max-w-none break-words" dangerouslySetInnerHTML={{__html: buildPreviewHtml()}}/>
                         </>
                       ):(
                         <div className="flex flex-col items-center justify-center h-full text-center text-ink/40">
