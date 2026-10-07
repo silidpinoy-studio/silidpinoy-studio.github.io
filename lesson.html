@@ -260,12 +260,14 @@
                         <div id="coi-panel" class="hidden mt-4 space-y-3.5 border-t border-black/5 pt-4">
                             <div>
                                 <label id="ui-ppst-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">PPST / COI Indicators <span class="text-slate-400 font-normal">(Optional)</span></label>
-                                <select id="ppstCategory" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
-                                    <option value="proficient">Proficient Teachers (RPMS-PPST)</option>
-                                    <option value="highly_proficient">Highly Proficient Teachers (RPMS-PPST)</option>
+                                <select id="ppstPreset" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                    <option value="custom">Custom / Type your own</option>
+                                    <option value="t_co1" selected>Teacher I-VII (CO 1)</option>
+                                    <option value="t_co2">Teacher I-VII (CO 2)</option>
+                                    <option value="mt_co1">Master Teacher I-II (CO 1)</option>
+                                    <option value="mt_co2">Master Teacher I-II (CO 2)</option>
                                 </select>
-                                <div id="ppst-checkboxes" class="space-y-2 mt-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar"></div>
-                                <textarea id="ppstExtra" rows="1" placeholder="Other indicators (or extracted from PDF)..." class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none mt-2"></textarea>
+                                <textarea id="ppstIndicators" rows="5" placeholder="Select a preset above or type your own e.g., 1.1.2, 1.4.2..." class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-y mt-2" style="min-height:80px;"></textarea>
                             </div>
                             <div>
                                 <label id="ui-strategy-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Instructional Strategy <span class="text-red-500">*</span></label>
@@ -646,7 +648,7 @@
                 planCoi: "COI Semi-Detailed",
                 planTypeHint: "Weekly DLL builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations for classroom observation.",
                 ppstLabel: "PPST / COI Indicators <span class='text-slate-400 font-normal'>(Optional)</span>",
-                ppstExtraPh: "Other indicators (or extracted from PDF)...",
+                ppstExtraPh: "Select a preset above or type your own e.g., 1.1.2, 1.4.2...",
                 strategyLabel: "Instructional Strategy <span class='text-red-500'>*</span>",
                 strategyOptions: {
                     standard: "Standard DepEd Guidelines",
@@ -756,7 +758,7 @@
                 planCoi: "COI Semi-Detailed",
                 planTypeHint: "Ang Weekly DLL ay bumubuo ng 1–5 araw na table. Ang COI ay bumubuo ng isang sesyon na semi-detailed plan na may PPST/COI annotations para sa classroom observation.",
                 ppstLabel: "PPST / COI Indicators <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
-                ppstExtraPh: "Ibang indicators (o nakuha mula sa PDF)...",
+                ppstExtraPh: "Pumili ng preset sa itaas o mag-type ng sarili hal. 1.1.2, 1.4.2...",
                 strategyLabel: "Istratehiya sa Pagtuturo <span class='text-red-500'>*</span>",
                 strategyOptions: {
                     standard: "Karaniwang DepEd Format",
@@ -838,57 +840,41 @@
         const lessonSequenceSelect = document.getElementById('lessonSequence');
         const planTypeInput = document.getElementById('planType');
         const coiPanel = document.getElementById('coi-panel');
-        const ppstCategory = document.getElementById('ppstCategory');
-        const ppstCheckboxes = document.getElementById('ppst-checkboxes');
-        const ppstExtra = document.getElementById('ppstExtra');
+        const ppstPreset = document.getElementById('ppstPreset');
+        const ppstIndicators = document.getElementById('ppstIndicators');
         const coiStrategy = document.getElementById('coiStrategy');
         const sequenceRow = lessonSequenceSelect.closest('div');
 
-        /* ── PPST / COI indicators (RPMS-PPST) for COI semi-detailed plans ── */
+        /* ── PPST / COI indicator presets (career stage × CO round).
+           Choosing a preset fills the textarea; typing switches back to Custom
+           unless the text still matches a preset exactly. The generator reads
+           the textarea, so free-typed indicators work the same as presets. ── */
         const PPST_DATA = {
-            proficient: [
-                "1.1.2 Apply knowledge of content within and across curriculum teaching areas.",
-                "1.4.2 Use a range of teaching strategies that enhance learner achievement in literacy and numeracy skills.",
-                "1.5.2 Apply a range of teaching strategies to develop critical and creative thinking, as well as other higher-order thinking skills.",
-                "4.1.2 Plan, manage and implement developmentally sequenced teaching and learning processes to meet curriculum requirements.",
-                "4.5.2 Select, develop, organize, and use appropriate teaching and learning resources, including ICT.",
-                "5.1.2 Design, select, organize, and use diagnostic, formative and summative assessment strategies."
-            ],
-            highly_proficient: [
-                "1.1.3 Model effective applications of content knowledge within and across curriculum teaching areas.",
-                "1.4.3 Evaluate with colleagues the effectiveness of teaching strategies that promote learner achievement in literacy and numeracy.",
-                "1.5.3 Develop and apply effective teaching strategies to promote critical and creative thinking, as well as other higher-order thinking skills.",
-                "4.1.3 Develop and apply effective strategies in the planning and management of developmentally sequenced teaching and learning processes.",
-                "4.5.3 Advise and guide colleagues in the selection, organization, development and use of appropriate teaching and learning resources, including ICT.",
-                "5.1.3 Work collaboratively with colleagues to review the design, selection, organization and use of assessment strategies."
-            ]
+            t_co1: "PPST 1.1.2 Apply knowledge of content within and across curriculum teaching areas.\nPPST 1.4.2 Use a range of teaching strategies that enhance learner achievement in literacy and numeracy skills.\nPPST 1.5.2 Apply a range of teaching strategies to develop critical and creative thinking, as well as other higher-order thinking skills.\nPPST 1.6.2 Display proficient use of Mother Tongue, Filipino and English to facilitate teaching and learning.\nPPST 2.1.2 Establish safe and secure learning environments to enhance learning through the consistent implementation of policies, guidelines and procedures.\nPPST 2.2.2 Maintain learning environments that promote fairness, respect and care to encourage learning.",
+            t_co2: "PPST 1.1.2 Apply knowledge of content within and across curriculum teaching areas.\nPPST 1.4.2 Use a range of teaching strategies that enhance learner achievement in literacy and numeracy skills.\nPPST 1.5.2 Apply a range of teaching strategies to develop critical and creative thinking, as well as other higher-order thinking skills.\nPPST 3.2.2 Establish a learner-centered culture by using teaching strategies that respond to learners’ linguistic, cultural, socio-economic and religious backgrounds.\nPPST 3.5.2 Adapt and use culturally appropriate teaching strategies to address the needs of learners from indigenous groups.\nPPST 5.3.2 Use strategies for providing timely, accurate and constructive feedback to improve learner performance.",
+            mt_co1: "PPST 1.1.3 Model effective applications of content knowledge within and across curriculum teaching areas.\nPPST 1.4.3 Evaluate with colleagues the effectiveness of teaching strategies that promote learner achievement in literacy and numeracy.\nPPST 1.5.3 Develop and apply effective teaching strategies to promote critical and creative thinking, as well as other higher-order thinking skills.\nPPST 1.6.3 Model and support colleagues in the proficient use of Mother Tongue, Filipino and English to improve teaching and learning, as well as to develop the learners’ pride of their language, heritage and culture.\nPPST 2.1.3 Exhibit effective strategies that ensure safe and secure learning environments that promote fairness, respect and care to encourage learning.\nPPST 2.2.3 Exhibit effective practices to foster learning environments that promote fairness, respect and care to encourage learning.",
+            mt_co2: "PPST 1.1.3 Model effective applications of content knowledge within and across curriculum teaching areas.\nPPST 1.4.3 Evaluate with colleagues the effectiveness of teaching strategies that promote learner achievement in literacy and numeracy.\nPPST 1.5.3 Develop and apply effective teaching strategies to promote critical and creative thinking, as well as other higher-order thinking skills.\nPPST 3.2.3 Exhibit a learner-centered culture that promotes success by using effective teaching strategies that respond to their linguistic, cultural, socio-economic and religious backgrounds.\nPPST 3.5.3 Develop and apply teaching strategies to address effectively the needs of learners from indigenous groups.\nPPST 5.3.3 Use effective strategies for providing timely, accurate and constructive feedback to encourage learners to reflect on and improve their own learning."
         };
-        function renderPPSTCheckboxes() {
-            const list = PPST_DATA[ppstCategory.value] || PPST_DATA.proficient;
-            ppstCheckboxes.innerHTML = '';
-            list.forEach(function (indicator, index) {
-                const label = document.createElement('label');
-                label.className = 'flex items-start gap-2.5 p-2.5 rounded-xl bg-white ring-1 ring-black/5 hover:ring-iris-300 cursor-pointer transition-all';
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                input.value = indicator;
-                input.className = 'mt-0.5 shrink-0 rounded border-black/20 text-iris-600 focus:ring-iris-500';
-                if (index < 2) input.checked = true;
-                const span = document.createElement('span');
-                span.className = 'text-xs font-medium text-ink/70 leading-snug';
-                span.textContent = indicator;
-                label.appendChild(input);
-                label.appendChild(span);
-                ppstCheckboxes.appendChild(label);
-            });
+        function applyPPSTPreset() {
+            const val = ppstPreset.value;
+            if (val !== 'custom' && PPST_DATA[val]) {
+                ppstIndicators.value = PPST_DATA[val];
+            } else if (val === 'custom') {
+                ppstIndicators.value = '';
+                ppstIndicators.focus();
+            }
         }
+        ppstPreset.addEventListener('change', applyPPSTPreset);
+        ppstIndicators.addEventListener('input', function () {
+            for (const key in PPST_DATA) {
+                if (PPST_DATA[key] === ppstIndicators.value) { ppstPreset.value = key; return; }
+            }
+            ppstPreset.value = 'custom';
+        });
+        ppstIndicators.value = PPST_DATA.t_co1;
         function selectedPPSTIndicators() {
-            const checked = Array.from(ppstCheckboxes.querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
-            const extra = ppstExtra.value.trim();
-            return checked.concat(extra ? [extra] : []).join('\n');
+            return ppstIndicators.value.trim();
         }
-        ppstCategory.addEventListener('change', renderPPSTCheckboxes);
-        renderPPSTCheckboxes();
         const resetBtn = document.getElementById('reset-btn');
         const learningAreaInput = document.getElementById('learningArea');
         const gradeSectionInput = document.getElementById('gradeSection');
@@ -1016,8 +1002,8 @@
             coiPanel.classList.add('hidden');
             sequenceRow.classList.remove('hidden');
             sessionsSelect.disabled = false;
-            ppstExtra.value = '';
-            renderPPSTCheckboxes();
+            ppstPreset.value = 't_co1';
+            ppstIndicators.value = PPST_DATA.t_co1;
             updateUIText();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -1082,7 +1068,7 @@
             document.getElementById('ui-plan-coi').textContent = t.planCoi;
             document.getElementById('ui-plantype-hint').textContent = t.planTypeHint;
             document.getElementById('ui-ppst-label').innerHTML = t.ppstLabel;
-            document.getElementById('ppstExtra').placeholder = t.ppstExtraPh;
+            document.getElementById('ppstIndicators').placeholder = t.ppstExtraPh;
             document.getElementById('ui-strategy-label').innerHTML = t.strategyLabel;
             document.querySelector('#coiStrategy option[value="standard"]').textContent = t.strategyOptions.standard;
             document.querySelector('#coiStrategy option[value="4as"]').textContent = t.strategyOptions.as4;
