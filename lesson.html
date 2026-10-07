@@ -70,6 +70,13 @@
         #output-content table:not(.signature-table) td:first-child {
             width: 25%; background-color: #f8fafc;
         }
+        /* COI semi-detailed tables: label column + ANNOTATIONS column */
+        #output-content .lp-title { text-align:center; font-weight:800; font-style:italic; font-size:1.4rem; margin:0.5rem 0 1.2rem; color:black; }
+        #output-content .lp-table { table-layout:fixed; }
+        #output-content .lp-label { font-weight:800; font-style:italic; }
+        #output-content .lp-section-title { font-weight:800; }
+        #output-content .lp-annotation { font-size:0.85em; }
+        #output-content .lp-help { display:block; font-size:0.85em; font-weight:700; font-style:italic; margin-top:6px; line-height:1.4; color:#333; }
         #output-content h1, #output-content h2, #output-content h3 {
             font-weight: bold; margin-bottom: 0.75rem;
         }
@@ -234,6 +241,49 @@
                             <button type="button" data-value="others" id="ui-mode-others">C. Other Sources</button>
                         </div>
                         <input type="hidden" name="inputMode" id="inputMode" value="manual">
+                    </div></div>
+
+                    <!-- Card: Plan Type (Weekly DLL vs COI Semi-Detailed) -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg></span>
+                            <h3 id="ui-plantype-label">Plan Type <span class="text-red-500">*</span></h3>
+                        </div>
+                        <div class="pill-group" id="plan-pill">
+                            <button type="button" data-value="weekly" class="active" id="ui-plan-weekly">Weekly DLL</button>
+                            <button type="button" data-value="coi" id="ui-plan-coi">COI Semi-Detailed</button>
+                        </div>
+                        <input type="hidden" name="planType" id="planType" value="weekly">
+                        <p id="ui-plantype-hint" class="text-[11px] text-ink/45 mt-1.5">Weekly DLL builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations for classroom observation.</p>
+
+                        <!-- COI-only options -->
+                        <div id="coi-panel" class="hidden mt-4 space-y-3.5 border-t border-black/5 pt-4">
+                            <div>
+                                <label id="ui-ppst-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">PPST / COI Indicators <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                <select id="ppstCategory" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                    <option value="proficient">Proficient Teachers (RPMS-PPST)</option>
+                                    <option value="highly_proficient">Highly Proficient Teachers (RPMS-PPST)</option>
+                                </select>
+                                <div id="ppst-checkboxes" class="space-y-2 mt-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar"></div>
+                                <textarea id="ppstExtra" rows="1" placeholder="Other indicators (or extracted from PDF)..." class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none mt-2"></textarea>
+                            </div>
+                            <div>
+                                <label id="ui-strategy-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Instructional Strategy <span class="text-red-500">*</span></label>
+                                <select id="coiStrategy" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                    <option value="standard">Standard DepEd Guidelines</option>
+                                    <option value="4as">4A's Approach</option>
+                                    <option value="5es">5E's Model</option>
+                                    <option value="7es">7E's Model</option>
+                                    <option value="explicit">Explicit Instruction</option>
+                                    <option value="inquiry">Inquiry-Based Learning</option>
+                                    <option value="cooperative">Cooperative Learning</option>
+                                    <option value="differentiated">Differentiated Instruction</option>
+                                    <option value="problem">Problem-Based Learning</option>
+                                    <option value="project">Project-Based Learning</option>
+                                    <option value="idowedoyoudo">I Do, We Do, You Do</option>
+                                </select>
+                            </div>
+                        </div>
                     </div></div>
 
                     <!-- Card: Upload (conditional) -->
@@ -591,7 +641,28 @@
                 objLabel: "Learning Objectives <span class='text-slate-400 font-normal'>(Optional)</span>",
                 contextLabel: "Contextualization <span class='text-slate-400 font-normal'>(Optional)</span>",
                 contextHint: "Add local context, culture, or specific learner situations to tailor the lesson.",
+                planTypeLabel: "Plan Type <span class='text-red-500'>*</span>",
+                planWeekly: "Weekly DLL",
+                planCoi: "COI Semi-Detailed",
+                planTypeHint: "Weekly DLL builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations for classroom observation.",
+                ppstLabel: "PPST / COI Indicators <span class='text-slate-400 font-normal'>(Optional)</span>",
+                ppstExtraPh: "Other indicators (or extracted from PDF)...",
+                strategyLabel: "Instructional Strategy <span class='text-red-500'>*</span>",
+                strategyOptions: {
+                    standard: "Standard DepEd Guidelines",
+                    as4: "4A's Approach",
+                    es5: "5E's Model",
+                    es7: "7E's Model",
+                    explicit: "Explicit Instruction",
+                    inquiry: "Inquiry-Based Learning",
+                    cooperative: "Cooperative Learning",
+                    differentiated: "Differentiated Instruction",
+                    problem: "Problem-Based Learning",
+                    project: "Project-Based Learning",
+                    idowedoyoudo: "I Do, We Do, You Do"
+                },
                 genBtn: "Generate Weekly Lesson Plan",
+                genCoiBtn: "Generate COI Lesson Plan",
                 outTitle: "Generated Lesson Plan",
                 dlBtn: "Download DOCX",
                 printBtn: "Print / PDF",
@@ -680,7 +751,28 @@
                 objLabel: "Mga Layunin <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
                 contextLabel: "Kontekstuwalisasyon <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
                 contextHint: "Magdagdag ng lokal na konteksto, kultura, o sitwasyon ng mga mag-aaral.",
+                planTypeLabel: "Uri ng Plano <span class='text-red-500'>*</span>",
+                planWeekly: "Weekly DLL",
+                planCoi: "COI Semi-Detailed",
+                planTypeHint: "Ang Weekly DLL ay bumubuo ng 1–5 araw na table. Ang COI ay bumubuo ng isang sesyon na semi-detailed plan na may PPST/COI annotations para sa classroom observation.",
+                ppstLabel: "PPST / COI Indicators <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                ppstExtraPh: "Ibang indicators (o nakuha mula sa PDF)...",
+                strategyLabel: "Istratehiya sa Pagtuturo <span class='text-red-500'>*</span>",
+                strategyOptions: {
+                    standard: "Karaniwang DepEd Format",
+                    as4: "4A's na Pamamaraan",
+                    es5: "5E's Model",
+                    es7: "7E's Model",
+                    explicit: "Tahasang Pagtuturo (Explicit)",
+                    inquiry: "Pagsisiyasat (Inquiry-Based)",
+                    cooperative: "Kooperatibong Pag-aaral",
+                    differentiated: "Pagtuturong Naiiba-iba (Differentiated)",
+                    problem: "Nakabatay sa Problema",
+                    project: "Nakabatay sa Proyekto",
+                    idowedoyoudo: "I Do, We Do, You Do"
+                },
                 genBtn: "Bumuo ng Weekly Lesson Plan",
+                genCoiBtn: "Bumuo ng COI Lesson Plan",
                 outTitle: "Binuong Lesson Plan",
                 dlBtn: "I-download ang DOCX",
                 printBtn: "Print / PDF",
@@ -744,6 +836,59 @@
         const inputModeInput = document.getElementById('inputMode');
         const sessionsSelect = document.getElementById('sessions');
         const lessonSequenceSelect = document.getElementById('lessonSequence');
+        const planTypeInput = document.getElementById('planType');
+        const coiPanel = document.getElementById('coi-panel');
+        const ppstCategory = document.getElementById('ppstCategory');
+        const ppstCheckboxes = document.getElementById('ppst-checkboxes');
+        const ppstExtra = document.getElementById('ppstExtra');
+        const coiStrategy = document.getElementById('coiStrategy');
+        const sequenceRow = lessonSequenceSelect.closest('div');
+
+        /* ── PPST / COI indicators (RPMS-PPST) for COI semi-detailed plans ── */
+        const PPST_DATA = {
+            proficient: [
+                "1.1.2 Apply knowledge of content within and across curriculum teaching areas.",
+                "1.4.2 Use a range of teaching strategies that enhance learner achievement in literacy and numeracy skills.",
+                "1.5.2 Apply a range of teaching strategies to develop critical and creative thinking, as well as other higher-order thinking skills.",
+                "4.1.2 Plan, manage and implement developmentally sequenced teaching and learning processes to meet curriculum requirements.",
+                "4.5.2 Select, develop, organize, and use appropriate teaching and learning resources, including ICT.",
+                "5.1.2 Design, select, organize, and use diagnostic, formative and summative assessment strategies."
+            ],
+            highly_proficient: [
+                "1.1.3 Model effective applications of content knowledge within and across curriculum teaching areas.",
+                "1.4.3 Evaluate with colleagues the effectiveness of teaching strategies that promote learner achievement in literacy and numeracy.",
+                "1.5.3 Develop and apply effective teaching strategies to promote critical and creative thinking, as well as other higher-order thinking skills.",
+                "4.1.3 Develop and apply effective strategies in the planning and management of developmentally sequenced teaching and learning processes.",
+                "4.5.3 Advise and guide colleagues in the selection, organization, development and use of appropriate teaching and learning resources, including ICT.",
+                "5.1.3 Work collaboratively with colleagues to review the design, selection, organization and use of assessment strategies."
+            ]
+        };
+        function renderPPSTCheckboxes() {
+            const list = PPST_DATA[ppstCategory.value] || PPST_DATA.proficient;
+            ppstCheckboxes.innerHTML = '';
+            list.forEach(function (indicator, index) {
+                const label = document.createElement('label');
+                label.className = 'flex items-start gap-2.5 p-2.5 rounded-xl bg-white ring-1 ring-black/5 hover:ring-iris-300 cursor-pointer transition-all';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = indicator;
+                input.className = 'mt-0.5 shrink-0 rounded border-black/20 text-iris-600 focus:ring-iris-500';
+                if (index < 2) input.checked = true;
+                const span = document.createElement('span');
+                span.className = 'text-xs font-medium text-ink/70 leading-snug';
+                span.textContent = indicator;
+                label.appendChild(input);
+                label.appendChild(span);
+                ppstCheckboxes.appendChild(label);
+            });
+        }
+        function selectedPPSTIndicators() {
+            const checked = Array.from(ppstCheckboxes.querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
+            const extra = ppstExtra.value.trim();
+            return checked.concat(extra ? [extra] : []).join('\n');
+        }
+        ppstCategory.addEventListener('change', renderPPSTCheckboxes);
+        renderPPSTCheckboxes();
         const resetBtn = document.getElementById('reset-btn');
         const learningAreaInput = document.getElementById('learningArea');
         const gradeSectionInput = document.getElementById('gradeSection');
@@ -865,6 +1010,14 @@
             document.getElementById('mode-pill').querySelectorAll('button').forEach(b => b.classList.remove('active'));
             document.getElementById('mode-pill').querySelector('button[data-value="manual"]').classList.add('active');
             inputModeInput.value = 'manual';
+            document.getElementById('plan-pill').querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            document.getElementById('plan-pill').querySelector('button[data-value="weekly"]').classList.add('active');
+            planTypeInput.value = 'weekly';
+            coiPanel.classList.add('hidden');
+            sequenceRow.classList.remove('hidden');
+            sessionsSelect.disabled = false;
+            ppstExtra.value = '';
+            renderPPSTCheckboxes();
             updateUIText();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -924,7 +1077,25 @@
             document.getElementById('ui-obj-label').innerHTML = t.objLabel;
             document.getElementById('ui-context-label').innerHTML = t.contextLabel;
             document.getElementById('ui-context-hint').innerHTML = t.contextHint;
-            document.getElementById('ui-gen-btn').textContent = t.genBtn;
+            document.getElementById('ui-plantype-label').innerHTML = t.planTypeLabel;
+            document.getElementById('ui-plan-weekly').textContent = t.planWeekly;
+            document.getElementById('ui-plan-coi').textContent = t.planCoi;
+            document.getElementById('ui-plantype-hint').textContent = t.planTypeHint;
+            document.getElementById('ui-ppst-label').innerHTML = t.ppstLabel;
+            document.getElementById('ppstExtra').placeholder = t.ppstExtraPh;
+            document.getElementById('ui-strategy-label').innerHTML = t.strategyLabel;
+            document.querySelector('#coiStrategy option[value="standard"]').textContent = t.strategyOptions.standard;
+            document.querySelector('#coiStrategy option[value="4as"]').textContent = t.strategyOptions.as4;
+            document.querySelector('#coiStrategy option[value="5es"]').textContent = t.strategyOptions.es5;
+            document.querySelector('#coiStrategy option[value="7es"]').textContent = t.strategyOptions.es7;
+            document.querySelector('#coiStrategy option[value="explicit"]').textContent = t.strategyOptions.explicit;
+            document.querySelector('#coiStrategy option[value="inquiry"]').textContent = t.strategyOptions.inquiry;
+            document.querySelector('#coiStrategy option[value="cooperative"]').textContent = t.strategyOptions.cooperative;
+            document.querySelector('#coiStrategy option[value="differentiated"]').textContent = t.strategyOptions.differentiated;
+            document.querySelector('#coiStrategy option[value="problem"]').textContent = t.strategyOptions.problem;
+            document.querySelector('#coiStrategy option[value="project"]').textContent = t.strategyOptions.project;
+            document.querySelector('#coiStrategy option[value="idowedoyoudo"]').textContent = t.strategyOptions.idowedoyoudo;
+            document.getElementById('ui-gen-btn').textContent = (typeof planTypeInput !== 'undefined' && planTypeInput.value === 'coi') ? t.genCoiBtn : t.genBtn;
             document.getElementById('ui-out-title').innerHTML = t.outTitle;             document.getElementById('ui-dl-btn').textContent = t.dlBtn;
              document.getElementById('ui-print-btn').textContent = t.printBtn;
             document.getElementById('ui-cp-btn').textContent = t.cpBtn;
@@ -993,6 +1164,21 @@
                 if (String(i) === selectedSession) option.selected = true;
                 sessionsSelect.appendChild(option);
             }
+        });
+
+        setupPillGroup('plan-pill', planTypeInput, (val) => {
+            const t = i18n[currentLang];
+            const isCoi = val === 'coi';
+            coiPanel.classList.toggle('hidden', !isCoi);
+            sequenceRow.classList.toggle('hidden', isCoi);
+            if (isCoi) {
+                /* COI semi-detailed plans are always a single session. */
+                sessionsSelect.value = '1';
+                sessionsSelect.disabled = true;
+            } else {
+                sessionsSelect.disabled = false;
+            }
+            document.getElementById('ui-gen-btn').textContent = isCoi ? t.genCoiBtn : t.genBtn;
         });
 
         setupPillGroup('mode-pill', inputModeInput, (mode) => {
@@ -1222,8 +1408,236 @@
             
             let systemPrompt = "";
             let userQuery = "";
-            
-            if (currentLang === 'ph') {
+
+            /* ── COI Semi-Detailed mode (single session, PPST/COI annotations) ── */
+            if (planTypeInput.value === 'coi') {
+                const isFil = currentLang === 'ph';
+                const strategy = coiStrategy.value;
+                const strategyName = coiStrategy.options[coiStrategy.selectedIndex].text;
+                const ppstPicked = selectedPPSTIndicators();
+                const ppstText = ppstPicked || (isFil
+                    ? 'Pumili ng angkop na PPST/COI indicators at Learning Design Principles.'
+                    : 'Choose appropriate PPST/COI indicators and Learning Design Principles.');
+
+                /* Strategy-specific flow instructions (image generation dropped). */
+                let coiPreInst = '(Generate a detailed, engaging pre-lesson activity with active retrieval. Describe the mechanics clearly.)';
+                let coiFlowInst = `(Generate a SEMI-DETAILED step-by-step flow strictly using the **${strategyName}** methodology. DO NOT write dialogue or scripts. Explain the activities, procedures, and transitions thoroughly. Integrate direct instruction, scaffolding, and checks for understanding. <br><br>CRUCIAL: You MUST include a Differentiated Group Activity section here. Write out the exact, explicit instructions and tasks for EACH specific group (e.g., Group 1 - Visual Task: [detailed instructions], Group 2 - Kinesthetic Task: [detailed instructions], etc.). Number the flow steps clearly.)`;
+                if (strategy === '4as') {
+                    coiPreInst = '(Generate a detailed Pre-Lesson section divided into **1. Review** and **2. Motivation**. Describe the mechanics clearly.)';
+                    coiFlowInst = `(Generate the lesson flow STRICTLY using the 4A's format. Use these exact numbered headings: **1. Activity**, **2. Analysis**, **3. Abstraction**, and **4. Application**. <br><br>CRUCIAL: In the 'Activity' or 'Application' phase, you MUST include a Differentiated Group Activity with explicit instructions for EACH group.)`;
+                } else if (strategy === '5es') {
+                    coiPreInst = '(Generate a brief Pre-Lesson activity. Describe the mechanics clearly.)';
+                    coiFlowInst = `(Generate the lesson flow STRICTLY using the 5E's format. Use these exact numbered headings: **1. Engage**, **2. Explore**, **3. Explain**, and **4. Elaborate**. Note: Evaluate is below. <br><br>CRUCIAL: In the 'Explore' or 'Elaborate' phase, you MUST include a Differentiated Group Activity.)`;
+                } else if (strategy === '7es') {
+                    coiPreInst = '(Generate a brief Pre-Lesson activity acting as the **Elicit** phase. Describe the mechanics clearly.)';
+                    coiFlowInst = `(Generate the lesson flow STRICTLY using the 7E's format. Use these exact numbered headings: **1. Engage**, **2. Explore**, **3. Explain**, **4. Elaborate**, and **5. Extend**. <br><br>CRUCIAL: Include a Differentiated Group Activity.)`;
+                } else if (strategy === 'idowedoyoudo') {
+                    coiPreInst = '(Generate a brief Pre-Lesson activity with review and motivation. Describe the mechanics clearly.)';
+                    coiFlowInst = `(Generate the lesson flow STRICTLY using Gradual Release. Use these exact headings: **1. I Do** (Modeling), **2. We Do** (Guided Practice), and **3. You Do** (Independent/Group Practice). <br><br>CRUCIAL: In the 'You Do' phase, you MUST include a Differentiated Group Activity.)`;
+                }
+
+                systemPrompt = `You are an expert Master Teacher in the Philippines. Your task is to generate a single-session SEMI-DETAILED lesson plan using the DepEd Lesson Plan Template with ANNOTATIONS. Output ONLY clean HTML tables that match the required template. Do not wrap the output in markdown code fences and do not add conversational filler before or after the template.
+
+FORMAT DISCIPLINE:
+- Use the exact section order requested by the user.
+- The Learning Experience and Assessment sections MUST have a third ANNOTATIONS column.
+- In each annotation cell, clearly write the relevant PPST/COI indicators and/or Learning Design Principles demonstrated by the activity.
+- If the user provides PPST/COI indicators, prioritize and align your annotations with those indicators. If none are provided, choose suitable indicators and state them clearly.
+
+CRITICAL INSTRUCTIONS: DO NOT use scripts or dialogue. Instead, thoroughly explain the activities and procedures in a descriptive manner. You MUST include Differentiated Group Activities where specific, explicit instructions and tasks are written out for each group.
+
+CRITICAL FOR MATHEMATICS: If the lesson plan includes mathematical formulas, DO NOT use LaTeX syntax (like $...$ or \\frac{}{}). Instead, use plain text and standard Unicode characters (e.g., x², a² + b² = c², 1/2, ÷) and standard HTML tags like <sup> for exponents and <sub> for subscripts.`;
+                if (isFil) {
+                    systemPrompt += `\n\nCRITICAL LANGUAGE REQUIREMENT: You MUST generate the ENTIRE lesson plan content strictly in the FILIPINO language (Tagalog). Translate all generated ideas, procedures, activities, and questions into proper, formal Filipino suitable for education.`;
+                }
+
+                let coiFileInstruction = '';
+                if (selectedMode === 'exemplar' && referenceFileData) {
+                    coiFileInstruction = isFil
+                        ? `\n[MAHALAGANG PANUTO: May in-upload na Lesson Exemplar ang user. Gamitin ito bilang pangunahing REFERENCE para sa content, paksa, mga aktibidad, at daloy ng aralin. SUNDIN PA RIN NANG MAHIGPIT ANG COI TEMPLATE FORMAT SA BABA. Bumuong ISANG sesyon na magkakaugnay na plano.]\n`
+                        : `\n[IMPORTANT: The user uploaded a Lesson Exemplar. Use it as the main REFERENCE for content, topics, activities, and lesson flow. You MUST still follow the COI template format below exactly. Synthesize it into a SINGLE cohesive 1-session plan.]\n`;
+                } else if (selectedMode === 'others' && referenceFileData) {
+                    coiFileInstruction = isFil
+                        ? `\n[MAHALAGANG PANUTO: May in-upload na ibang sanggunian ang user. Gamitin ito bilang karagdagang REFERENCE sa nilalaman at konsepto. SUNDIN NANG MAHIGPIT ANG COI TEMPLATE FORMAT SA BABA.]\n`
+                        : `\n[IMPORTANT: The user uploaded other reference sources. Use them as additional REFERENCE for content and concepts. Follow the COI template format below exactly.]\n`;
+                }
+
+                /* Template labels per output language. compTitle/objTitle wording
+                   keeps the output validator quiet (content/objectives present). */
+                const ct = isFil ? {
+                    title: 'SEMI-DETAILED LESSON PLAN', name: 'Pamagat ng Aralin', area: 'Asignatura',
+                    teacher: 'Guro', grade: 'Baitang at Seksyon', sessions: 'Bilang ng Sesyon',
+                    duration: 'Tagal ng Sesyon', ref: 'Mga Sanggunian',
+                    refHelp: '(mga aklat, websites, toolkits, atbp.)', ai: 'Deklarasyon ng AI',
+                    aiText: 'Ginamit ang AI upang ayusin ang lesson plan, bumuo ng learner-centered na gawain, magmungkahi ng anotasyon para sa PPST/COI indicators, at gumawa ng pagtataya.',
+                    intentionsHead: 'Mga Layunin.', intentionsDesc: 'Ang makabuluhang karanasan ay nakaugat sa kung paano natin ito binabalangkas. Panatilihin itong malinaw at simple.',
+                    compTitle: 'Nilalaman, Pamantayan at Kasanayan:', objTitle: '**Mga Layunin:**',
+                    contextTitle: '**Konteksto ng Mag-aaral:**', expHead: 'Karanasan sa Pagkatuto.',
+                    expDesc: 'Tukuyin ang mga gawain upang matulungan ang mga mag-aaral na matuto nang may layunin.',
+                    preTitle: '**Bago ang Aralin:**', flowTitle: '**Daloy ng Aralin:**',
+                    resTitle: '**Mga Kagamitan:**', integTitle: '**Integrasyon:**',
+                    assessHead: 'Pagtataya.', assessDesc: 'Suriin kung ano ang natutunan ng mga mag-aaral at magbigay ng feedback.',
+                    formTitle: '**Pormatibong Pagtataya:**', waysHead: 'Mga Susunod na Hakbang.',
+                    waysDesc: 'Magnilay sa nangyari ngayong araw.',
+                    extTitle: '**Karagdagang Gawain:**', refTitle: '**Pagninilay:**',
+                    prepBy: 'Inihanda ni:', checkBy: 'Sinuri ni:',
+                    objFallback: 'Mangyaring bumuo ng mga tiyak na layunin batay sa kasanayan, na nakategorya sa Kaalaman (Knowledge), Kasanayan (Skills), at Saloobin (Attitudes).',
+                    compLabel: 'Kasanayang Pampagkatuto:', stdLabel: 'Pamantayang Pangnilalaman:',
+                    perfLabel: 'Pamantayan sa Pagganap:'
+                } : {
+                    title: 'SEMI-DETAILED LESSON PLAN', name: 'Lesson Title', area: 'Learning Area',
+                    teacher: 'Teacher', grade: 'Grade Level and Section', sessions: 'No. of Sessions',
+                    duration: 'Session Duration', ref: 'References',
+                    refHelp: '(books, websites, toolkits, etc.)', ai: 'Declaration of AI use',
+                    aiText: 'AI was used to organize the lesson plan, generate learner-centered activities, suggest annotations aligned with PPST/COI indicators and Learning Design Principles, and draft assessment items.',
+                    intentionsHead: 'Intentions.', intentionsDesc: 'Meaningful learning experiences are anchored in how we frame them. Start by deciding what you want learners to master by the end of the lesson.',
+                    compTitle: 'Content Standards and Competencies:', objTitle: '**Learning Objectives:**<br><em style=\'font-size:0.85em;\'>(Knowledge, Skills, Attitudes)</em>',
+                    contextTitle: '**Learner Context:**', expHead: 'Learning Experience.',
+                    expDesc: 'Identify activities and interactions to help learners gain knowledge, skills, or understanding in a purposeful way.',
+                    preTitle: '**Pre-Lesson:**', flowTitle: '**Flow:**',
+                    resTitle: '**Learning Resources:**', integTitle: '**Integration:**',
+                    assessHead: 'Assessment.', assessDesc: 'Evaluate learning and provide feedback.',
+                    formTitle: '**Formative Assessment:**', waysHead: 'Ways Forward.',
+                    waysDesc: 'Meaningful learning can also happen beyond the classroom.',
+                    extTitle: '**Extended learning:**', refTitle: '**Reflections:**',
+                    prepBy: 'Prepared by:', checkBy: 'Checked by:',
+                    objFallback: 'Please generate specific, measurable learning objectives based on the competency above, categorized into Knowledge, Skills, and Attitudes.',
+                    compLabel: 'Learning Competency:', stdLabel: 'Content Standard:',
+                    perfLabel: 'Performance Standard:'
+                };
+
+                const coiObjectives = objectives || ct.objFallback;
+                const coiContextStr = contextualization ? (isFil
+                    ? `\n- Konteksto (Isama ang lokal/kultural na konteksto sa mga halimbawa at gawain): ${contextualization}`
+                    : `\n- Contextualization Notes (Integrate this local/cultural context into the examples, scenarios, and activities): ${contextualization}`) : '';
+                const coiStdText = contentStandard || (isFil ? 'Bumuo ng angkop na content standards batay sa kasanayang pampagkatuto.' : 'Generate applicable content standards based on the learning competency.');
+                const coiPerfText = performanceStandard || (isFil ? 'Bumuo ng angkop na performance standards batay sa kasanayang pampagkatuto.' : 'Generate applicable performance standards based on the learning competency.');
+
+                userQuery = `
+Please create a single-session semi-detailed lesson plan using the DepEd/ILAW Lesson Plan Template with ANNOTATIONS and the following details:
+- Learning Area: ${area}
+- Name of Teacher/s: ${teacher}
+- Grade Level and Section: ${grade}
+- Session Duration: ${sessionDuration} minutes
+- Learning Competency: ${competencyPromptText}
+- Curriculum Standards: ${coiStdText}
+- Performance Standards: ${coiPerfText}
+- Learning Objectives: ${coiObjectives}
+- Instructional Strategy: ${strategyName}
+- PPST/COI Indicators for Annotations: ${ppstText}${coiContextStr}${coiFileInstruction}
+
+FORMAT REQUIREMENT:
+Return ONLY valid HTML. Do not use Markdown tables. Do not include code fences. Use the exact sequence below. Fill every content cell with a complete lesson plan response. The learner level is "${learnerLevel}" — adjust difficulty accordingly without changing the format. Write content for EXACTLY ONE session lasting ${sessionDuration} minutes.
+
+<div style="text-align: center; font-family: Arial, sans-serif; margin-bottom: 20px; line-height: 1.3;">
+    <p style="margin: 0; font-size: 11pt;">Republic of the Philippines</p>
+    <p style="margin: 0; font-size: 13pt; font-weight: bold; font-family: 'Times New Roman', serif;">Department of Education</p>
+    ${lessonSchoolHeaderHtml()}
+</div>
+
+<h2 class="lp-title">${ct.title}</h2>
+
+<table class="lp-table top-table">
+  <tr><td class="lp-label" style="width:38%;">${ct.name}</td><td>(Generate a concise and relevant lesson title)</td></tr>
+  <tr><td class="lp-label">${ct.area}</td><td>${area}</td></tr>
+  <tr><td class="lp-label">${ct.teacher}</td><td>${teacher}</td></tr>
+  <tr><td class="lp-label">${ct.grade}</td><td>${grade}</td></tr>
+  <tr><td class="lp-label">${ct.sessions}</td><td>1 Session (${sessionDuration} minutes)</td></tr>
+  <tr><td class="lp-label">${ct.ref}<span class="lp-help">${ct.refHelp}</span></td><td>(Generate specific and realistic references.)</td></tr>
+  <tr><td class="lp-label">${ct.ai}</td><td>${ct.aiText}</td></tr>
+</table>
+
+<table class="lp-table intentions-table">
+  <tr class="lp-section-header">
+    <td style="width:38%;"><span class="lp-section-title">${ct.intentionsHead}</span></td>
+    <td><em>${ct.intentionsDesc}</em></td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.compTitle}</td>
+    <td><strong>${ct.stdLabel}</strong><br>${coiStdText}<br><br><strong>${ct.perfLabel}</strong><br>${coiPerfText}<br><br><strong>${ct.compLabel}</strong><br>${competencyHtmlText}</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.objTitle}</td>
+    <td>${coiObjectives}</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.contextTitle}</td>
+    <td>(Generate a realistic learner context. Include any contextualization notes from the teacher.)</td>
+  </tr>
+</table>
+
+<table class="lp-table learning-experience-table">
+  <tr class="lp-section-header">
+    <td style="width:30%;"><span class="lp-section-title">${ct.expHead}</span></td>
+    <td style="width:46%;"><em>${ct.expDesc}</em></td>
+    <td class="lp-annotation" style="width:24%;"><strong>ANNOTATIONS:</strong> Clearly indicate the relevant PPST indicators and Learning Design Principles.</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.preTitle}</td>
+    <td>${coiPreInst}</td>
+    <td class="lp-annotation">(Write exact annotations for the Pre-Lesson.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.flowTitle}</td>
+    <td>${coiFlowInst}</td>
+    <td class="lp-annotation">(Write exact annotations for every major Flow activity.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.resTitle}</td>
+    <td>(List necessary learning resources, inclusive accommodations, and low-tech alternatives.)</td>
+    <td class="lp-annotation">(Annotate how resources support inclusion.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.integTitle}</td>
+    <td>(List meaningful integration with other learning areas.)</td>
+    <td class="lp-annotation">(Annotate the aligned PPST/COI indicators for integration.)</td>
+  </tr>
+</table>
+
+<table class="lp-table assessment-table">
+  <tr class="lp-section-header">
+    <td style="width:30%;"><span class="lp-section-title">${ct.assessHead}</span></td>
+    <td style="width:46%;"><em>${ct.assessDesc}</em></td>
+    <td class="lp-annotation" style="width:24%;"><strong>ANNOTATIONS:</strong> Clearly indicate the relevant PPST indicators.</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.formTitle}</td>
+    <td>(Provide an ACTUAL 5-item formative assessment here of type ${assessmentTypeText}. Write the exact 5 questions/items the learners will answer based on the lesson — never instructions alone.)</td>
+    <td class="lp-annotation">(Annotate how the assessment provides feedback and checks mastery.)</td>
+  </tr>
+</table>
+
+<table class="lp-table ways-forward-table">
+  <tr class="lp-section-header">
+    <td style="width:38%;"><span class="lp-section-title">${ct.waysHead}</span></td>
+    <td><em>${ct.waysDesc}</em></td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.extTitle}</td>
+    <td>(Generate a practical extension or enrichment activity.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${ct.refTitle}</td>
+    <td><em>To be filled out after the lesson.</em><br><br><strong>Pre-planned Reflection Prompt:</strong> (Generate one guiding reflection question specific to this lesson.)</td>
+  </tr>
+</table>
+
+<table class="signature-table">
+    <tr>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>${ct.prepBy}</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${teacher}</strong><br>
+            ${teacherRole}
+        </td>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>${ct.checkBy}</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${checkerName}</strong><br>
+            ${checkerRole}
+        </td>
+    </tr>
+</table>
+`;
+            } else if (currentLang === 'ph') {
                 systemPrompt = `Ikaw ay isang dalubhasang Master Teacher sa Pilipinas. Ang iyong gawain ay bumuo ng napakadetalye at nakaka-engganyong Pang-araw-araw na Tala sa Pagtuturo (Lesson Plan) base sa bagong DepEd Guidelines, sa 8 Learning Design Principles, at sa MATATAG Instructional Design Frameworks (4Is, 4Cs, 4Es). ILABAS LAMANG ang hinihinging pormat. HUWAG magdagdag ng anumang paliwanag o konbersasyonal na text sa labas ng hiniling na output. IMPORTANT: YOU MUST RESPOND ENTIRELY IN FILIPINO/TAGALOG. ALL CONTENT, DESCRIPTIONS, ASSESSMENTS, AND ACTIVITIES MUST BE WRITTEN IN TAGALOG.`;
                 
                 let fileInstruction = "";
@@ -1808,6 +2222,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                         summary: [learningAreaInput.value.trim(), gradeSectionInput.value.trim()].filter(Boolean).join(' · '),
                         meta: {
                             lang: currentLang,
+                            planType: planTypeInput.value,
                             sessions: sessionsSelect.value,
                             grade: gradeSectionInput.value.trim(),
                             subject: learningAreaInput.value.trim()
@@ -1902,6 +2317,10 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                         table:not(.signature-table) td:first-child { background-color: #f8fafc; }
                         h1 { text-align: center; color: #1e40af; font-size: 1.5em; font-weight: bold; margin-top: 30px; }
                         h2 { margin: 0; font-size: 1.5em; font-weight: bold; padding-top: 10px;}
+                        .lp-title { text-align: center; font-weight: bold; font-style: italic; font-size: 1.4em; margin: 0.5em 0 1.2em; color: black; }
+                        .lp-label { font-weight: bold; font-style: italic; }
+                        .lp-section-title { font-weight: bold; }
+                        .lp-annotation { font-size: 0.85em; }
                         em { font-style: italic; color: #4b5563; }
                         .page-break { page-break-before: always; clear: both; } 
                     </style>

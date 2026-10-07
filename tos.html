@@ -274,15 +274,23 @@
         try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.competencies || fallback; }
         catch { return fallback; }
       });
+      const [groupNames, setGroupNames] = useState(() => {
+        const fallback = ['Lower Order Thinking Skills', 'Higher Order Thinking Skills'];
+        try {
+          const s = JSON.parse(localStorage.getItem('tos_current_school'));
+          if (Array.isArray(s?.groupNames) && s.groupNames.length >= 2) return s.groupNames;
+        } catch { /* fall through to defaults */ }
+        return fallback;
+      });
       const [lastTime, setLastTime] = useState(new Date().toLocaleTimeString());
       const tableRef = useRef(null);
       const mark = () => setLastTime(new Date().toLocaleTimeString());
 
       /* Auto-save the school-template work so a reload does not lose it */
       useEffect(() => {
-        try { localStorage.setItem('tos_current_school', JSON.stringify({ meta, cognitiveLevels, competencies })); }
+        try { localStorage.setItem('tos_current_school', JSON.stringify({ meta, cognitiveLevels, competencies, groupNames })); }
         catch { /* storage unavailable */ }
-      }, [meta, cognitiveLevels, competencies]);
+      }, [meta, cognitiveLevels, competencies, groupNames]);
 
       /* Load a school-template document opened from My Documents */
       useEffect(() => {
@@ -290,6 +298,7 @@
         if (openConfig.meta) setMeta(openConfig.meta);
         if (Array.isArray(openConfig.cognitiveLevels)) setCognitiveLevels(openConfig.cognitiveLevels);
         if (Array.isArray(openConfig.competencies)) setCompetencies(openConfig.competencies);
+        if (Array.isArray(openConfig.groupNames) && openConfig.groupNames.length >= 2) setGroupNames(openConfig.groupNames);
         if (onOpenConsumed) onOpenConsumed();
       }, [openConfig]);
 
@@ -337,10 +346,33 @@
         setCognitiveLevels(prev => prev.map((l, i) => i === idx ? { ...l, pct: Math.max(0, parseInt(value) || 0) } : l));
         mark();
       };
+      const setLevelName = (idx, value) => {
+        setCognitiveLevels(prev => prev.map((l, i) => i === idx ? { ...l, name: value } : l));
+        mark();
+      };
+      const addCognitiveLevel = () => {
+        setCognitiveLevels(prev => [...prev, { name: 'New Level', pct: 0 }]);
+        mark();
+      };
+      const removeCognitiveLevel = (idx) => {
+        setCognitiveLevels(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+        mark();
+      };
+      /* The group % is always the sum of the levels under it — only the label is typed. */
+      const setGroupName = (idx, value) => {
+        setGroupNames(prev => prev.map((n, i) => i === idx ? value : n));
+        mark();
+      };
+      const groupNameAt = (idx, fallback) => (
+        Array.isArray(groupNames) && groupNames[idx] !== undefined && groupNames[idx] !== null ? groupNames[idx] : fallback
+      );
 
       const levelsTotal = cognitiveLevels.reduce((s, l) => s + (Number(l.pct) || 0), 0);
-      const lotsTotal = cognitiveLevels.slice(0, 3).reduce((s, l) => s + (Number(l.pct) || 0), 0);
-      const hotsTotal = cognitiveLevels.slice(3, 6).reduce((s, l) => s + (Number(l.pct) || 0), 0);
+      /* The LOTS / HOTS split follows the live level count so adding or deleting a level cannot break the header. */
+      const lotsCount = Math.ceil(cognitiveLevels.length / 2);
+      const hotsCount = cognitiveLevels.length - lotsCount;
+      const lotsTotal = cognitiveLevels.slice(0, lotsCount).reduce((s, l) => s + (Number(l.pct) || 0), 0);
+      const hotsTotal = cognitiveLevels.slice(lotsCount).reduce((s, l) => s + (Number(l.pct) || 0), 0);
 
       const tableData = useMemo(() => {
         const totalHours = competencies.reduce((s, c) => s + (parseFloat(c.hours) || 0), 0);
@@ -416,8 +448,8 @@
                 <tr>
                   <th rowspan="2" width="7%">No. of Days/<br/>Hours</th>
                   <th rowspan="2" width="8%">% of Teaching<br/>Time</th>
-                  <th colspan="3">Lower Order Thinking Skills<br/>${lotsTotal}%</th>
-                  <th colspan="3">Higher Order Thinking Skills<br/>${hotsTotal}%</th>
+                  <th colspan="${lotsCount}">${groupNameAt(0, 'Lower Order Thinking Skills')}<br/>${lotsTotal}%</th>
+                  ${hotsCount > 0 ? `<th colspan="${hotsCount}">${groupNameAt(1, 'Higher Order Thinking Skills')}<br/>${hotsTotal}%</th>` : ''}
                 </tr>
                 <tr>${cognitiveLevels.map(l => `<th>${l.name}<br/>${l.pct}%</th>`).join('')}</tr>
               </thead>
@@ -507,7 +539,7 @@
         const proposed = ((meta.learningArea || 'School') + ' TOS').trim();
         const name = prompt('Name this TOS configuration:', proposed);
         if (!name) return;
-        const config = { template: 'school', meta, cognitiveLevels, competencies };
+        const config = { template: 'school', meta, cognitiveLevels, competencies, groupNames };
         window.SilidDocsUI.save({
           name: name.trim(),
           content: JSON.stringify(config),
@@ -617,17 +649,48 @@
                   </span>
                   <div>
                     <h3 className="text-sm font-bold">Levels of Thinking (%)</h3>
-                    <p className="text-[11px] text-ink/45">First three are LOTS, last three are HOTS</p>
+                    <p className="text-[11px] text-ink/45">Rename any level or group label; first half is LOTS, second half is HOTS</p>
                   </div>
                 </div>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${levelsTotal === 100 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                  Total Weights: {levelsTotal}% {levelsTotal !== 100 && '(Target: 100%)'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${levelsTotal === 100 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                    Total Weights: {levelsTotal}% {levelsTotal !== 100 && '(Target: 100%)'}
+                  </span>
+                  <button onClick={addCognitiveLevel}
+                    className="text-xs text-iris-600 hover:text-iris-700 font-semibold p-1 hover:bg-iris-50 rounded">
+                    + Add Category
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                {[
+                  { idx: 0, caption: 'First group label (LOTS)', fallback: 'Lower Order Thinking Skills', count: lotsCount, total: lotsTotal },
+                  { idx: 1, caption: 'Second group label (HOTS)', fallback: 'Higher Order Thinking Skills', count: hotsCount, total: hotsTotal },
+                ].filter(g => g.count > 0).map(g => (
+                  <div key={g.idx} className="flex-1 p-3 bg-white ring-1 ring-black/5 rounded-xl">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-ink/55 mb-1.5">{g.caption}</label>
+                    <input type="text" value={groupNameAt(g.idx, g.fallback)}
+                      onChange={(e) => setGroupName(g.idx, e.target.value)}
+                      placeholder={g.fallback}
+                      className="block w-full text-xs font-bold uppercase tracking-wider text-ink/70 bg-transparent border-b border-dashed border-black/15 focus:border-iris-500 outline-none" />
+                    <p className="text-[10px] text-ink/45 mt-1.5">
+                      {g.count} level{g.count === 1 ? '' : 's'} in this group · totals {g.total}% of the test
+                    </p>
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                 {cognitiveLevels.map((lvl, idx) => (
-                  <div key={idx} className="p-3 bg-mist rounded-xl border border-black/5">
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-ink/55 mb-1.5">{lvl.name}</label>
+                  <div key={idx} className="p-3 bg-mist rounded-xl border border-black/5 relative group">
+                    {cognitiveLevels.length > 1 && (
+                      <button onClick={() => removeCognitiveLevel(idx)}
+                        title="Delete level"
+                        className="absolute top-2 right-2 text-rose-500 hover:bg-rose-50 p-1 rounded-md opacity-0 group-hover:opacity-100 transition">
+                        <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <input type="text" value={lvl.name} onChange={(e) => setLevelName(idx, e.target.value)}
+                      className="block w-4/5 text-[10px] font-bold uppercase tracking-wider text-ink/55 mb-1.5 bg-transparent border-b border-dashed border-black/15 focus:border-iris-500 outline-none" />
                     <div className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden">
                       <input type="number" value={lvl.pct} onChange={(e) => setLevelPct(idx, e.target.value)}
                         className="w-full px-2.5 py-1.5 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold" />
@@ -749,8 +812,8 @@
                   <tr>
                     <th rowSpan={2} className="p-2 text-center text-xs font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>No. of Days/<br/>Hours</th>
                     <th rowSpan={2} className="p-2 text-center text-xs font-bold" style={{ border:'1px solid black', verticalAlign:'middle' }}>% of Teaching<br/>Time</th>
-                    <th colSpan={3} className="p-2 text-center text-xs font-bold bg-mist" style={{ border:'1px solid black' }}>Lower Order Thinking Skills<br/>{lotsTotal}%</th>
-                    <th colSpan={3} className="p-2 text-center text-xs font-bold bg-mist" style={{ border:'1px solid black' }}>Higher Order Thinking Skills<br/>{hotsTotal}%</th>
+                    <th colSpan={lotsCount} className="p-2 text-center text-xs font-bold bg-mist" style={{ border:'1px solid black' }}>{groupNameAt(0, 'Lower Order Thinking Skills')}<br/>{lotsTotal}%</th>
+                    {hotsCount > 0 && <th colSpan={hotsCount} className="p-2 text-center text-xs font-bold bg-mist" style={{ border:'1px solid black' }}>{groupNameAt(1, 'Higher Order Thinking Skills')}<br/>{hotsTotal}%</th>}
                   </tr>
                   <tr>
                     {cognitiveLevels.map((lvl, i) => (
