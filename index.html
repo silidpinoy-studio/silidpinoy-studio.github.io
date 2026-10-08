@@ -706,10 +706,11 @@
           add += `- Items marked Relational: Connect, compare, analyze relationships between concepts.\n`;
           add += `- Items marked Extended Abstract: Evaluate, create, generalize, hypothesize.\n`;
           add += `- For levels other than Extended Abstract, the first items in each competency should cycle through them before repeating, so the test starts with progressive difficulty.\n`;
-          add += `- Extended Abstract items MUST be the LAST items of the test: place every Extended Abstract question at the end, occupying the highest item numbers. Never place them in the middle or at the beginning — all Unistructural/Multi-structural/Relational items come first.\n\n`;
+          add += `- Extended Abstract items MUST be the LAST items of the test: place every Extended Abstract question at the end, occupying the highest item numbers. Never place them in the middle or at the beginning — all Unistructural/Multi-structural/Relational items come first.\n`;
+          add += `- Match each stem opener to its cognitive level: Unistructural/Multi-structural items ask What / Who / When / Where (recall); Relational items ask Why / How / "Which scenario..."; Extended Abstract items ask "What would happen if...", "How could you...".\n\n`;
         }
         const mcq=sel.find(t=>t.id==='mcq');
-        if(mcq){add+=`\n**MCQ Formatting:**\n- Randomize correct answer position (~25% each).\n- Option lengths similar.\n- Underline before item number.\n- WH- word start.\n- 6-8 space indent for options.\n- Layout: short=1 row, medium=2 rows, long=4 rows.\n- Direct stems: "Which scenario/event/organ..." — never "Which of the following" (Filipino: never "Alin sa mga sumusunod"; use "Aling pangyayari...", "Anong..." instead).\n`;if(mcq.style==='super_stem'){add+=`- SUPER STEM: Divide ALL items into scenarios of 5 questions each. Calculate the number of scenarios from the total count (e.g., 20 items = 4 scenarios). Label each scenario "For items 1-5", "For items 6-10", "For items 11-15", etc. Each scenario must follow the cognitive level distribution above. Wrap each scenario with [SCENARIO_START] and [SCENARIO_END] tags. Min 5 sentences per scenario.\n`;}}
+        if(mcq){add+=`\n**MCQ Formatting:**\n- Randomize correct answer position (~25% each).\n- Option lengths similar.\n- Underline before item number.\n- WH- word start, but VARY the WH word: mix What / Which / When / Where / Who / Why / How (Filipino: Ano / Alin / Kailan / Saan / Sino / Bakit / Paano). At most 1 in 4 items may start with "Which" (Filipino "Alin"), and never two "Which" items in a row.\n- 6-8 space indent for options.\n- Layout: short=1 row, medium=2 rows, long=4 rows.\n- Direct stems: "Which scenario/event/organ..." — never "Which of the following" (Filipino: never "Alin sa mga sumusunod"; use "Aling pangyayari...", "Anong..." instead).\n`;if(mcq.style==='super_stem'){add+=`- SUPER STEM: Divide ALL items into scenarios of 5 questions each. Calculate the number of scenarios from the total count (e.g., 20 items = 4 scenarios). Label each scenario "For items 1-5", "For items 6-10", "For items 11-15", etc. Each scenario must follow the cognitive level distribution above. Wrap each scenario with [SCENARIO_START] and [SCENARIO_END] tags. Min 5 sentences per scenario.\n`;}}
         const bl=sel.find(t=>t.id==='blanks');
         if(bl){add+=`\n**Fill Blanks:** Word Bank above questions as a 2-column Markdown table (Column 1: Term, Column 2: Definition/Answer). Use a header row and a '|---|---|' delimiter row.\n`;if(bl.style==='paragraph'){add+=`- PARAGRAPH FORMAT: coherent passage with numbered blanks.\n`;}else{add+=`- SENTENCE FORMAT: isolated sentences.\n`;}}
         if(sel.some(t=>['essay','explanation','reflection'].includes(t.id))){add+=`\n**Essay/Explanation/Reflection:** Provide Holistic Rubric formatted as a Markdown table with columns: Score | Criteria | Description. Use a header row and a '|---|---|---|' delimiter row.\n`;}
@@ -747,10 +748,43 @@
       };
       const wordFileName = (ext) => (config.testName?config.testName.replace(/[^a-z0-9]/gi,'_').toLowerCase():'summative_test')+ext;
 
+      /* Word does not draw an inline <svg> element out of imported HTML — it drops
+         the markup and the figure prints as blank space. Before either Word download,
+         every figure is therefore rasterized to a PNG data URI: Word renders a base64
+         <img> picture reliably. A figure that fails to rasterize keeps its raw markup
+         rather than vanishing. */
+      const rasterizeWordSvg = async (html) => {
+        const spans = String(html || '').match(/<svg[\s\S]*?<\/svg\s*>/gi) || [];
+        if (!spans.length) return html;
+        const pngs = await Promise.all(spans.map((svg) => new Promise((resolve) => {
+          try {
+            const dim = (name) => parseFloat((svg.match(new RegExp('\\s' + name + '=["\']([\\d.]+)', 'i')) || [])[1]);
+            const vb = (svg.match(/viewBox=["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([-\d.]+)[\s,]+([-\d.]+)/i) || []).slice(1).map(Number);
+            const w = dim('width') || vb[0] || 300, h = dim('height') || vb[1] || 150;
+            const img = new Image();
+            img.onload = () => {
+              try {
+                const scale = 2; /* 2x keeps the strokes crisp on paper */
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve('<img src="' + canvas.toDataURL('image/png') + '" width="' + Math.round(w) + '" height="' + Math.round(h) + '" />');
+              } catch (e) { console.warn('SVG rasterization failed, keeping the raw figure:', e); resolve(svg); }
+            };
+            img.onerror = () => resolve(svg);
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+          } catch (e) { console.warn('SVG rasterization failed, keeping the raw figure:', e); resolve(svg); }
+        })));
+        let i = 0;
+        return html.replace(/<svg[\s\S]*?<\/svg\s*>/gi, () => pngs[i++]);
+      };
+
       /* Flat .doc — one HTML file that opens in any word processor, with nothing to unzip. */
-      const handleDownloadWord = () => {
+      const handleDownloadWord = async () => {
         try {
-        const blob=new Blob(['\ufeff',buildWordHtml()],{type:'application/msword'});
+        const blob=new Blob(['\ufeff',await rasterizeWordSvg(buildWordHtml())],{type:'application/msword'});
         const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;
         a.download=wordFileName('.doc');
         document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
@@ -759,7 +793,7 @@
 
       /* Real .docx — an OOXML package Word opens with no format warning. The helper
          comes from a CDN, so say so plainly when it has not loaded (e.g. offline). */
-      const handleDownloadDocx = () => {
+      const handleDownloadDocx = async () => {
         if (!window.htmlDocx || !window.saveAs) {
           const m='The DOCX helper has not loaded yet — use the Word button instead.';
           console.error(m);
@@ -767,7 +801,7 @@
           return;
         }
         try {
-          window.saveAs(window.htmlDocx.asBlob(buildWordHtml(), { orientation:'portrait', margins:{top:720,bottom:720,left:720,right:720} }), wordFileName('.docx'));
+          window.saveAs(window.htmlDocx.asBlob(await rasterizeWordSvg(buildWordHtml()), { orientation:'portrait', margins:{top:720,bottom:720,left:720,right:720} }), wordFileName('.docx'));
         } catch(e) { console.error("DOCX export failed:", e); const m='Could not build the DOCX file: '+((e&&e.message)||'unknown error')+'. Try the Word button instead.'; if(window.SilidToast) window.SilidToast.error(m); else alert(m); }
       };
 

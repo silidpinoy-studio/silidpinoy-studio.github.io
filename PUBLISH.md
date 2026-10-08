@@ -38,7 +38,7 @@ repository to private, the site stops working unless you are on a paid plan.
 ## 3. Upload the files
 
 On the new repository page: **Add file → Upload files**, then drag in every
-file from this folder (all 6 HTML pages, the 9 JavaScript files, the two
+file from this folder (all 5 HTML pages, the 9 JavaScript files, the two
 images, and `README.md`).
 
 Uploading from the website cannot send `.nojekyll` because dotfiles are hidden

@@ -278,6 +278,23 @@
         ' — rewrite each stem to name the thing directly (e.g. "Which scenario...").');
     }
 
+    // A good MCQ set varies its openers (What/When/Where/Who/Why/How...) — a test
+    // whose stems overwhelmingly start with Which/Alin reads as one template and
+    // ignores the cognitive levels. The answer key is cut off first: its compact
+    // "1. A  2. B" lines would otherwise dilute the ratio below the threshold.
+    var keyCut = -1;
+    ANSWER_KEY_ALIASES.forEach(function (alias) {
+      var at = hay.indexOf(alias);
+      if (at !== -1 && (keyCut === -1 || at < keyCut)) keyCut = at;
+    });
+    var stemBody = keyCut === -1 ? hay : hay.slice(0, keyCut);
+    var stems = stemBody.match(/\b\d+[.)] [a-z\u00c0-\u024f]+/g) || [];
+    var whichStems = stems.filter(function (s) { return /^\b\d+[.)] (which|alin)\b/.test(s); });
+    if (stems.length >= 5 && whichStems.length >= stems.length * 0.6) {
+      warnings.push('Stem variety: ' + whichStems.length + ' of ' + stems.length +
+        ' questions start with "Which/Alin" — vary the openers (What, When, Where, Who, Why, How) and match each opener to the skill and cognitive level being asked.');
+    }
+
     // Check for expected question types if provided
     if (config && config.types && Array.isArray(config.types)) {
       normaliseTypes(config.types).forEach(function(t) {
