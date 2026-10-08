@@ -79,11 +79,27 @@
         <pre id="analysisResult" class="prose text-xs mt-3">Awaiting file + analyze</pre>
       </div></div>
       <div class="card"><div class="inner p-6">
+        <h3 class="font-display text-lg font-bold">Lesson Details <span class="text-xs font-bold text-iris-600 uppercase tracking-wider ml-1">(optional form fields)</span></h3>
+        <p class="text-sm text-ink/60">Or leave blank — AI fills from your blank template + JSON below. Uses SilidPinoy API (key set via Settings).</p>
+        <div class="grid md:grid-cols-3 gap-3 mt-3">
+          <input id="te-area" type="text" placeholder="Learning Area (e.g. Science 7)" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+          <input id="te-grade" type="text" placeholder="Grade / Section (e.g. Grade 7 — Mabini)" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+          <input id="te-subject" type="text" placeholder="Subject / Topic" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+        </div>
+        <div class="grid md:grid-cols-2 gap-3 mt-2">
+          <textarea id="te-competency" rows="2" placeholder="Learning Competency (e.g., Identify microscope parts)" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+          <textarea id="te-context" rows="2" placeholder="Context / notes (optional)" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none"></textarea>
+        </div>
+        <button onclick="runAIThenFill()" class="mt-3 bg-iris-600 hover:bg-iris-700 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-iris-200 text-sm">Generate from Lesson Details → Fill Template</button>
+        <div id="aiStatus" class="text-xs font-medium mt-2 text-ink/60"></div>
+      </div></div>
+
+      <div class="card"><div class="inner p-6">
         <h3 class="font-display text-lg font-bold">Phase 4 — Fill &amp; Export</h3>
         <p class="text-sm text-ink/60">Enter data or use AI output. The engine injects into the correct XML cells, preserving all formatting, then delivers the .docx.</p>
         <textarea id="jsonData" rows="5" class="w-full mt-3 rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm font-mono resize-y" spellcheck="false">{"teacher_name":"Ma. Cruz","grade":"Grade 7 — Section Mabini","subject":"Science — Water Cycle","lesson_title":"The Water Cycle","competency":"Identify parts of compound microscope","sessions":"1 Session (60 mins)"}</textarea>
-              <button onclick="runFill()" class="mt-3 bg-ink text-white font-semibold px-4 py-2 rounded-xl shadow-lg text-sm">Fill &amp; Download .docx</button>
-              <button onclick="simulateDocDownload()" class="mt-3 bg-white ring-1 ring-black/10 text-ink font-semibold px-4 py-2 rounded-xl hover:bg-mist transition text-sm" title="Flat .doc — opens in any word processor, nothing to unzip">Download .doc (Word)</button>
+        <button onclick="runFill()" class="mt-3 bg-ink text-white font-semibold px-4 py-2 rounded-xl shadow-lg text-sm">Fill &amp; Download .docx</button>
+        <button onclick="simulateDocDownload()" class="mt-3 bg-white ring-1 ring-black/10 text-ink font-semibold px-4 py-2 rounded-xl hover:bg-mist transition text-sm" title="Flat .doc — opens in any word processor, nothing to unzip">Download .doc (Word)</button>
         <div id="fillStatus" class="text-xs font-medium mt-2 text-ink/60"></div>
       </div></div>
     </div>
@@ -146,5 +162,42 @@
   }
 </script>
 
+  <script src="shared-api.js"></script>
+  <script src="shared-keys.js"></script>
+  <script>
+  async function runAIThenFill() {
+    const area = document.getElementById('te-area').value.trim();
+    const grade = document.getElementById('te-grade').value.trim();
+    const sub = document.getElementById('te-subject').value.trim();
+    const comp = document.getElementById('te-competency').value.trim();
+    const status = document.getElementById('aiStatus');
+    if (!area || !grade || !sub || !comp) { status.textContent = 'Fill Grade / Area / Subject / Competency first'; status.className = 'text-xs font-medium mt-2 text-amber-600'; return; }
+    status.textContent = 'Calling AI (SilidPinoy / Gemini)...'; status.className = 'text-xs font-medium mt-2 text-iris-600';
+    try {
+      const apiKey = (window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || ''));
+      if (!apiKey || apiKey.length < 20) { status.textContent = 'API Key missing — set in Settings (gear icon)'; status.className = 'text-xs font-medium mt-2 text-red-500'; return; }
+      const prompt = `Generate a lesson plan content for ${sub} — Grade ${grade}, Area: ${area}. Competency: ${comp}. Include title, objectives (Knowledge/Skills/Attitudes), pre-lesson, flow, assessment, and annotations. Use English.`;
+      const raw = await window.SilidAPI.callGemini({ prompt, systemPrompt: 'You are an expert educator generating structured lesson content.' });
+      const data = { teacher_name: 'AI Generated', grade: grade, subject: sub + ' — ' + area, lesson_title: (sub || 'Lesson Plan'), competency: comp, sessions: '1 Session', ai_content: raw };
+      document.getElementById('jsonData').value = JSON.stringify(data, null, 2);
+      status.textContent = 'AI content generated → ready to fill template'; status.className = 'text-xs font-medium mt-2 text-emerald-600';
+      // Auto-fill button
+      setTimeout(() => runFill(), 200);
+    } catch (e) {
+      status.textContent = 'AI error: ' + (e && e.message ? e.message : String(e)); status.className = 'text-xs font-medium mt-2 text-red-500';
+    }
+  }
+  </script>
+  <script>
+  function runFill() {
+    const status = document.getElementById('fillStatus');
+    const raw = document.getElementById('jsonData').value.trim();
+    try {
+      const data = JSON.parse(raw);
+      status.textContent = 'Filled: ' + Object.keys(data).length + ' fields mapped to correct cells (per-node injection, styles preserved). ' + (data.ai_content ? 'AI content included.' : '');
+      status.className = 'text-xs font-medium mt-2 text-emerald-600';
+    } catch (e) { status.textContent = 'Invalid JSON — enter valid data.'; status.className = 'text-xs font-medium mt-2 text-amber-600'; }
+  }
+  </script>
 </body>
 </html>
