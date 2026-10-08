@@ -688,7 +688,7 @@
         if (mode==='topic') { if(!topic.trim()){setErrorMsg("Please enter competencies or a topic.");return;} src=`Focus Topic/Competencies: ${topic}`; }
         else { const vf=files.filter(f=>f.status==='done'&&f.text.trim()); if(!vf.length){setErrorMsg("Please upload files with valid text content.");return;} src=vf.map(f=>`--- Document: ${f.name} ---\n${f.text}\n`).join('\n\n'); }
         const struct=sel.map(t=>`- ${t.label}: ${t.count} items`).join('\n');
-        let add=`\n**CRITICAL RULES & FORMATTING:**\n1. **Language:** If Filipino, use Filipino. Otherwise English.\n2. **Section Instructions:** Provide clear instructions below every section header.\n3. **No Cognitive Annotations:** Keep items clean.\n4. **Answer Key Randomization:** Balanced distribution.\n5. **No Document Header:** Do NOT add a school/DepEd header, a main title, or Name/Score/Date/Subject/Grade lines — the app prints them. Start with the first section header.\n`;
+        let add=`\n**CRITICAL RULES & FORMATTING:**\n1. **Language:** If Filipino, use Filipino. Otherwise English.\n2. **Section Instructions:** Provide clear instructions below every section header.\n3. **No Cognitive Annotations:** Keep items clean.\n4. **Answer Key Randomization:** Balanced distribution.\n5. **No Document Header:** Do NOT add a school/DepEd header, a main title, or Name/Score/Date/Subject/Grade lines — the app prints them. Start with the first section header.\n6. **Direct Stems Only:** NEVER start an item with "Which of the following" (or Filipino "Alin sa mga sumusunod"). Name the thing directly instead — e.g. "Which scenario shows...", "Which event caused...", "Which organelle...", "Aling pangyayari...", "Anong organ...".\n`;
         if (tosDistributions && tosDistributions.length > 0) {
           add += `\n**COGNITIVE LEVEL DISTRIBUTION (MANDATORY — STRICTLY FOLLOW):**\n`;
           add += `You MUST distribute test items according to the cognitive levels below. Each competency has a required number of items per cognitive level. Follow this distribution EXACTLY.\n\n`;
@@ -709,7 +709,7 @@
           add += `- Extended Abstract items MUST be the LAST items of the test: place every Extended Abstract question at the end, occupying the highest item numbers. Never place them in the middle or at the beginning — all Unistructural/Multi-structural/Relational items come first.\n\n`;
         }
         const mcq=sel.find(t=>t.id==='mcq');
-        if(mcq){add+=`\n**MCQ Formatting:**\n- Randomize correct answer position (~25% each).\n- Option lengths similar.\n- Underline before item number.\n- WH- word start.\n- 6-8 space indent for options.\n- Layout: short=1 row, medium=2 rows, long=4 rows.\n`;if(mcq.style==='super_stem'){add+=`- SUPER STEM: Divide ALL items into scenarios of 5 questions each. Calculate the number of scenarios from the total count (e.g., 20 items = 4 scenarios). Label each scenario "For items 1-5", "For items 6-10", "For items 11-15", etc. Each scenario must follow the cognitive level distribution above. Wrap each scenario with [SCENARIO_START] and [SCENARIO_END] tags. Min 5 sentences per scenario.\n`;}}
+        if(mcq){add+=`\n**MCQ Formatting:**\n- Randomize correct answer position (~25% each).\n- Option lengths similar.\n- Underline before item number.\n- WH- word start.\n- 6-8 space indent for options.\n- Layout: short=1 row, medium=2 rows, long=4 rows.\n- Direct stems: "Which scenario/event/organ..." — never "Which of the following" (Filipino: never "Alin sa mga sumusunod"; use "Aling pangyayari...", "Anong..." instead).\n`;if(mcq.style==='super_stem'){add+=`- SUPER STEM: Divide ALL items into scenarios of 5 questions each. Calculate the number of scenarios from the total count (e.g., 20 items = 4 scenarios). Label each scenario "For items 1-5", "For items 6-10", "For items 11-15", etc. Each scenario must follow the cognitive level distribution above. Wrap each scenario with [SCENARIO_START] and [SCENARIO_END] tags. Min 5 sentences per scenario.\n`;}}
         const bl=sel.find(t=>t.id==='blanks');
         if(bl){add+=`\n**Fill Blanks:** Word Bank above questions as a 2-column Markdown table (Column 1: Term, Column 2: Definition/Answer). Use a header row and a '|---|---|' delimiter row.\n`;if(bl.style==='paragraph'){add+=`- PARAGRAPH FORMAT: coherent passage with numbered blanks.\n`;}else{add+=`- SENTENCE FORMAT: isolated sentences.\n`;}}
         if(sel.some(t=>['essay','explanation','reflection'].includes(t.id))){add+=`\n**Essay/Explanation/Reflection:** Provide Holistic Rubric formatted as a Markdown table with columns: Score | Criteria | Description. Use a header row and a '|---|---|---|' delimiter row.\n`;}
@@ -1053,10 +1053,26 @@
         return span.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       });
 
+      /* An inline <svg> figure needs the same protection as a formula: the passes
+         below turn every newline into <br>, and <br> is an HTML breakout tag that
+         closes the <svg> and discards the rest of the drawing — a multi-line cube
+         would lose all four of its paths. The block is tokenised and put back
+         verbatim after the Markdown passes, before the formulas are restored. */
+      const SVG_TOKEN_RE = /@@S(\d+)@@/g;
+      const extractSvg = (src) => {
+        const spans = [];
+        const keep = (m) => { spans.push(m); return '@@S' + (spans.length - 1) + '@@'; };
+        const text = String(src || '').replace(SVG_TOKEN_RE, '').replace(/<svg[\s\S]*?<\/svg\s*>/gi, keep);
+        return { text, spans };
+      };
+      const restoreSvg = (html, spans) => String(html).replace(SVG_TOKEN_RE, (m, i) =>
+        spans[i] === undefined ? m : spans[i]);
+
       const formatMarkdown = (text, forWord) => {
         if(!text) return {__html:''};
         const math = extractMath(text);
-        const html = restoreMath(convertOptions(convertTables(math.text), forWord)
+        const svg = extractSvg(math.text);
+        const html = restoreMath(restoreSvg(convertOptions(convertTables(svg.text), forWord)
           .replace(/\[SCENARIO_START\]\s*([\s\S]*?)\s*\[SCENARIO_END\]/gim,'<div class="scenario-box">$1</div>')
           .replace(/^### (.*$)/gim,'<h3 class="text-xl font-bold mt-6 mb-3 text-iris-700 border-b border-black/10 pb-1">$1</h3>')
           .replace(/^## (.*$)/gim,'<h2 class="text-2xl font-bold mt-8 mb-4 text-ink border-b-2 border-iris-200 pb-2">$1</h2>')
@@ -1065,7 +1081,7 @@
           .replace(/\*(.*?)\*/gim,'<em>$1</em>')
           .replace(/^\s*-\s(.*)/gim,'<li class="ml-6 list-disc mb-1">$1</li>')
           .replace(/ {4,}/g,(m)=>'&nbsp;'.repeat(m.length))
-          .replace(/\n/gim,'<br />'), math.spans,
+          .replace(/\n/gim,'<br />'), svg.spans), math.spans,
           !!(forWord && mathMode && window.MathJax && typeof window.MathJax.tex2mml === 'function'));
         return {__html:html};
       };

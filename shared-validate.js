@@ -269,6 +269,15 @@
       warnings.push('Fewer than 5 numbered items detected — the output may be incomplete.');
     }
 
+    // Weak "of the following" stems make poor items: the stem should name the
+    // thing directly ("Which scenario...", never "Which of the following").
+    var weakStems = trimmed.match(/which of the following|alin sa mga sumusunod/gi) || [];
+    if (weakStems.length > 0) {
+      warnings.push('Found ' + weakStems.length + ' "Which of the following"-style stem' +
+        (weakStems.length > 1 ? 's' : '') +
+        ' — rewrite each stem to name the thing directly (e.g. "Which scenario...").');
+    }
+
     // Check for expected question types if provided
     if (config && config.types && Array.isArray(config.types)) {
       normaliseTypes(config.types).forEach(function(t) {
