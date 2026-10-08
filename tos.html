@@ -1505,16 +1505,11 @@
               </a>
               <div className="hidden md:flex items-center gap-1">
               <a href="index.html#test-maker" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Test Maker</a>
-              <span className="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">TOS Maker</span>
+              <button onClick={() => setTosTemplate(null)} title="Choose a TOS format" className="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">TOS Maker</button>
               <a href="lesson.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
               <a href="powerpoint.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
               <a href="activity.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
               </div>
-              {tosTemplate !== null && (
-                <button onClick={() => setTosTemplate(null)} className="nav-link ml-1 rounded-full bg-iris-50 text-iris-700 text-sm font-semibold px-4 py-2.5 hidden sm:flex items-center gap-2 hover:bg-iris-100" title="Switch TOS format">
-                  <LucideIcon name="Layers" className="w-4 h-4" /><span className="hidden sm:inline">Format</span>
-                </button>
-              )}
               <span data-silid-docs-slot className="ml-1 hidden sm:flex items-center"></span>
               <span className="flex items-center gap-1 shrink-0">
               <button onClick={() => setShowSettings(!showSettings)} className="nav-link relative ml-1 rounded-full bg-ink text-white text-sm font-semibold px-4 py-2.5 flex items-center gap-2 btn-spring" title="Settings">
@@ -1529,13 +1524,10 @@
             {mobileOpen && (
               <div className="md:hidden absolute top-full inset-x-4 mt-2 rounded-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 p-2 z-50 animate-fade-in" style={{ boxShadow: '0 24px 70px -30px rgba(11,10,18,0.4)' }}>
                 <a href="index.html#test-maker" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Test Maker</a>
-                <span className="block px-4 py-3 rounded-xl text-sm font-semibold bg-black/5 text-ink">TOS Maker</span>
+                <button onClick={() => { setTosTemplate(null); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-semibold bg-black/5 text-ink">TOS Maker</button>
                 <a href="lesson.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Lesson Plan</a>
                 <a href="powerpoint.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">PPT Maker</a>
                 <a href="activity.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Activity Sheet</a>
-                {tosTemplate !== null && (
-                  <button onClick={() => { setTosTemplate(null); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-semibold text-iris-700 hover:bg-iris-50">Switch TOS format</button>
-                )}
               </div>
             )}
             {showSettings && (
