@@ -65,7 +65,21 @@
       <p class="text-ink/50 text-sm md:text-base mt-3 max-w-xl mx-auto">Zero-tag .docx / .xlsx filling. Upload your school's blank template, enter data, download a completed document that preserves logos, seals, margins, fonts, and table layout.</p>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-6">
+                <div class="card"><div class="inner p-6">
+              <h3 class="font-display text-lg font-bold">Lesson Plan → Template Engine</h3>
+              <p class="text-sm text-ink/60">Generate lesson content from your fields, then inject into your school's blank .docx.</p>
+              <div class="grid md:grid-cols-2 gap-3 mt-3">
+                <input id="lp-area" type="text" placeholder="Learning Area (e.g. Science 7)" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm" />
+                <input id="lp-grade" type="text" placeholder="Grade / Section" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm" />
+              </div>
+              <textarea id="lp-competency" rows="2" placeholder="Learning Competency (e.g., Identify microscope parts)" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm resize-none mt-2"></textarea>
+              <div class="flex gap-2 mt-3">
+                <button onclick="runAIThenFill()" class="bg-iris-600 hover:bg-iris-700 text-white font-semibold px-4 py-2 rounded-xl shadow-lg text-sm">Generate from Lesson Details → Fill Template</button>
+                <button onclick="document.getElementById('fileInput').click()" class="bg-white ring-1 ring-black/10 text-ink font-semibold px-4 py-2 rounded-xl hover:bg-mist text-sm" title="Upload your school's blank .docx">Upload Blank Template</button>
+              </div>
+              <div class="text-[11px] text-ink/45 mt-2">Uses SilidPinoy API (your key in Settings). No image generation.</div>
+            </div></div>
+            <div class="grid md:grid-cols-3 gap-6">
       <div class="card"><div class="inner p-6">
         <h3 class="font-display text-lg font-bold">Phase 1 — Ingest</h3>
         <p class="text-sm text-ink/60">Upload your school's blank .docx. The engine reads the ZIP, unpacks <code>word/document.xml</code>, and scans for placeholders.</p>
