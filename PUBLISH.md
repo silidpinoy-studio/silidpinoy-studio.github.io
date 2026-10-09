@@ -81,9 +81,6 @@ fails on a stale snapshot too, which is the safer of the two guards to rely on.
 
 - **Editing files in `publish/` alone changes nothing on the live site** until
   the change is uploaded to GitHub.
-- **`template-engine.html` is included but not linked from any menu.** It opens
-  at `https://silidpinoy-studio.github.io/template-engine.html` if you want to
-  look at it.
 - **The site needs internet access.** Tailwind, the Fraunces/Plus Jakarta Sans
   fonts, and Lucide load from CDNs. On a weak connection the layout degrades but
   the tools still run.
