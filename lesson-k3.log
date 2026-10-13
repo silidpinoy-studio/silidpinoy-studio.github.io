@@ -1,0 +1,21 @@
+✔ the session duration input tells the AI how long a lesson lasts (7555.4074ms)
+✔ the Lesson Plan Maker adds the K-3 rules for early learners only (7955.6687ms)
+✖ the Lesson Plan Maker keeps the sequence dropdown (with Custom Flow) in multigrade mode (56017.4617ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71990.8854
+
+✖ failing tests:
+
+test at tests\browser\pages.test.mjs:726:1
+✖ the Lesson Plan Maker keeps the sequence dropdown (with Custom Flow) in multigrade mode (56017.4617ms)
+  page.waitForFunction: Timeout 45000ms exceeded.
+      at TestContext.<anonymous> (C:\Users\Administrator\Desktop\SilidPinoy_Studio\tests\browser\pages.test.mjs:788:16) {
+    name: 'TimeoutError',
+    log: []
+  }

@@ -1,0 +1,13 @@
+Update the layout, CSS, and print styling for the multiple-choice questions (MCQ items) to improve alignment and save paper when printing:
+
+Align Questions and Choices: Set up a 2-column layout for each question container using CSS Grid (display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem;).
+
+Question Numbering: Place the question line/numbering (e.g., ___ 1.) inside column 1 (grid-column: 1).
+
+Wrapped Lines & Options Alignment: Place both the question text and the choice options (A), B), C), D)) inside column 2 (grid-column: 2). This ensures choices and wrapped lines of multi-line question text start cleanly in column 2, perfectly aligned with the first word of the question.
+
+Print Optimization & Narrow Margins:
+
+Set @page margins to narrow by default (@page { size: auto; margin: 0.5in; } or 12mm).
+
+Reduce vertical padding and margins under question containers, headings, section breaks, and option lists (margin-bottom: 0.25rem or tighter) to minimize whitespace and conserve paper when exported/printed.

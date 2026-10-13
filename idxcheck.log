@@ -1,0 +1,15 @@
+▶ every page loads with no console or page errors
+  ✔ index.html (6513.6249ms)
+  ✔ lesson.html (4493.4368ms)
+  ✔ activity.html (4460.7457ms)
+  ✔ powerpoint.html (5739.9433ms)
+  ✔ tos.html (5717.9151ms)
+✔ every page loads with no console or page errors (28153.5089ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 28601.807

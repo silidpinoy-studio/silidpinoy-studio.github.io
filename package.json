@@ -1,0 +1,15 @@
+{
+  "name": "silidpinoy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SilidPinoy Studio — browser-only teacher tools. This manifest exists only for the test suite; the app itself is static HTML with no build step.",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "publish:sync": "node scripts/sync-publish.mjs",
+    "test:unit": "node --test \"tests/unit/*.test.mjs\"",
+    "test:browser": "node --test \"tests/browser/*.test.mjs\""
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

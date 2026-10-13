@@ -1,0 +1,900 @@
+import React, { useState, useEffect } from 'react';
+import { Settings, Printer, Sparkles, Plus, Trash2, GraduationCap, BookOpen, Loader2, Download } from 'lucide-react';
+
+const App = () => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Basic Lesson Details
+  const [formData, setFormData] = useState({
+    teacherName: 'MAR C. PATILAN',
+    learningArea: 'ENGLISH',
+    section: 'AMETHYST',
+    time: 'MONDAY-TUESDAY\n10:30 AM-12:00 PM',
+    language: 'English'
+  });
+
+  // Dynamic Grade Levels
+  const [gradeInputs, setGradeInputs] = useState([
+    { 
+      id: 'g1', 
+      level: 'Grade 5', 
+      competency: 'EN5RC-Ia-2.14.1\nInfer the meaning of unfamiliar words (compound) based on given context clues.', 
+      objectives: 'At the end of the lesson, the learners are expected to:\n1. Identify compound words in sentences.\n2. Infer the meaning of compound words using context clues.\n3. Show cooperation in group activities.' 
+    },
+    { 
+      id: 'g2', 
+      level: 'Grade 6', 
+      competency: 'EN6RC-Ia-2.3.1\nAnalyze figures of speech (simile, metaphor) in a given text.', 
+      objectives: 'At the end of the lesson, the learners are expected to:\n1. Differentiate between simile and metaphor.\n2. Identify similes and metaphors in poems or short stories.\n3. Appreciate the use of figurative language in writing.' 
+    }
+  ]);
+
+  // Holds the AI generated content for each grade
+  const [generatedPlan, setGeneratedPlan] = useState([
+    { id: 'g1', resources: '', preLesson: '', flow: '', integration: '', assessment: '', waysForward: '', reflection: '', aiDeclaration: '' },
+    { id: 'g2', resources: '', preLesson: '', flow: '', integration: '', assessment: '', waysForward: '', reflection: '', aiDeclaration: '' }
+  ]);
+
+  const [activeTab, setActiveTab] = useState('input'); // For mobile view
+  const [isStarted, setIsStarted] = useState(false); // Controls home page vs app view
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleGradeInputChange = (index, field, value) => {
+    setGradeInputs(prev => {
+      const newInputs = [...prev];
+      newInputs[index] = { ...newInputs[index], [field]: value };
+      return newInputs;
+    });
+  };
+
+  const handleGradeCountChange = (e) => {
+    const count = parseInt(e.target.value);
+    setGradeInputs(prev => {
+      const newInputs = [...prev];
+      while (newInputs.length < count) {
+        newInputs.push({ id: `g${Date.now()}${Math.random()}`, level: '', competency: '', objectives: '' });
+      }
+      if (newInputs.length > count) {
+        newInputs.length = count;
+      }
+      return newInputs;
+    });
+
+    setGeneratedPlan(prev => {
+      const newPlan = [...prev];
+      while (newPlan.length < count) {
+        newPlan.push({ id: `g${Date.now()}${Math.random()}`, resources: '', preLesson: '', flow: '', integration: '', assessment: '', waysForward: '', reflection: '', aiDeclaration: '' });
+      }
+      if (newPlan.length > count) {
+        newPlan.length = count;
+      }
+      return newPlan;
+    });
+  };
+
+  const handleDownloadWord = () => {
+    const gradeCount = gradeInputs.length;
+    
+    // Construct HTML structure compatible with Microsoft Word rendering
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>Lesson Plan</title>
+        <style>
+          @page WordSection1 { size: 297mm 210mm; mso-page-orientation: landscape; margin: 15mm; }
+          div.WordSection1 { page: WordSection1; font-family: 'Times New Roman', Times, serif; }
+          table { width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 10pt; }
+          td { border: 1px solid black; padding: 5px; vertical-align: top; }
+          .bg-gray { background-color: #f3f4f6; }
+          .section-title { background-color: #d1d5db; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 11pt; }
+          .col-label { background-color: #f9fafb; font-weight: bold; width: 24%; }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .italic { font-style: italic; }
+          .uppercase { text-transform: uppercase; }
+          .sm-text { font-size: 9pt; }
+          .xs-text { font-size: 8pt; }
+        </style>
+      </head>
+      <body>
+        <div class="WordSection1">
+          <div style="text-align: center; margin-bottom: 15px; font-family: 'Times New Roman', Times, serif; line-height: 1.2;">
+              <p style="margin:0; font-size: 9pt;">KAGAWARAN NG EDUKASYON</p>
+              <p style="margin:0; font-size: 9pt;">REPUBLIKA NG PILIPINAS</p>
+              <p style="margin:0; font-size: 9pt;">Republic of the Philippines</p>
+              <h1 style="margin:2px 0; font-size: 13pt; font-weight: bold;">Department of Education</h1>
+              <p style="margin:0; font-size: 9pt;">REGION VIII</p>
+              <p style="margin:0; font-size: 9pt;">SCHOOLS DIVISION OF NORTHERN SAMAR</p>
+              <p style="margin:0; font-size: 9pt;">CATARMAN V DISTRICT</p>
+              <p style="margin:4px 0 0 0; font-size: 10pt; font-weight: bold;">CABAYHAN ELEMENTARY SCHOOL</p>
+          </div>
+
+          <table>
+            <tr>
+              <td colspan="${gradeCount + 1}" style="padding: 0;">
+                <table style="width: 100%; border-collapse: collapse; border: none; margin: 0;">
+                  <tr>
+                    <td style="width: 20%; border: 1px solid black; border-top: none; border-left: none; padding: 5px;" class="col-label">Name of Teacher</td>
+                    <td colspan="3" style="width: 80%; border: 1px solid black; border-top: none; border-right: none; padding: 5px;" class="bold uppercase">${formData.teacherName}</td>
+                  </tr>
+                  <tr>
+                    <td style="width: 20%; border: 1px solid black; border-left: none; padding: 5px;" class="col-label">Learning Area(s)</td>
+                    <td style="width: 40%; border: 1px solid black; padding: 5px;" class="bold uppercase">${formData.learningArea}</td>
+                    <td style="width: 15%; border: 1px solid black; padding: 5px;" class="col-label">Section and</td>
+                    <td style="width: 25%; border: 1px solid black; border-right: none; padding: 5px;" class="bold uppercase">${formData.section}</td>
+                  </tr>
+                  <tr>
+                    <td style="width: 20%; border: 1px solid black; border-left: none; border-bottom: none; padding: 5px;" class="col-label">Grade Level</td>
+                    <td style="width: 40%; border: 1px solid black; border-bottom: none; padding: 5px;" class="bold">${gradeInputs.map(g => g.level).join(' & ')}</td>
+                    <td style="width: 15%; border: 1px solid black; border-bottom: none; padding: 5px;" class="col-label">Time</td>
+                    <td style="width: 25%; border: 1px solid black; border-right: none; border-bottom: none; padding: 5px;" class="bold">${formData.time.replace(/\n/g, '<br/>')}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td colspan="${gradeCount + 1}" class="section-title">INTENTIONS</td></tr>
+            
+            <tr>
+              <td class="col-label bg-gray"></td>
+              ${gradeInputs.map(g => `<td class="bold center bg-gray" style="font-size: 12pt;">${g.level || 'Grade Level'}</td>`).join('')}
+            </tr>
+
+            <tr>
+              <td class="col-label">Learning Competency</td>
+              ${gradeInputs.map(g => `<td class="sm-text">${g.competency.replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+            <tr>
+              <td class="col-label">Learning Objectives</td>
+              ${gradeInputs.map(g => `<td class="sm-text">${g.objectives.replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+            <tr>
+              <td class="col-label">Learning Resources/References</td>
+              ${generatedPlan.map(p => `<td class="sm-text">${(p.resources || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr>
+              <td class="col-label" style="text-align: center; vertical-align: top; padding: 10px;">
+                  <div class="bold" style="margin-bottom: 5px; font-size: 10pt;">Self-Check</div>
+                  <div class="italic xs-text" style="text-align: left;">Here are some reminders as I plan my lesson. Was I able to do the following?</div>
+              </td>
+              <td colspan="${gradeCount}" style="padding: 10px; vertical-align: middle;">
+                  <table style="border: none; width: 100%;">
+                      <tr>
+                          <td style="border: none; width: 50%; padding: 0 15px 0 0; vertical-align: top;">
+                              <p style="margin: 0 0 10px 0; font-size: 9pt; font-style: italic;"><span style="font-style: normal; font-size: 14pt; line-height: 0.5;">&#9744;</span> Activities are aligned with the objectives</p>
+                              <p style="margin: 0 0 10px 0; font-size: 9pt; font-style: italic;"><span style="font-style: normal; font-size: 14pt; line-height: 0.5;">&#9744;</span> Learning Design Principle are intentionally embedded the learning experience</p>
+                              <p style="margin: 0; font-size: 9pt; font-style: italic;"><span style="font-style: normal; font-size: 14pt; line-height: 0.5;">&#9744;</span> Assessment strategies help me and the learners see if the session the objectives are met</p>
+                          </td>
+                          <td style="border: none; width: 50%; padding: 0; vertical-align: top;">
+                              <p style="margin: 0 0 10px 0; font-size: 9pt; font-style: italic;"><span style="font-style: normal; font-size: 14pt; line-height: 0.5;">&#9744;</span> Integration strategies have been explored and appropriately embedded in the Learning Experience</p>
+                              <p style="margin: 0; font-size: 9pt; font-style: italic;"><span style="font-style: normal; font-size: 14pt; line-height: 0.5;">&#9744;</span> Opportunities for support are present for learners with disabilities and learners with unique context</p>
+                          </td>
+                      </tr>
+                  </table>
+              </td>
+            </tr>
+
+            <tr><td colspan="${gradeCount + 1}" class="section-title">LEARNING EXPERIENCE</td></tr>
+            
+            <tr>
+              <td class="col-label">
+                <div class="bold">Pre-Lesson</div>
+                <div class="italic xs-text">What will I do to make my learners get ready for the lesson?</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="sm-text">${(p.preLesson || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr>
+              <td class="col-label">
+                <div class="bold">Flow (TGIA Rotation)</div>
+                <div class="italic xs-text">What activities can I implement to meet the learning objectives? What can I do to:<br/>-make objectives clear for the learners?<br/>-guide learners before letting them try the task on their own?<br/>-check the state of the learners' well-being, understanding, and mastery over the lesson?<br/>-connect today's new concept to the past competencies?<br/>-encourage collaboration among learners?<br/>-invite learners to reflect on why this matter happens to them?<br/>-ensure inclusion for learners' varied abilities, learning styles and contexts?</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="sm-text">${(p.flow || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr>
+              <td class="col-label">
+                <div class="bold">Opportunities for integration</div>
+                <div class="italic xs-text">Are there spaces to meaningfully integrate? another learning area? a special topic? technology?</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="sm-text">${(p.integration || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr><td colspan="${gradeCount + 1}" class="section-title">ASSESSMENT</td></tr>
+            <tr>
+              <td class="col-label">
+                <div class="bold">Formative Assessment</div>
+                <div class="italic xs-text">What task, activity or questions can I use to evaluate learning? What can we do together so that the learners can tell me what kind of support they need from me?</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="sm-text">${(p.assessment || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr><td colspan="${gradeCount + 1}" class="section-title">WAYS FORWARD</td></tr>
+            <tr>
+              <td class="col-label">
+                <div class="bold">Extended learning opportunities</div>
+                <div class="italic xs-text">What experiences outside the classroom can I suggest to learners to reinforce what they have learned? What experiences might make learners more curious engage in this lesson?</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="sm-text">${(p.waysForward || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr>
+              <td class="col-label">
+                <div class="bold">Reflecting on my teaching practice</div>
+                <div class="bold xs-text">Notes for myself and peers</div>
+                <div class="italic xs-text">Is there anything I need to change for tomorrow based on what happened? Is there something the learners are interested in learning? Are there something I would like to share my co-teachers, parents, school leaders about my classroom experience?</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="sm-text italic">${(p.reflection || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+
+            <tr>
+              <td class="col-label">
+                <div class="bold">Declaration of AI use</div>
+                <div class="italic xs-text">Cite how Al was used in the formulation of the lesson plan.</div>
+              </td>
+              ${generatedPlan.map(p => `<td class="xs-text">${(p.aiDeclaration || '').replace(/\n/g, '<br/>')}</td>`).join('')}
+            </tr>
+          </table>
+
+          <table style="border: none; width: 100%; margin-top: 25px;">
+              <tr>
+                  <td style="border: none; width: 50%;">
+                      <p style="margin-bottom: 40px; font-size: 10pt;">Prepared by:</p>
+                      <div class="center">
+                          <p class="bold uppercase" style="margin:0; text-decoration: underline; font-size: 11pt;">${formData.teacherName}</p>
+                          <p style="margin:0; font-size: 10pt;">Teacher III/Adviser</p>
+                      </div>
+                  </td>
+                  <td style="border: none; width: 50%;">
+                      <p style="margin-bottom: 40px; font-size: 10pt;">Checked and Evaluated by:</p>
+                      <div class="center">
+                          <p class="bold uppercase" style="margin:0; text-decoration: underline; font-size: 11pt;">NIEL E. GAJUTOS</p>
+                          <p style="margin:0; font-size: 10pt;">HT-I/School Head</p>
+                      </div>
+                  </td>
+              </tr>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Create a Blob with the Word MIME type
+    const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `TGIA_LessonPlan_${formData.learningArea}_${formData.section}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleGenerate = async (e) => {
+    e.preventDefault();
+    
+    // Check if competencies are filled
+    const missingData = gradeInputs.some(g => !g.level || !g.competency || !g.objectives);
+    if (missingData) {
+      setError('Please ensure all Grade Levels, Competencies, and Objectives are filled out.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError('');
+    setActiveTab('preview');
+
+    const prompt = `
+      Act as an expert Multigrade Teacher in the Philippines (DepEd). Create a semi-detailed multigrade lesson plan.
+      You must use the TGIA (Teacher, Group Work, Independent, Assessment) methodology for the flow to handle the multiple grades simultaneously.
+      
+      Subject: ${formData.learningArea}
+      Time: ${formData.time}
+      Language for the Lesson Plan: ${formData.language}
+      
+      Grade Levels & Objectives:
+      ${gradeInputs.map(g => `
+      - Level: ${g.level}
+        Competency: ${g.competency}
+        Objectives: ${g.objectives}
+      `).join('')}
+
+      CRITICAL INSTRUCTIONS:
+      1. Provide SEPARATE, distinct content for EVERY grade level for ALL sections.
+      2. The 'Flow' section MUST explicitly show the TGIA rotation (e.g., while Grade 5 does [T] Teacher direct instruction, Grade 6 does [I] Independent work). 
+      3. Make the 'Flow' section HIGHLY DETAILED. Do not just list the activities; describe exactly how they will be executed, the flow of discussion, specific examples to be used, and how the teacher transitions between groups. Paint a clear picture of the classroom dynamics.
+      4. GROUP ACTIVITY DIFFERENTIATION: During the [G] Group Work phase in the 'Flow', you MUST explicitly provide differentiated tasks for exactly four groups (Group 1, Group 2, Group 3, Group 4) per grade level. You MUST specify and detail exactly what each group needs to do. The tasks must cater to different learner profiles (e.g., varying difficulty levels, multiple intelligences, or learning styles).
+      5. The Formative Assessment MUST be exactly a 5-item multiple-choice test for EACH grade level. Include options A, B, C, D and the answer key.
+      6. FORMATTING & READABILITY (CRITICAL): You MUST use newline characters (\n) inside your JSON strings to space out the text properly. 
+         - For the 'Flow', separate the T, G, I, A phases with double line breaks (\\n\\n).
+         - For the 'Formative Assessment', format the multiple-choice questions STRICTLY like this, with each option on a new line:
+           1. Question text here?
+           A. Option 1
+           B. Option 2
+           C. Option 3
+           D. Option 4
+           
+           2. Next question text here?
+           (and so on...)
+           
+           Answer Key:
+           1. A
+           2. B
+      7. LANGUAGE REQUIREMENT: ALL generated content within the JSON (resources, preLesson, flow, integration, assessment, waysForward, reflection, aiDeclaration) MUST be written entirely in ${formData.language}. The JSON keys must remain in English.
+      8. Output the result STRICTLY as a JSON object matching the exact structure below. Do not include markdown formatting like \`\`\`json in the output, just the raw JSON object.
+      
+      {
+        "grades": [
+          {
+            "resources": "List of materials/references",
+            "preLesson": "Routine, motivation, or review activities",
+            "flow": "Detailed TGIA sequence (Teacher, Group, Independent, Assessment). Show how rotations happen.",
+            "integration": "Ideas for integrating other subjects, topics, or tech",
+            "assessment": "Exactly a 5-item multiple-choice test with answer key",
+            "waysForward": "Extended learning/homework",
+            "reflection": "Blank template or general reflective questions for this grade",
+            "aiDeclaration": "Statement declaring how AI was used to assist in planning this specific grade's lesson"
+          }
+          // ... repeat for exact number of grades provided
+        ]
+      }
+    `;
+
+    try {
+      const apiKey = "";
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7 }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      let textResponse = data.candidates[0].content.parts[0].text;
+      
+      // Clean up markdown formatting if Gemini included it
+      textResponse = textResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      const parsedData = JSON.parse(textResponse);
+
+      if (parsedData && parsedData.grades && parsedData.grades.length === gradeInputs.length) {
+        setGeneratedPlan(parsedData.grades.map((gradeData, idx) => ({
+          id: gradeInputs[idx].id,
+          ...gradeData
+        })));
+      } else {
+        throw new Error("AI returned data, but it didn't match the number of grade levels requested.");
+      }
+
+    } catch (err) {
+      console.error(err);
+      setError('Failed to generate lesson plan. Ensure your API key is correct and try again. Error: ' + err.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const documentStyles = `
+    @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman:wght@400;700&display=swap');
+    
+    .print-document {
+        font-family: 'Times New Roman', Times, serif;
+        background-color: white;
+        width: 297mm;
+        min-height: 210mm;
+        padding: 15mm 20mm;
+        box-sizing: border-box;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .print-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    
+    .print-table th, .print-table td {
+        border: 2px solid black;
+        padding: 0.5rem;
+        text-align: left;
+        vertical-align: top;
+        font-size: 0.85rem;
+    }
+    
+    .section-title {
+        background-color: #d1d5db;
+        font-weight: bold;
+        text-align: center;
+        text-transform: uppercase;
+        font-size: 1rem;
+    }
+
+    .col-label {
+        background-color: #f9fafb;
+        width: 24%;
+    }
+
+    .checklist-box {
+        width: 12px;
+        height: 12px;
+        border: 1px solid black;
+        display: inline-block;
+        margin-right: 6px;
+        position: relative;
+        top: 2px;
+    }
+
+    /* Print specific overrides */
+    @media print {
+        @page { size: A4 landscape; margin: 0; }
+        body * { visibility: hidden; }
+        .print-area, .print-area * { visibility: visible; }
+        .print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; padding: 15mm; }
+        .no-print { display: none !important; }
+    }
+  `;
+
+  if (!isStarted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex flex-col font-sans relative overflow-hidden">
+        
+        {/* Professional Decorative Background (Glassmorphism blobs) */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+          <div className="absolute -top-[10%] -right-[5%] w-[40%] h-[50%] bg-blue-300/40 rounded-full mix-blend-multiply filter blur-[100px]"></div>
+          <div className="absolute top-[30%] -left-[10%] w-[40%] h-[50%] bg-indigo-300/30 rounded-full mix-blend-multiply filter blur-[120px]"></div>
+          <div className="absolute -bottom-[20%] left-[20%] w-[50%] h-[50%] bg-sky-300/30 rounded-full mix-blend-multiply filter blur-[100px]"></div>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+          <div className="max-w-4xl w-full bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-white p-10 md:p-16 text-center transform transition-all hover:scale-[1.01] duration-500">
+            
+            <div className="mx-auto bg-gradient-to-br from-blue-600 to-indigo-700 w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-xl shadow-blue-600/20 transform -rotate-3 hover:rotate-0 transition-transform duration-300">
+              <BookOpen className="w-12 h-12 text-white" />
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-800 tracking-tight mb-6 leading-tight">
+              AI Multigrade TGIA ILAW <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Lesson Planner</span>
+            </h1>
+            
+            <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-2xl mx-auto leading-relaxed">
+              Empowering DepEd educators with an intelligent, automated tool for generating high-quality, semi-detailed multigrade lesson plans using the proven TGIA rotation methodology.
+            </p>
+            
+            <button 
+              onClick={() => setIsStarted(true)} 
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-10 rounded-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 text-lg mx-auto group"
+            >
+              <Sparkles className="w-6 h-6 group-hover:animate-pulse text-blue-400" /> 
+              Launch Generator
+            </button>
+          </div>
+
+          <div className="mt-16 text-center z-10 bg-white/60 backdrop-blur-md py-5 px-10 rounded-2xl border border-white/50 shadow-sm">
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
+              <GraduationCap className="w-4 h-4 text-slate-400"/> System Developer
+            </p>
+            <p className="text-2xl font-extrabold text-slate-800 tracking-tight">Reymond P. Samoranos</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+      <style>{documentStyles}</style>
+
+      {/* Top Navigation Bar */}
+      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10 no-print shadow-sm">
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsStarted(false)}>
+          <div className="bg-blue-600 p-2 rounded-lg group-hover:bg-blue-700 transition-colors">
+            <BookOpen className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors hidden sm:block">AI Multigrade TGIA ILAW Lesson Planner</h1>
+          <h1 className="text-xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors sm:hidden">ILAW Planner</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={handleDownloadWord}
+            className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm font-semibold shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Download Word
+          </button>
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors text-sm font-semibold shadow-sm"
+          >
+            <Printer className="w-4 h-4" /> Print / Save PDF
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile Tabs */}
+      <div className="flex lg:hidden bg-white border-b border-slate-200 no-print">
+        <button 
+          onClick={() => setActiveTab('input')}
+          className={`flex-1 py-3 text-sm font-semibold ${activeTab === 'input' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}
+        >
+          Input Details
+        </button>
+        <button 
+          onClick={() => setActiveTab('preview')}
+          className={`flex-1 py-3 text-sm font-semibold ${activeTab === 'preview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}
+        >
+          Document Preview
+        </button>
+      </div>
+
+      <main className="flex-1 flex overflow-hidden">
+        
+        {/* Left Column: Input Form */}
+        <div className={`w-full lg:w-[450px] bg-white border-r border-slate-200 overflow-y-auto p-6 no-print ${activeTab === 'input' ? 'block' : 'hidden lg:block'}`}>
+          <form onSubmit={handleGenerate} className="space-y-8">
+            
+            {error && (
+              <div className="bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Basic Info Section */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 border-b pb-2">
+                Basic Information
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Teacher Name</label>
+                  <input type="text" name="teacherName" value={formData.teacherName} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Learning Area</label>
+                  <input type="text" name="learningArea" value={formData.learningArea} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Section</label>
+                  <input type="text" name="section" value={formData.section} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Time/Schedule</label>
+                  <input type="text" name="time" value={formData.time} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500" required />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Lesson Plan Language</label>
+                  <select name="language" value={formData.language} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500">
+                    <option value="English">English</option>
+                    <option value="Filipino">Filipino (Tagalog)</option>
+                    <option value="Cebuano">Cebuano (Bisaya)</option>
+                    <option value="Hiligaynon">Hiligaynon (Ilonggo)</option>
+                    <option value="Waray">Waray</option>
+                    <option value="Iloko">Iloko (Ilocano)</option>
+                    <option value="Bikolano">Bikolano</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Grade Levels Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-blue-500" /> Grade Levels
+                </h2>
+                <select 
+                  value={gradeInputs.length}
+                  onChange={handleGradeCountChange}
+                  className="p-1 border rounded text-sm outline-none"
+                >
+                  <option value={1}>1 Grade</option>
+                  <option value={2}>2 Grades</option>
+                  <option value={3}>3 Grades</option>
+                  <option value={4}>4 Grades</option>
+                </select>
+              </div>
+
+              <div className="space-y-6">
+                {gradeInputs.map((grade, index) => (
+                  <div key={grade.id} className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">Grade {String.fromCharCode(65 + index)}</span>
+                      <input 
+                        type="text" 
+                        value={grade.level}
+                        onChange={(e) => handleGradeInputChange(index, 'level', e.target.value)}
+                        placeholder="e.g., Grade 5"
+                        className="flex-1 p-1.5 border-b border-slate-300 bg-transparent text-sm font-semibold outline-none focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Learning Competency</label>
+                      <textarea 
+                        value={grade.competency}
+                        onChange={(e) => handleGradeInputChange(index, 'competency', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500 min-h-[60px]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Learning Objectives</label>
+                      <textarea 
+                        value={grade.objectives}
+                        onChange={(e) => handleGradeInputChange(index, 'objectives', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm outline-none focus:border-blue-500 min-h-[60px]"
+                        required
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              disabled={isGenerating}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Generating AI Plan...</>
+              ) : (
+                <><Sparkles className="w-5 h-5" /> Generate TGIA Lesson Plan</>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Right Column: Document Preview */}
+        <div className={`flex-1 bg-[#525659] overflow-y-auto p-4 lg:p-8 flex justify-center ${activeTab === 'preview' ? 'block' : 'hidden lg:flex'}`}>
+          
+          <div className="print-area">
+            <div className="print-document">
+              
+              {/* Document Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', border: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', textAlign: 'center' }}>DepEd<br/>Logo</div>
+                <div style={{ textAlign: 'center', flex: 1, lineHeight: '1.2' }}>
+                  <p style={{ fontSize: '0.8rem' }}>KAGAWARAN NG EDUKASYON</p>
+                  <p style={{ fontSize: '0.8rem' }}>REPUBLIKA NG PILIPINAS</p>
+                  <p style={{ fontSize: '0.8rem' }}>Republic of the Philippines</p>
+                  <h1 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '2px 0' }}>Department of Education</h1>
+                  <p style={{ fontSize: '0.8rem' }}>REGION VIII</p>
+                  <p style={{ fontSize: '0.8rem' }}>SCHOOLS DIVISION OF NORTHERN SAMAR</p>
+                  <p style={{ fontSize: '0.8rem' }}>CATARMAN V DISTRICT</p>
+                  <p style={{ fontSize: '0.9rem', fontWeight: 'bold', marginTop: '4px' }}>CABAYHAN ELEMENTARY SCHOOL</p>
+                </div>
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', border: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', textAlign: 'center' }}>School<br/>Logo</div>
+              </div>
+
+              <table className="print-table">
+                <tbody>
+                  {/* Basic Info Rows */}
+                  <tr>
+                    <td colSpan={gradeInputs.length + 1} style={{ padding: 0 }}>
+                      <table className="w-full border-collapse" style={{ height: '100%' }}>
+                        <tbody>
+                          <tr>
+                            <td className="w-[20%] border-r-2 border-b-2 border-black p-2 font-bold bg-[#f9fafb]" style={{ borderTop: 'none', borderLeft: 'none' }}>Name of Teacher</td>
+                            <td className="w-[80%] border-b-2 border-black p-2 font-bold uppercase" colSpan={3} style={{ borderTop: 'none', borderRight: 'none' }}>{formData.teacherName}</td>
+                          </tr>
+                          <tr>
+                            <td className="w-[20%] border-r-2 border-b-2 border-black p-2 font-bold bg-[#f9fafb]" style={{ borderLeft: 'none' }}>Learning Area(s)</td>
+                            <td className="w-[40%] border-r-2 border-b-2 border-black p-2 font-bold uppercase">{formData.learningArea}</td>
+                            <td className="w-[15%] border-r-2 border-b-2 border-black p-2 font-bold bg-[#f9fafb]">Section and</td>
+                            <td className="w-[25%] border-b-2 border-black p-2 font-bold uppercase" style={{ borderRight: 'none' }}>{formData.section}</td>
+                          </tr>
+                          <tr>
+                            <td className="w-[20%] border-r-2 border-black p-2 font-bold bg-[#f9fafb]" style={{ borderLeft: 'none', borderBottom: 'none' }}>Grade Level</td>
+                            <td className="w-[40%] border-r-2 border-black p-2 font-bold" style={{ borderBottom: 'none' }}>{gradeInputs.map(g => g.level).join(' & ')}</td>
+                            <td className="w-[15%] border-r-2 border-black p-2 font-bold bg-[#f9fafb]" style={{ borderBottom: 'none' }}>Time</td>
+                            <td className="w-[25%] p-2 font-bold whitespace-pre-line" style={{ borderRight: 'none', borderBottom: 'none' }}>{formData.time}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+
+                  {/* Intentions Section */}
+                  <tr><td colSpan={gradeInputs.length + 1} className="section-title">INTENTIONS</td></tr>
+                  
+                  {/* Grade Level Headers */}
+                  <tr>
+                    <td className="col-label bg-gray-100"></td>
+                    {gradeInputs.map((grade) => (
+                      <td key={`head-${grade.id}`} className="font-bold text-center text-lg bg-gray-100" style={{ width: `${76 / gradeInputs.length}%` }}>
+                        {grade.level || 'Grade Level'}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Competencies & Objectives Rows */}
+                  <tr>
+                    <td className="col-label font-bold">Learning Competency</td>
+                    {gradeInputs.map(grade => (
+                      <td key={`comp-${grade.id}`} className="whitespace-pre-wrap">{grade.competency}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="col-label font-bold">Learning Objectives</td>
+                    {gradeInputs.map(grade => (
+                      <td key={`obj-${grade.id}`} className="whitespace-pre-wrap">{grade.objectives}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="col-label font-bold">Learning Resources/References</td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`res-${i}`} className="whitespace-pre-wrap text-xs text-gray-700">{plan.resources}</td>
+                    ))}
+                  </tr>
+
+                  {/* Self-Check */}
+                  <tr>
+                    <td className="col-label text-center align-middle p-3">
+                      <div className="font-bold mb-2 text-[0.9rem]">Self-Check</div>
+                      <div className="italic text-[0.75rem] text-left leading-tight text-gray-700">Here are some reminders as I plan my lesson. Was I able to do the following?</div>
+                    </td>
+                    <td colSpan={gradeInputs.length} className="p-3 align-middle">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[0.8rem] italic text-gray-800">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-start gap-2">
+                            <div className="w-4 h-4 border-[1.5px] border-black flex-shrink-0 mt-0.5"></div>
+                            <span className="leading-tight">Activities are aligned with the objectives</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="w-4 h-4 border-[1.5px] border-black flex-shrink-0 mt-0.5"></div>
+                            <span className="leading-tight">Learning Design Principle are intentionally embedded the learning experience</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="w-4 h-4 border-[1.5px] border-black flex-shrink-0 mt-0.5"></div>
+                            <span className="leading-tight">Assessment strategies help me and the learners see if the session the objectives are met</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-start gap-2">
+                            <div className="w-4 h-4 border-[1.5px] border-black flex-shrink-0 mt-0.5"></div>
+                            <span className="leading-tight">Integration strategies have been explored and appropriately embedded in the Learning Experience</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="w-4 h-4 border-[1.5px] border-black flex-shrink-0 mt-0.5"></div>
+                            <span className="leading-tight">Opportunities for support are present for learners with disabilities and learners with unique context</span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Learning Experience */}
+                  <tr><td colSpan={gradeInputs.length + 1} className="section-title">LEARNING EXPERIENCE</td></tr>
+                  
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Pre-Lesson</div>
+                      <div className="italic text-[10px] text-gray-700">What will I do to make my learners get ready for the lesson?</div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`pre-${i}`} className="whitespace-pre-wrap text-xs text-gray-800">{plan.preLesson}</td>
+                    ))}
+                  </tr>
+
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Flow (TGIA Rotation)</div>
+                      <div className="italic text-[10px] text-gray-700">
+                        What activities can I implement to meet the learning objectives? What can I do to:<br/>
+                        -make objectives clear for the learners?<br/>
+                        -guide learners before letting them try the task on their own?<br/>
+                        -check the state of the learners' well-being, understanding, and mastery over the lesson?<br/>
+                        -connect today's new concept to the past competencies?<br/>
+                        -encourage collaboration among learners?<br/>
+                        -invite learners to reflect on why this matter happens to them?<br/>
+                        -ensure inclusion for learners' varied abilities, learning styles and contexts?
+                      </div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`flow-${i}`} className="whitespace-pre-wrap text-xs text-gray-800 leading-relaxed">{plan.flow}</td>
+                    ))}
+                  </tr>
+
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Opportunities for integration</div>
+                      <div className="italic text-[10px] text-gray-700">Are there spaces to meaningfully integrate? another learning area? a special topic? technology?</div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`int-${i}`} className="whitespace-pre-wrap text-xs text-gray-800">{plan.integration}</td>
+                    ))}
+                  </tr>
+
+                  {/* Assessment */}
+                  <tr><td colSpan={gradeInputs.length + 1} className="section-title">ASSESSMENT</td></tr>
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Formative Assessment</div>
+                      <div className="italic text-[10px] text-gray-700">What task, activity or questions can I use to evaluate learning? What can we do together so that the learners can tell me what kind of support they need from me?</div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`ass-${i}`} className="whitespace-pre-wrap text-xs text-gray-800">{plan.assessment}</td>
+                    ))}
+                  </tr>
+
+                  {/* Ways Forward */}
+                  <tr><td colSpan={gradeInputs.length + 1} className="section-title">WAYS FORWARD</td></tr>
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Extended learning opportunities</div>
+                      <div className="italic text-[10px] text-gray-700">What experiences outside the classroom can I suggest to learners to reinforce what they have learned? What experiences might make learners more curious engage in this lesson?</div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`ext-${i}`} className="whitespace-pre-wrap text-xs text-gray-800">{plan.waysForward}</td>
+                    ))}
+                  </tr>
+
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Reflecting on my teaching practice</div>
+                      <div className="font-bold text-[10px] mb-1">Notes for myself and peers</div>
+                      <div className="italic text-[10px] text-gray-700">Is there anything I need to change for tomorrow based on what happened? Is there something the learners are interested in learning? Are there something I would like to share my co-teachers, parents, school leaders about my classroom experience?</div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`ref-${i}`} className="whitespace-pre-wrap text-xs text-gray-800 italic text-gray-400">{plan.reflection}</td>
+                    ))}
+                  </tr>
+
+                  <tr>
+                    <td className="col-label">
+                      <div className="font-bold mb-1">Declaration of AI use</div>
+                      <div className="italic text-[10px] text-gray-700">Cite how Al was used in the formulation of the lesson plan.</div>
+                    </td>
+                    {generatedPlan.map((plan, i) => (
+                      <td key={`ai-${i}`} className="whitespace-pre-wrap text-[10px] text-gray-600">{plan.aiDeclaration}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Signatories */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', padding: '0 40px', fontSize: '0.9rem' }}>
+                <div style={{ width: '40%' }}>
+                  <p style={{ marginBottom: '30px' }}>Prepared by:</p>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase', fontSize: '1rem' }}>{formData.teacherName}</span><br/>
+                    <span>Teacher III/Adviser</span>
+                  </div>
+                </div>
+                <div style={{ width: '40%' }}>
+                  <p style={{ marginBottom: '30px' }}>Checked and Evaluated by:</p>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase', fontSize: '1rem' }}>NIEL E. GAJUTOS</span><br/>
+                    <span>HT-I/School Head</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default App;

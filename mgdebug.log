@@ -1,0 +1,9 @@
+CONSOLE-ERR: Failed to load resource: net::ERR_SOCKET_NOT_CONNECTED
+REPORT: {
+  "hasForm": true,
+  "novalidate": false,
+  "invalid": []
+}
+CONSOLE-ERR: API Error: ReferenceError: section is not defined
+    at HTMLFormElement.<anonymous> (http://127.0.0.1:53343/lesson.html:3235:34)
+AFTER CLICK: {"outputHidden":true,"errBox":null,"loadingHidden":true}

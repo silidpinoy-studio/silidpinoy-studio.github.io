@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Semi-Detailed Lesson Plan (SDLP) Generator</title>
+    
+    <!-- Premium Font: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <!-- PDF.js for reading uploaded Lesson Exemplars -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-glow: rgba(37, 99, 235, 0.4);
+        }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        /* --- Custom Scrollbar --- */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* --- Pro UI Utilities --- */
+        .glass-header {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08);
+        }
+
+        .input-pro {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .input-pro:hover {
+            border-color: #cbd5e1;
+            background-color: #ffffff;
+        }
+        .input-pro:focus {
+            background-color: #ffffff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+            outline: none;
+        }
+
+        .btn-pro {
+            background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+            box-shadow: 0 4px 15px var(--primary-glow);
+            transition: all 0.3s ease;
+        }
+        .btn-pro:hover {
+            box-shadow: 0 8px 25px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+        .btn-pro:active {
+            transform: translateY(1px);
+        }
+
+        /* --- Generated Document Formatting --- */
+        #output-content table:not(.signature-table) {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0;
+            background-color: white;
+            color: #000;
+            border: 2px solid black;
+        }
+        #output-content table.signature-table { width: 100%; border: none; margin-top: 2.5rem; }
+        #output-content thead { display: none; }
+        #output-content table:not(.signature-table) th, #output-content table:not(.signature-table) td {
+            border: 1px solid black; padding: 16px; text-align: left; vertical-align: top;
+        }
+        #output-content table.signature-table td { border: none; padding: 10px; text-align: left; vertical-align: top; }
+        #output-content table:not(.signature-table) td:first-child { width: 32%; }
+        
+        #output-content .lp-title { text-align: center; font-weight: 800; font-style: italic; font-size: 1.4rem; margin: 0.5rem 0 1.2rem; color: black; }
+        #output-content .lp-table { width: 100%; border-collapse: collapse; margin: 0 0 2.5rem 0; background: white; color: black; border: 2px solid black; table-layout: fixed; }
+        #output-content .lp-table td { border: 1px solid black; padding: 14px; vertical-align: top; text-align: left; }
+        #output-content .lp-label { font-weight: 800; font-style: italic; }
+        #output-content .lp-help { display: block; font-size: 0.85em; font-weight: 700; font-style: italic; margin-top: 6px; line-height: 1.4; color: #333; }
+        #output-content .lp-section-header td { background: #e5e7eb; font-weight: 800; font-style: italic; }
+        #output-content .lp-section-title { display: block; font-size: 1.55em; line-height: 1.2; font-weight: 900; font-style: italic; }
+        #output-content .lp-annotation { font-size: 0.9em; line-height: 1.4; color: #1e40af; font-weight: 500; background-color: #eff6ff;}
+        #output-content .lp-table ul, #output-content .lp-table ol { margin-left: 1.2rem; padding-left: 1rem; }
+        #output-content .lp-table li { margin-bottom: 0.4rem; }
+        #output-content h1, #output-content h2, #output-content h3 { font-weight: bold; margin-bottom: 0.75rem; }
+        
+        /* --- Animations --- */
+        @keyframes float {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-20px) scale(1.05); }
+        }
+        @keyframes float-reverse {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(20px) scale(0.95); }
+        }
+        @keyframes fade-in-up {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+        
+        .animate-float { animation: float 8s ease-in-out infinite; }
+        .animate-float-delayed { animation: float-reverse 10s ease-in-out infinite 2s; }
+        .animate-fade-in-up { animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        
+        .text-gradient {
+            background: linear-gradient(to right, #2563eb, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .bg-mesh {
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(at 40% 20%, hsla(228,100%,74%,0.15) 0px, transparent 50%),
+                radial-gradient(at 80% 0%, hsla(189,100%,56%,0.15) 0px, transparent 50%),
+                radial-gradient(at 0% 50%, hsla(355,100%,93%,0.1) 0px, transparent 50%),
+                radial-gradient(at 80% 50%, hsla(340,100%,76%,0.15) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, hsla(22,100%,77%,0.1) 0px, transparent 50%),
+                radial-gradient(at 80% 100%, hsla(242,100%,70%,0.15) 0px, transparent 50%),
+                radial-gradient(at 0% 0%, hsla(343,100%,76%,0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Checkbox styling */
+        .checkbox-pro {
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #cbd5e1;
+            border-radius: 0.375rem;
+            background-color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .checkbox-pro:checked {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        .checkbox-pro:checked::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: white;
+            font-size: 0.75rem;
+        }
+        .checkbox-pro:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-mesh min-h-screen flex flex-col relative overflow-x-hidden">
+
+    <!-- Global Background Orbs -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute -top-[10%] -left-[10%] w-[40vw] h-[40vw] bg-blue-400/20 rounded-full mix-blend-multiply filter blur-[100px] animate-float"></div>
+        <div class="absolute top-[20%] -right-[10%] w-[35vw] h-[35vw] bg-indigo-400/20 rounded-full mix-blend-multiply filter blur-[100px] animate-float-delayed"></div>
+        <div class="absolute -bottom-[10%] left-[20%] w-[45vw] h-[45vw] bg-purple-400/20 rounded-full mix-blend-multiply filter blur-[120px] animate-float"></div>
+    </div>
+
+    <!-- Professional Glass Header -->
+    <header class="glass-header sticky top-0 z-50 px-6 py-4 transition-all" id="home-link" title="Go to Homepage" style="cursor: pointer;">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4 group">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
+                    <i class="fas fa-chalkboard-teacher text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-800" id="app-title">AI Lesson Planner <span class="text-blue-600">Pro</span></h1>
+                    <p class="text-xs font-medium text-slate-500 tracking-wide" id="app-subtitle">S.Y. 2026-2027 • New Trimester</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <!-- Language Selector -->
+                <div class="flex items-center gap-2 text-sm font-semibold bg-white/80 border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:border-blue-300 transition-colors" onclick="event.stopPropagation();">
+                    <i class="fas fa-globe text-blue-500"></i>
+                    <select id="language-select" class="bg-transparent focus:outline-none cursor-pointer text-slate-700">
+                        <option value="en">English</option>
+                        <option value="fil">Filipino</option>
+                    </select>
+                </div>
+                
+                <div class="hidden md:flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full">
+                    <i class="fas fa-code"></i> By Reymond P. Samoranos
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div id="home-view" class="flex flex-col items-center justify-center flex-grow text-center px-4 py-12 relative z-10">
+        <div class="glass-card p-10 md:p-16 rounded-[2.5rem] max-w-4xl w-full relative overflow-hidden animate-fade-in-up">
+            
+            <div class="absolute inset-0 bg-gradient-to-br from-white/40 to-white/10 pointer-events-none"></div>
+
+            <div class="mb-8 relative inline-flex items-center justify-center">
+                <div class="absolute inset-0 bg-blue-50 blur-3xl opacity-20 rounded-full scale-150"></div>
+                <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-center shadow-xl relative z-10 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+                    <i class="fas fa-bolt text-5xl text-gradient"></i>
+                </div>
+            </div>
+
+            <h2 class="text-4xl md:text-6xl font-extrabold text-slate-800 mb-6 tracking-tight leading-tight animate-fade-in-up delay-100" id="hero-title">
+                Craft <span class="text-gradient">Masterful</span> ILAW Lesson Plans in Seconds.
+            </h2>
+            
+            <p class="text-slate-500 mb-10 max-w-2xl mx-auto text-lg leading-relaxed animate-fade-in-up delay-200" id="hero-desc">
+                The ultimate AI-powered workspace for educators. Generate highly structured, differentiated, and PPST-aligned Semi-Detailed Lesson Plans effortlessly.
+            </p>
+            
+            <button id="start-btn" class="btn-pro relative inline-flex items-center justify-center px-8 py-4 font-bold text-white rounded-2xl text-lg animate-fade-in-up delay-300 group">
+                <span id="start-btn-text" class="relative z-10 flex items-center gap-3">
+                    Open Workspace <i class="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>
+                </span>
+            </button>
+        </div>
+    </div>
+
+    <div id="planner-view" class="hidden flex-grow w-full z-10 pb-12 pt-6">
+        <main class="max-w-[1400px] mx-auto px-4 md:px-6 lg:flex lg:gap-8 items-start">
+            
+            <!-- Input Form Section (Left Column) -->
+            <section class="glass-card rounded-[2rem] p-6 lg:p-8 mb-6 lg:mb-0 lg:w-[400px] xl:w-[450px] flex-shrink-0 animate-fade-in-up">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                        <i class="fas fa-sliders-h"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800" id="form-title">Lesson Parameters</h2>
+                </div>
+                
+                <form id="lesson-form" class="space-y-5">
+                    
+                    <!-- Exemplar Upload Dropzone -->
+                    <div class="relative group">
+                        <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                        <div class="relative bg-white border-2 border-dashed border-blue-200 hover:border-blue-400 rounded-2xl p-5 text-center transition-colors">
+                            <i class="fas fa-cloud-upload-alt text-3xl text-blue-400 mb-3 group-hover:text-blue-500 transition-colors transform group-hover:-translate-y-1"></i>
+                            <h3 class="text-sm font-bold text-slate-700 mb-1" id="lbl-exemplar">Upload Reference Exemplar (PDF)</h3>
+                            <p class="text-xs text-slate-400 mb-4" id="lbl-exemplar-desc">Auto-extract standards & competencies.</p>
+                            
+                            <div class="relative overflow-hidden inline-block">
+                                <button type="button" class="bg-blue-50 text-blue-600 font-semibold py-2 px-4 rounded-xl text-sm hover:bg-blue-100 transition-colors">Choose File</button>
+                                <input type="file" id="pdf-upload" accept="application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                            </div>
+                            
+                            <div id="pdf-loading" class="hidden mt-3 text-xs text-blue-600 font-semibold bg-blue-50 py-1.5 rounded-lg flex items-center justify-center gap-2">
+                                <i class="fas fa-circle-notch fa-spin"></i> <span id="lbl-extracting">Extracting...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Days Selection -->
+                    <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-3" id="lbl-days">Reference Days <span class="text-xs text-slate-400 font-normal ml-1" id="lbl-days-desc">(For uploaded PDFs)</span></label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center gap-3 p-2 rounded-xl hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-200">
+                                <input type="checkbox" value="Day 1" class="checkbox-pro"> <span class="text-sm font-medium text-slate-600">Day 1</span>
+                            </label>
+                            <label class="flex items-center gap-3 p-2 rounded-xl hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-200">
+                                <input type="checkbox" value="Day 2" class="checkbox-pro"> <span class="text-sm font-medium text-slate-600">Day 2</span>
+                            </label>
+                            <label class="flex items-center gap-3 p-2 rounded-xl hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-200">
+                                <input type="checkbox" value="Day 3" class="checkbox-pro"> <span class="text-sm font-medium text-slate-600">Day 3</span>
+                            </label>
+                            <label class="flex items-center gap-3 p-2 rounded-xl hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-200">
+                                <input type="checkbox" value="Day 4" class="checkbox-pro"> <span class="text-sm font-medium text-slate-600">Day 4</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-out-lang">Output Language <span class="text-blue-500">*</span></label>
+                            <div class="relative">
+                                <select id="outputLanguage" class="w-full input-pro rounded-xl p-3 pr-10 text-sm font-semibold text-slate-800 appearance-none cursor-pointer">
+                                    <option value="en">English</option>
+                                    <option value="fil">Filipino</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                    <i class="fas fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-area">Learning Area <span class="text-blue-500">*</span></label>
+                            <input type="text" id="learningArea" required value="Science 7" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-teacher">Teacher <span class="text-blue-500">*</span></label>
+                                <input type="text" id="teacherName" required value="Reymond P. Samoranos" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-trole">Role</label>
+                                <input type="text" id="teacherRole" required value="Teacher III" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-checker">Checker <span class="text-blue-500">*</span></label>
+                                <input type="text" id="checkerName" required value="Juan A. Dela Cruz" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-crole">Role</label>
+                                <input type="text" id="checkerRole" required value="Master Teacher II" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-grade">Grade/Sec <span class="text-blue-500">*</span></label>
+                                <input type="text" id="gradeSection" required value="Grade 7 - Archimedes" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-sessions">Sessions <span class="text-blue-500">*</span></label>
+                                <input type="text" id="sessions" required value="1 Session (60 mins)" class="w-full input-pro rounded-xl p-3 text-sm font-medium text-slate-800">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-competency">Learning Competency <span class="text-blue-500">*</span></label>
+                            <textarea id="competency" required rows="2" class="w-full input-pro rounded-xl p-3 text-sm text-slate-800 resize-none">Identify parts of the microscope and their functions. (S7LT-IIa-1)</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-standards">Curriculum Standards <span class="text-slate-400 font-normal normal-case">(Optional)</span></label>
+                            <textarea id="curriculumStandards" rows="2" placeholder="Content Standards..." class="w-full input-pro rounded-xl p-3 text-sm text-slate-800 resize-none">The learners demonstrate an understanding of the parts and functions of the compound microscope.</textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-perf-standards">Performance Standards <span class="text-slate-400 font-normal normal-case">(Optional)</span></label>
+                            <textarea id="performanceStandards" rows="2" placeholder="Performance Standards..." class="w-full input-pro rounded-xl p-3 text-sm text-slate-800 resize-none">The learners should be able to employ appropriate techniques using the compound microscope to gather data about very small objects.</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-ppst">PPST / COI Indicators <span class="text-slate-400 font-normal normal-case">(Optional)</span></label>
+                            <div class="space-y-2">
+                                <div class="relative">
+                                    <select id="ppstPreset" class="w-full input-pro rounded-xl p-3 pr-10 text-sm font-semibold text-slate-800 appearance-none cursor-pointer">
+                                        <option value="custom">Custom / Type your own</option>
+                                        <option value="t_co1">Teacher I-VII (CO 1)</option>
+                                        <option value="t_co2">Teacher I-VII (CO 2)</option>
+                                        <option value="mt_co1">Master Teacher I-II (CO 1)</option>
+                                        <option value="mt_co2">Master Teacher I-II (CO 2)</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                        <i class="fas fa-chevron-down text-xs"></i>
+                                    </div>
+                                </div>
+                                <textarea id="ppstIndicators" rows="5" placeholder="Select a preset above or type your own e.g., 1.1.2, 1.4.2..." class="w-full input-pro rounded-xl p-3 text-sm text-slate-800 resize-y min-h-[80px]">1.1.2 Apply knowledge of content within and across curriculum teaching areas.
+1.5.2 Apply a range of teaching strategies to develop critical and creative thinking.</textarea>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-objectives">Learning Objectives <span class="text-slate-400 font-normal normal-case">(Optional)</span></label>
+                            <textarea id="objectives" rows="3" class="w-full input-pro rounded-xl p-3 text-sm text-slate-800 resize-none">Knowledge: Identify the major parts of a compound light microscope.
+Skills: Demonstrate the proper handling of the microscope.
+Attitudes: Appreciate the importance of the microscope in science.</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-strategy">Instructional Strategy</label>
+                            <div class="relative">
+                                <select id="instructionalStrategy" class="w-full input-pro rounded-xl p-3 pr-10 text-sm font-semibold text-slate-800 appearance-none cursor-pointer">
+                                    <option value="standard" id="opt-standard">Standard DepEd Guidelines</option>
+                                    <option value="4as" id="opt-4as">4A's Approach</option>
+                                    <option value="5es" id="opt-5es">5E's Model</option>
+                                    <option value="7es" id="opt-7es">7E's Model</option>
+                                    <option value="explicit" id="opt-explicit">Explicit Instruction</option>
+                                    <option value="inquiry" id="opt-inquiry">Inquiry-Based Learning</option>
+                                    <option value="cooperative" id="opt-cooperative">Cooperative Learning</option>
+                                    <option value="differentiated" id="opt-differentiated">Differentiated Instruction</option>
+                                    <option value="problem" id="opt-problem">Problem-Based Learning</option>
+                                    <option value="project" id="opt-project">Project-Based Learning</option>
+                                    <option value="idowedoyoudo" id="opt-idowedoyoudo">I Do, We Do, You Do</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                    <i class="fas fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1" id="lbl-context-input">Contextualization <span class="text-slate-400 font-normal normal-case">(Optional)</span></label>
+                            <textarea id="contextualization" rows="2" placeholder="Local culture, community setting..." class="w-full input-pro rounded-xl p-3 text-sm text-slate-800 resize-none"></textarea>
+                        </div>
+                    </div>
+
+                    <div id="error-message" class="hidden bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm flex items-start gap-3">
+                        <i class="fas fa-exclamation-circle mt-0.5"></i>
+                        <span id="error-text"></span>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" id="generate-btn" class="btn-pro w-full text-white font-bold py-3.5 px-4 rounded-xl flex justify-center items-center gap-2 text-base">
+                            <i class="fas fa-wand-magic-sparkles"></i> <span id="generate-btn-text">Generate Lesson Plan</span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="glass-card rounded-[2rem] p-6 lg:p-8 flex-grow flex flex-col min-h-[700px] xl:min-h-[850px] animate-fade-in-up delay-100 relative overflow-hidden">
+                
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-100 gap-4 z-10">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+                            <i class="fas fa-file-contract"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-slate-800" id="output-title">Workspace Output</h2>
+                    </div>
+                    
+                    <div class="flex gap-2 w-full sm:w-auto">
+                        <button id="download-btn" class="hidden flex-1 sm:flex-none justify-center items-center gap-2 text-sm bg-white hover:bg-slate-50 text-slate-700 py-2 px-4 rounded-xl border border-slate-200 font-semibold shadow-sm transition-all hover:border-slate-300">
+                            <i class="fas fa-file-word text-blue-600"></i> <span id="btn-dl">Export Word</span>
+                        </button>
+                        <button id="copy-btn" class="hidden flex-1 sm:flex-none justify-center items-center gap-2 text-sm bg-slate-800 hover:bg-slate-900 text-white py-2 px-4 rounded-xl font-semibold shadow-sm transition-all hover:shadow-md">
+                            <i class="far fa-copy"></i> <span id="btn-copy">Copy</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="output-container" class="flex-grow flex flex-col relative overflow-y-auto pr-3 z-10">
+                    
+                    <!-- Empty State -->
+                    <div id="empty-state" class="m-auto text-center max-w-sm">
+                        <div class="w-24 h-24 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-6">
+                            <i class="fas fa-robot text-4xl text-blue-300"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-700 mb-2" id="empty-p1">Awaiting Instructions</h3>
+                        <p class="text-sm text-slate-500" id="empty-p2">Configure your lesson parameters on the left and hit generate to create a beautifully structured plan.</p>
+                    </div>
+
+                    <!-- Modern Loading State -->
+                    <div id="loading-state" class="hidden m-auto w-full max-w-2xl flex flex-col items-center justify-center">
+                        <div class="relative w-20 h-20 mb-8">
+                            <div class="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                            <i class="fas fa-brain absolute inset-0 m-auto w-fit h-fit text-xl text-blue-600 animate-pulse"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2 text-center" id="loading-p1">Master Teacher AI is synthesizing...</h3>
+                        <p class="text-sm text-slate-500 text-center max-w-md" id="loading-p2">Applying pedagogical frameworks, structuring activities, and aligning with PPST indicators.</p>
+                        
+                        <!-- Skeleton loading lines -->
+                        <div class="w-full mt-10 space-y-4 opacity-50">
+                            <div class="h-4 bg-slate-200 rounded animate-pulse w-3/4 mx-auto"></div>
+                            <div class="h-4 bg-slate-200 rounded animate-pulse w-1/2 mx-auto"></div>
+                            <div class="h-4 bg-slate-200 rounded animate-pulse w-5/6 mx-auto"></div>
+                        </div>
+                    </div>
+
+                    <!-- Actual Output Container -->
+                    <div id="output-content" class="hidden text-sm md:text-base pb-10 font-serif leading-relaxed bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-slate-100 mt-2">
+                        <!-- Content Injected Here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-auto py-8 text-center text-sm text-slate-500 relative z-10">
+        <p class="mb-1" id="footer-text">Built with <i class="fas fa-heart text-red-400 mx-1"></i> by <span class="font-bold text-slate-700">Reymond P. Samoranos</span></p>
+    </footer>
+
+    <script>
+        // Language Dictionaries
+        const translations = {
+            en: {
+                appSubtitle: "S.Y. 2026-2027 • New Trimester",
+                heroDesc: "The ultimate AI-powered workspace for educators. Generate highly structured, differentiated, and PPST-aligned Semi-Detailed Lesson Plans effortlessly.",
+                startBtn: "Open Workspace",
+                formTitle: "Lesson Parameters",
+                lblExemplar: 'Upload Reference Exemplar (PDF)',
+                lblExemplarDesc: 'Auto-extract standards & competencies.',
+                lblExtracting: 'Extracting...',
+                lblDays: 'Reference Days <span class="text-xs text-slate-400 font-normal ml-1" id="lbl-days-desc">(For uploaded PDFs)</span>',
+                lblOutLang: 'Output Language <span class="text-blue-500">*</span>',
+                lblArea: 'Learning Area <span class="text-blue-500">*</span>',
+                lblTeacher: 'Teacher <span class="text-blue-500">*</span>',
+                lblTrole: "Role",
+                lblChecker: 'Checker <span class="text-blue-500">*</span>',
+                lblCrole: "Role",
+                lblGrade: 'Grade/Sec <span class="text-blue-500">*</span>',
+                lblSessions: 'Sessions <span class="text-blue-500">*</span>',
+                lblCompetency: 'Learning Competency <span class="text-blue-500">*</span>',
+                lblStandards: 'Curriculum Standards <span class="text-slate-400 font-normal normal-case">(Optional)</span>',
+                lblPerfStandards: 'Performance Standards <span class="text-slate-400 font-normal normal-case">(Optional)</span>',
+                lblPpst: 'PPST / COI Indicators <span class="text-slate-400 font-normal normal-case">(Optional)</span>',
+                lblObjectives: 'Learning Objectives <span class="text-slate-400 font-normal normal-case">(Optional)</span>',
+                lblStrategy: 'Instructional Strategy',
+                optStandard: 'Standard DepEd Guidelines',
+                opt4As: "4A's Approach",
+                opt5Es: "5E's Model",
+                opt7Es: "7E's Model",
+                optExplicit: "Explicit Instruction",
+                optInquiry: "Inquiry-Based Learning",
+                optCoop: "Cooperative Learning",
+                optDiff: "Differentiated Instruction",
+                optProb: "Problem-Based Learning",
+                optProj: "Project-Based Learning",
+                optIDo: "I Do, We Do, You Do",
+                lblContextInput: 'Contextualization <span class="text-slate-400 font-normal normal-case">(Optional)</span>',
+                generateBtn: "Generate Lesson Plan",
+                generatingBtn: "Generating...",
+                outputTitle: "Workspace Output",
+                btnDl: "Export Word",
+                btnCopy: "Copy",
+                emptyP1: "Awaiting Instructions",
+                emptyP2: "Configure your lesson parameters on the left and hit generate to create a beautifully structured plan.",
+                loadingP1: "Master Teacher AI is synthesizing...",
+                loadingP2: "Applying pedagogical frameworks, structuring activities, and aligning with PPST indicators.",
+                
+                // Defaults
+                defArea: "Science 7",
+                defGrade: "Grade 7 - Archimedes",
+                defSessions: "1 Session (60 mins)",
+                defCompetency: "Identify parts of the microscope and their functions. (S7LT-IIa-1)",
+                defObjectives: "Knowledge: Identify the major parts of a compound light microscope.\nSkills: Demonstrate the proper handling of the microscope.\nAttitudes: Appreciate the importance of the microscope in science.",
+                defStandards: "The learners demonstrate an understanding of the parts and functions of the compound microscope.",
+                defPerfStandards: "The learners should be able to employ appropriate techniques using the compound microscope to gather data about very small objects.",
+                defPPST: "1.1.2 Apply knowledge of content within and across curriculum teaching areas.\n1.5.2 Apply a range of teaching strategies to develop critical and creative thinking.",
+
+                // Markdown Table Translation
+                md: {
+                    name: "Lesson Title",
+                    area: "Learning Area",
+                    teacher: "Teacher",
+                    grade: "Grade Level and Section",
+                    sessions: "No. of Sessions",
+                    ref: "References",
+                    ai: "Declaration of AI use",
+                    aiText: "AI was used to organize the lesson plan, generate learner-centered activities, suggest annotations aligned with PPST indicators and Learning Design Principles, and draft assessment items.",
+                    intentionsHead: "Intentions.",
+                    intentionsDesc: "Meaningful learning experiences are anchored in how we frame them. Start by deciding what you want learners to master by the end of the lesson.",
+                    compTitle: "Standards and Competencies:",
+                    objTitle: "**Learning Objectives:**<br><em style='font-size:0.85em;'>(Knowledge, Skills, Attitudes)</em>",
+                    contextTitle: "**Learner Context:**",
+                    expHead: "Learning Experience.",
+                    expDesc: "Identify activities and interactions to help learners gain knowledge, skills, or understanding in a purposeful way.",
+                    preTitle: "**Pre-Lesson:**<br><em style='font-size:0.85em;'>(Preparation/Review)</em>",
+                    preInst: "(Generate a detailed, engaging pre-lesson activity/active retrieval. At the end, provide an image generation prompt: [IMAGE_PROMPT: a detailed description in English])",
+                    flowTitle: "**Flow:**<br><em style='font-size:0.85em;'>(Main procedure based on selected strategy)</em>",
+                    resTitle: "**Learning Resources:**",
+                    integTitle: "**Integration:**",
+                    assessHead: "Assessment.",
+                    assessDesc: "Evaluate learning and provide feedback.",
+                    formTitle: "**Formative Assessment:**",
+                    waysHead: "Ways Forward.",
+                    waysDesc: "Meaningful learning can also happen beyond the classroom.",
+                    extTitle: "**Extended learning:**",
+                    refTitle: "**Reflections:**",
+                    prepBy: "Prepared by:",
+                    checkBy: "Checked by:"
+                }
+            },
+            fil: {
+                appSubtitle: "S.Y. 2026-2027 • Bagong Trimester",
+                heroDesc: "Ang pinakamahusay na AI workspace para sa mga guro. Bumuo ng maayos, differentiated, at PPST-aligned na Semi-Detailed Lesson Plans nang walang kahirap-hirap.",
+                startBtn: "Buksan ang Workspace",
+                formTitle: "Mga Detalye ng Aralin",
+                lblExemplar: 'I-upload ang Exemplar (PDF)',
+                lblExemplarDesc: 'Awtomatikong kukunin ang standards at kasanayan.',
+                lblExtracting: 'Kinukuha...',
+                lblDays: 'Mga Araw <span class="text-xs text-slate-400 font-normal ml-1" id="lbl-days-desc">(Para sa PDF)</span>',
+                lblOutLang: 'Wika ng Awtput <span class="text-blue-500">*</span>',
+                lblArea: 'Asignatura <span class="text-blue-500">*</span>',
+                lblTeacher: 'Guro <span class="text-blue-500">*</span>',
+                lblTrole: "Posisyon",
+                lblChecker: 'Sinuri ni <span class="text-blue-500">*</span>',
+                lblCrole: "Posisyon",
+                lblGrade: 'Baitang/Seksyon <span class="text-blue-500">*</span>',
+                lblSessions: 'Sesyon <span class="text-blue-500">*</span>',
+                lblCompetency: 'Kasanayang Pampagkatuto <span class="text-blue-500">*</span>',
+                lblStandards: 'Pamantayan ng Kurikulum <span class="text-slate-400 font-normal normal-case">(Opsiyonal)</span>',
+                lblPerfStandards: 'Pamantayan sa Pagganap <span class="text-slate-400 font-normal normal-case">(Opsiyonal)</span>',
+                lblPpst: 'PPST / COI Indicators <span class="text-slate-400 font-normal normal-case">(Opsiyonal)</span>',
+                lblObjectives: 'Mga Layunin <span class="text-slate-400 font-normal normal-case">(Opsiyonal)</span>',
+                lblStrategy: 'Istratehiya sa Pagtuturo',
+                optStandard: 'Karaniwang DepEd Format',
+                opt4As: "4A's na Pamamaraan",
+                opt5Es: "5E's Model",
+                opt7Es: "7E's Model",
+                optExplicit: "Tahasang Pagtuturo (Explicit)",
+                optInquiry: "Pagsisiyasat (Inquiry-Based)",
+                optCoop: "Kooperatibong Pag-aaral",
+                optDiff: "Pagtuturong Naiiba-iba (Differentiated)",
+                optProb: "Nakabatay sa Problema",
+                optProj: "Nakabatay sa Proyekto",
+                optIDo: "I Do, We Do, You Do",
+                lblContextInput: 'Kontekstwalisasyon <span class="text-slate-400 font-normal normal-case">(Opsiyonal)</span>',
+                generateBtn: "Bumuo ng Lesson Plan",
+                generatingBtn: "Binubuo...",
+                outputTitle: "Nabuong Aralin",
+                btnDl: "I-export (Word)",
+                btnCopy: "Kopyahin",
+                emptyP1: "Naghihintay ng Detalye",
+                emptyP2: "Ilagay ang mga detalye ng aralin sa kaliwa at i-click ang bumuo upang makagawa ng maayos na plano.",
+                loadingP1: "Pinoproseso ng AI Master Teacher...",
+                loadingP2: "Inilalapat ang mga panuntunan sa pagtuturo, inaayos ang mga gawain, at isinasama ang PPST indicators.",
+                
+                // Defaults (Filipino Subject context)
+                defArea: "Filipino 8",
+                defGrade: "Baitang 8 - Mabini",
+                defSessions: "1 Sesyon (60 min)",
+                defCompetency: "Naiuugnay ang mga kaisipan sa akda sa mga kaganapan sa sarili, lipunan, at daigdig. (F8PB-Ig-h-24)",
+                defObjectives: "Kaalaman: Natutukoy ang pangunahing kaisipan.\nKasanayan: Nakapagsusulat ng repleksyon.\nSaloobin: Napahahalagahan ang kaisipan sa sariling karanasan.",
+                defStandards: "Naipamamalas ng mag-aaral ang pag-unawa sa mga akdang pampanitikan sa Panahon ng mga Katutubo, Espanyol at Hapon.",
+                defPerfStandards: "Nabubuo ang isang makatotohanang proyektong panturismo gamit ang mga akdang pampanitikan.",
+                defPPST: "1.1.2 Naipapakita ang kaalaman sa nilalaman at antas ng pagtuturo.\n1.5.2 Nakagagamit ng iba't ibang estratehiya sa pagtuturo upang malinang ang mapanuri at malikhaing pag-iisip.",
+
+                // Markdown Table Translation
+                md: {
+                    name: "Pamagat ng Aralin",
+                    area: "Asignatura",
+                    teacher: "Guro",
+                    grade: "Baitang at Seksyon",
+                    sessions: "Bilang ng Sesyon",
+                    ref: "Mga Sanggunian",
+                    ai: "Deklarasyon ng AI",
+                    aiText: "Ginamit ang AI upang ayusin ang lesson plan, bumuo ng learner-centered na gawain, magmungkahi ng anotasyon para sa PPST, at gumawa ng pagtataya.",
+                    intentionsHead: "Mga Layunin.",
+                    intentionsDesc: "Ang makabuluhang karanasan ay nakaugat sa kung paano natin ito binabalangkas. Panatilihin itong malinaw at simple.",
+                    compTitle: "Pamantayan at Kasanayan:",
+                    objTitle: "**Mga Layunin:**",
+                    contextTitle: "**Konteksto ng Mag-aaral:**",
+                    expHead: "Karanasan sa Pagkatuto.",
+                    expDesc: "Tukuyin ang mga gawain upang matulungan ang mga mag-aaral na matuto nang may layunin.",
+                    preTitle: "**Bago ang Aralin:**",
+                    preInst: "(Gumawa ng nakakaengganyong aktibidad bago magsimula. Sa dulo, magbigay ng image prompt: [IMAGE_PROMPT: English description])",
+                    flowTitle: "**Daloy ng Aralin:**",
+                    resTitle: "**Mga Kagamitan:**",
+                    integTitle: "**Integrasyon:**",
+                    assessHead: "Pagtataya.",
+                    assessDesc: "Suriin kung ano ang natutunan ng mga mag-aaral.",
+                    formTitle: "**Pormatibong Pagtataya:**",
+                    waysHead: "Mga Susunod na Hakbang.",
+                    waysDesc: "Magnilay sa nangyari ngayong araw.",
+                    extTitle: "**Karagdagang Gawain:**",
+                    refTitle: "**Pagninilay:**",
+                    prepBy: "Inihanda ni:",
+                    checkBy: "Sinuri ni:"
+                }
+            }
+        };
+
+        let currentLang = 'en';
+        let uploadedPdfText = ""; 
+
+        // DOM Elements
+        const homeView = document.getElementById('home-view');
+        const plannerView = document.getElementById('planner-view');
+        const startBtn = document.getElementById('start-btn');
+        const homeLink = document.getElementById('home-link');
+        const form = document.getElementById('lesson-form');
+        const generateBtn = document.getElementById('generate-btn');
+        const emptyState = document.getElementById('empty-state');
+        const loadingState = document.getElementById('loading-state');
+        const outputContent = document.getElementById('output-content');
+        const copyBtn = document.getElementById('copy-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const langSelect = document.getElementById('language-select');
+        const pdfUpload = document.getElementById('pdf-upload');
+        const pdfLoading = document.getElementById('pdf-loading');
+
+        // PPST Dropdown Logic
+        const ppstPreset = document.getElementById('ppstPreset');
+        const ppstIndicatorsTextarea = document.getElementById('ppstIndicators');
+
+        const ppstData = {
+            t_co1: "PPST 1.1.2 Apply knowledge of content within and across curriculum teaching areas.\nPPST 1.4.2 Use a range of teaching strategies that enhance learner achievement in literacy and numeracy skills.\nPPST 1.5.2 Apply a range of teaching strategies to develop critical and creative thinking, as well as other higher-order thinking skills.\nPPST 1.6.2 Display proficient use of Mother Tongue, Filipino and English to facilitate teaching and learning.\nPPST 2.1.2 Establish safe and secure learning environments to enhance learning through the consistent implementation of policies, guidelines and procedures.\nPPST 2.2.2 Maintain learning environments that promote fairness, respect and care to encourage learning.",
+            t_co2: "PPST 1.1.2 Apply knowledge of content within and across curriculum teaching areas.\nPPST 1.4.2 Use a range of teaching strategies that enhance learner achievement in literacy and numeracy skills.\nPPST 1.5.2 Apply a range of teaching strategies to develop critical and creative thinking, as well as other higher-order thinking skills.\nPPST 3.2.2 Establish a learner-centered culture by using teaching strategies that respond to learners’ linguistic, cultural, socio-economic and religious backgrounds.\nPPST 3.5.2 Adapt and use culturally appropriate teaching strategies to address the needs of learners from indigenous groups.\nPPST 5.3.2 Use strategies for providing timely, accurate and constructive feedback to improve learner performance.",
+            mt_co1: "PPST 1.1.3 Model effective applications of content knowledge within and across curriculum teaching areas.\nPPST 1.4.3 Evaluate with colleagues the effectiveness of teaching strategies that promote learner achievement in literacy and numeracy.\nPPST 1.5.3 Develop and apply effective teaching strategies to promote critical and creative thinking, as well as other higher-order thinking skills.\nPPST 1.6.3 Model and support colleagues in the proficient use of Mother Tongue, Filipino and English to improve teaching and learning, as well as to develop the learners’ pride of their language, heritage and culture.\nPPST 2.1.3 Exhibit effective strategies that ensure safe and secure learning environments that promote fairness, respect and care to encourage learning.\nPPST 2.2.3 Exhibit effective practices to foster learning environments that promote fairness, respect and care to encourage learning.",
+            mt_co2: "PPST 1.1.3 Model effective applications of content knowledge within and across curriculum teaching areas.\nPPST 1.4.3 Evaluate with colleagues the effectiveness of teaching strategies that promote learner achievement in literacy and numeracy.\nPPST 1.5.3 Develop and apply effective teaching strategies to promote critical and creative thinking, as well as other higher-order thinking skills.\nPPST 3.2.3 Exhibit a learner-centered culture that promotes success by using effective teaching strategies that respond to their linguistic, cultural, socio-economic and religious backgrounds.\nPPST 3.5.3 Develop and apply teaching strategies to address effectively the needs of learners from indigenous groups.\nPPST 5.3.3 Use effective strategies for providing timely, accurate and constructive feedback to encourage learners to reflect on and improve their own learning."
+        };
+
+        ppstPreset.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val !== 'custom' && ppstData[val]) {
+                ppstIndicatorsTextarea.value = ppstData[val];
+            } else if (val === 'custom') {
+                ppstIndicatorsTextarea.value = '';
+                ppstIndicatorsTextarea.focus();
+            }
+        });
+
+        // Automatically switch back to "Custom" if the user starts manually editing the predefined text
+        ppstIndicatorsTextarea.addEventListener('input', () => {
+            let matched = false;
+            for(const key in ppstData) {
+                if(ppstData[key] === ppstIndicatorsTextarea.value) {
+                    ppstPreset.value = key;
+                    matched = true;
+                    break;
+                }
+            }
+            if(!matched) {
+                ppstPreset.value = 'custom';
+            }
+        });
+
+        // Language Switcher Logic
+        langSelect.addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            const t = translations[currentLang];
+
+            // Update UI Texts
+            document.getElementById('app-subtitle').innerText = t.appSubtitle;
+            document.getElementById('hero-desc').innerText = t.heroDesc;
+            document.getElementById('start-btn-text').innerHTML = `${t.startBtn} <i class="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>`;
+            document.getElementById('form-title').innerText = t.formTitle;
+            
+            if(document.getElementById('lbl-exemplar')) document.getElementById('lbl-exemplar').innerText = t.lblExemplar;
+            if(document.getElementById('lbl-exemplar-desc')) document.getElementById('lbl-exemplar-desc').innerText = t.lblExemplarDesc;
+            if(document.getElementById('lbl-extracting')) document.getElementById('lbl-extracting').innerText = t.lblExtracting;
+            if(document.getElementById('lbl-days')) document.getElementById('lbl-days').innerHTML = t.lblDays;
+
+            if(document.getElementById('lbl-out-lang')) document.getElementById('lbl-out-lang').innerHTML = t.lblOutLang;
+            document.getElementById('lbl-area').innerHTML = t.lblArea;
+            document.getElementById('lbl-teacher').innerHTML = t.lblTeacher;
+            document.getElementById('lbl-trole').innerText = t.lblTrole;
+            document.getElementById('lbl-checker').innerHTML = t.lblChecker;
+            document.getElementById('lbl-crole').innerText = t.lblCrole;
+            document.getElementById('lbl-grade').innerHTML = t.lblGrade;
+            document.getElementById('lbl-sessions').innerHTML = t.lblSessions;
+            document.getElementById('lbl-competency').innerHTML = t.lblCompetency;
+            if(document.getElementById('lbl-standards')) document.getElementById('lbl-standards').innerHTML = t.lblStandards;
+            if(document.getElementById('lbl-perf-standards')) document.getElementById('lbl-perf-standards').innerHTML = t.lblPerfStandards;
+            if(document.getElementById('lbl-ppst')) document.getElementById('lbl-ppst').innerHTML = t.lblPpst;
+            document.getElementById('lbl-objectives').innerHTML = t.lblObjectives;
+            
+            if(document.getElementById('lbl-strategy')) document.getElementById('lbl-strategy').innerText = t.lblStrategy;
+            if(document.getElementById('opt-standard')) document.getElementById('opt-standard').innerText = t.optStandard;
+            if(document.getElementById('opt-4as')) document.getElementById('opt-4as').innerText = t.opt4As;
+            if(document.getElementById('opt-5es')) document.getElementById('opt-5es').innerText = t.opt5Es;
+            if(document.getElementById('opt-7es')) document.getElementById('opt-7es').innerText = t.opt7Es;
+            if(document.getElementById('opt-explicit')) document.getElementById('opt-explicit').innerText = t.optExplicit;
+            if(document.getElementById('opt-inquiry')) document.getElementById('opt-inquiry').innerText = t.optInquiry;
+            if(document.getElementById('opt-cooperative')) document.getElementById('opt-cooperative').innerText = t.optCoop;
+            if(document.getElementById('opt-differentiated')) document.getElementById('opt-differentiated').innerText = t.optDiff;
+            if(document.getElementById('opt-problem')) document.getElementById('opt-problem').innerText = t.optProb;
+            if(document.getElementById('opt-project')) document.getElementById('opt-project').innerText = t.optProj;
+            if(document.getElementById('opt-idowedoyoudo')) document.getElementById('opt-idowedoyoudo').innerText = t.optIDo;
+            
+            if(document.getElementById('lbl-context-input')) document.getElementById('lbl-context-input').innerHTML = t.lblContextInput;
+            document.getElementById('generate-btn-text').innerText = t.generateBtn;
+            document.getElementById('output-title').innerText = t.outputTitle;
+            document.getElementById('btn-dl').innerHTML = `<i class="fas fa-file-word text-blue-600"></i> ${t.btnDl}`;
+            document.getElementById('btn-copy').innerHTML = `<i class="far fa-copy"></i> ${t.btnCopy}`;
+            document.getElementById('empty-p1').innerText = t.emptyP1;
+            document.getElementById('empty-p2').innerText = t.emptyP2;
+            document.getElementById('loading-p1').innerText = t.loadingP1;
+            document.getElementById('loading-p2').innerText = t.loadingP2;
+
+            // Translate Default Input Values seamlessly
+            const areaInp = document.getElementById('learningArea');
+            const gradeInp = document.getElementById('gradeSection');
+            const sessInp = document.getElementById('sessions');
+            const compInp = document.getElementById('competency');
+            const objInp = document.getElementById('objectives');
+            const stdInp = document.getElementById('curriculumStandards');
+            const pstdInp = document.getElementById('performanceStandards');
+            const ppstInp = document.getElementById('ppstIndicators');
+
+            const otherLang = currentLang === 'en' ? translations.fil : translations.en;
+            
+            if (areaInp.value === otherLang.defArea) areaInp.value = t.defArea;
+            if (gradeInp.value === otherLang.defGrade) gradeInp.value = t.defGrade;
+            if (sessInp.value === otherLang.defSessions) sessInp.value = t.defSessions;
+            if (compInp.value === otherLang.defCompetency) compInp.value = t.defCompetency;
+            if (objInp.value === otherLang.defObjectives) objInp.value = t.defObjectives;
+            if (stdInp.value === otherLang.defStandards) stdInp.value = t.defStandards;
+            if (pstdInp.value === otherLang.defPerfStandards) pstdInp.value = t.defPerfStandards;
+            if (ppstInp.value === otherLang.defPPST) ppstInp.value = t.defPPST;
+        });
+
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        startBtn.addEventListener('click', () => {
+            homeView.classList.add('hidden');
+            plannerView.classList.remove('hidden');
+        });
+
+        homeLink.addEventListener('click', () => {
+            plannerView.classList.add('hidden');
+            homeView.classList.remove('hidden');
+        });
+
+        // Handle PDF Upload and Extraction
+        pdfUpload.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.type !== "application/pdf") {
+                showError("Please upload a valid PDF file.");
+                return;
+            }
+
+            hideError();
+            pdfLoading.classList.remove('hidden');
+            uploadedPdfText = ""; 
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                let text = "";
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const strings = content.items.map(item => item.str);
+                    text += strings.join(" ") + "\n";
+                }
+                
+                uploadedPdfText = text;
+
+                const apiKey = ""; 
+                const extractUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
+                const extractPayload = {
+                    contents: [{ 
+                        parts: [{ text: `Analyze the following Lesson Exemplar text and extract the Grade Level, Learning Competency, Curriculum Standards if present, Performance Standards if present, Learning Objectives, and any PPST/COI indicators if present. Return ONLY a valid JSON object. Do not include markdown formatting.\n\nText:\n${text.substring(0, 25000)}` }] 
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "gradeLevel": { type: "STRING" },
+                                "competency": { type: "STRING" },
+                                "curriculumStandards": { type: "STRING" },
+                                "performanceStandards": { type: "STRING" },
+                                "objectives": { type: "STRING" },
+                                "ppstIndicators": { type: "STRING" }
+                            }
+                        }
+                    }
+                };
+
+                const extractRes = await fetchWithRetry(extractUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(extractPayload)
+                });
+
+                const jsonText = extractRes.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (jsonText) {
+                    const data = JSON.parse(jsonText);
+                    if (data.gradeLevel) document.getElementById('gradeSection').value = data.gradeLevel;
+                    if (data.competency) document.getElementById('competency').value = data.competency;
+                    if (data.curriculumStandards) document.getElementById('curriculumStandards').value = data.curriculumStandards;
+                    if (data.performanceStandards) document.getElementById('performanceStandards').value = data.performanceStandards;
+                    if (data.objectives) document.getElementById('objectives').value = data.objectives;
+                    if (data.ppstIndicators) document.getElementById('ppstIndicators').value = data.ppstIndicators;
+                }
+
+            } catch (err) {
+                console.error("PDF Parsing Error:", err);
+                showError("Failed to parse the PDF. You can still generate the lesson plan manually.");
+            } finally {
+                pdfLoading.classList.add('hidden');
+            }
+        });
+
+        async function generateImage(prompt, apiKey) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+            const payload = {
+                instances: { prompt: prompt },
+                parameters: { sampleCount: 1 }
+            };
+            
+            try {
+                const result = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (result.predictions && result.predictions[0] && result.predictions[0].bytesBase64Encoded) {
+                    const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                    const container = document.getElementById('ai-image-container');
+                    if (container) {
+                        const imgLabel = currentLang === 'fil' ? 'AI-generated na Kagamitang Biswal' : 'AI-generated visual aid';
+                        container.innerHTML = `
+                            <img src="${imageUrl}" alt="Pre-Lesson Visual Aid" style="max-width: 100%; max-height: 450px; height: auto; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0; display: block; margin: 0 auto;">
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.75rem; font-style: italic; text-align: center;">${imgLabel}</p>
+                        `;
+                    }
+                } else {
+                    throw new Error("Invalid image generation response from Imagen API");
+                }
+            } catch (err) {
+                console.error("Image gen error:", err);
+                const container = document.getElementById('ai-image-container');
+                if (container) {
+                    const errorLabel = currentLang === 'fil' ? 'Hindi nakabuo ng imahe.' : 'Failed to generate visual aid.';
+                    container.innerHTML = `<p class="text-sm text-red-500 font-semibold flex items-center justify-center gap-2"><i class="fas fa-exclamation-triangle"></i> ${errorLabel}</p>`;
+                }
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            
+            const apiKey = ""; 
+            const area = document.getElementById('learningArea').value.trim();
+            const teacher = document.getElementById('teacherName').value.trim();
+            const teacherRole = document.getElementById('teacherRole').value.trim();
+            const checkerName = document.getElementById('checkerName').value.trim();
+            const checkerRole = document.getElementById('checkerRole').value.trim();
+            const grade = document.getElementById('gradeSection').value.trim();
+            const sessions = document.getElementById('sessions').value.trim();
+            const competency = document.getElementById('competency').value.trim();
+            const curriculumStandards = document.getElementById('curriculumStandards').value.trim();
+            const performanceStandards = document.getElementById('performanceStandards').value.trim();
+            const ppstIndicators = document.getElementById('ppstIndicators').value.trim();
+            const objectives = document.getElementById('objectives').value.trim();
+            const strategySelect = document.getElementById('instructionalStrategy');
+            const strategy = strategySelect.value;
+            const strategyName = strategySelect.options[strategySelect.selectedIndex].text;
+            const contextualization = document.getElementById('contextualization').value.trim();
+            
+            const selectedDays = Array.from(document.querySelectorAll('.checkbox-pro:checked')).map(cb => cb.value);
+
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-white"></i> <span id="generate-btn-text">${translations[currentLang].generatingBtn}</span>`;
+            generateBtn.classList.add('opacity-80', 'cursor-not-allowed');
+            
+            emptyState.classList.add('hidden');
+            outputContent.classList.add('hidden');
+            copyBtn.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+
+            const outLang = document.getElementById('outputLanguage').value;
+            const t = translations[outLang].md;
+            
+            let sysInst = `You are an expert Master Teacher in the Philippines. Your task is to generate a lesson plan using the DepEd Lesson Plan Template with ANNOTATIONS. Output ONLY clean HTML tables that match the required template. Do not wrap the output in markdown code fences and do not add conversational filler before or after the template.
+
+FORMAT DISCIPLINE:
+- Use the exact section order requested by the user.
+- The Learning Experience and Assessment sections MUST have a third ANNOTATIONS column.
+- In each annotation cell, clearly write the relevant PPST/COI indicators and/or Learning Design Principles demonstrated by the activity.
+- If the user provides PPST/COI indicators, prioritize and align your annotations with those indicators. If none are provided, choose suitable indicators and state them clearly.
+
+CRITICAL INSTRUCTIONS: DO NOT use scripts or dialogue. Instead, thoroughly explain the activities and procedures in a descriptive manner. You MUST include Differentiated Group Activities where specific, explicit instructions and tasks are written out for each group.
+
+CRITICAL FOR MATHEMATICS: If your lesson plan includes mathematical formulas, DO NOT use LaTeX syntax (like $...$ or \\frac{}{}). Instead, use plain text and standard Unicode characters (e.g., x², a² + b² = c², 1/2, ÷).`;
+            
+            if(outLang === 'fil') {
+                sysInst += `\n\nCRITICAL LANGUAGE REQUIREMENT: You MUST generate the ENTIRE lesson plan content strictly in the FILIPINO language (Tagalog). Translate all generated ideas, procedures, activities, and questions into proper, formal Filipino suitable for education.`;
+            }
+
+            const promptObjFallback = outLang === 'fil' 
+                ? 'Mangyaring bumuo ng mga tiyak na layunin batay sa kasanayan, na nakategorya sa Kaalaman (Knowledge), Kasanayan (Skills), at Saloobin (Attitudes).' 
+                : 'Please generate specific, measurable learning objectives based on the competency above, categorized into Knowledge, Skills, and Attitudes.';
+            const contextStr = contextualization ? `\n- Contextualization Notes (Integrate this local/cultural context into the examples, scenarios, and activities): ${contextualization}` : "";
+
+            let dynamicPreInst = t.preInst;
+            let dynamicFlowInst = `(Generate a SEMI-DETAILED step-by-step flow strictly using the **${strategyName}** methodology. DO NOT write dialogue or scripts. Explain the activities, procedures, and transitions thoroughly. Integrate direct instruction, scaffolding, and checks for understanding. <br><br>CRUCIAL: You MUST include a Differentiated Group Activity section here. Write out the exact, explicit instructions and tasks for EACH specific group (e.g., Group 1 - Visual Task: [detailed instructions], Group 2 - Kinesthetic Task: [detailed instructions], etc.). Number the flow steps clearly.)`;
+
+            if (strategy === '4as') {
+                dynamicPreInst = "(Generate a detailed Pre-Lesson section divided into **1. Review** and **2. Motivation**. Describe the mechanics clearly. CRUCIAL: Provide an image generation prompt for a visual aid formatted EXACTLY as: [IMAGE_PROMPT: a highly detailed description of the visual aid in English])";
+                dynamicFlowInst = "(Generate the lesson flow STRICTLY using the 4A's format. Use these exact numbered headings: **1. Activity**, **2. Analysis**, **3. Abstraction**, and **4. Application**. <br><br>CRUCIAL: In the 'Activity' or 'Application' phase, you MUST include a Differentiated Group Activity with explicit instructions for EACH group.)";
+            } else if (strategy === '5es') {
+                dynamicPreInst = "(Generate a brief Pre-Lesson activity. Describe the mechanics clearly. CRUCIAL: Provide an image generation prompt for a visual aid formatted EXACTLY as: [IMAGE_PROMPT: a highly detailed description of the visual aid in English])";
+                dynamicFlowInst = "(Generate the lesson flow STRICTLY using the 5E's format. Use these exact numbered headings: **1. Engage**, **2. Explore**, **3. Explain**, and **4. Elaborate**. Note: Evaluate is below. <br><br>CRUCIAL: In the 'Explore' or 'Elaborate' phase, you MUST include a Differentiated Group Activity.)";
+            } else if (strategy === '7es') {
+                dynamicPreInst = "(Generate a brief Pre-Lesson activity acting as the **Elicit** phase. Describe the mechanics clearly. CRUCIAL: Provide an image generation prompt formatted EXACTLY as: [IMAGE_PROMPT: a highly detailed description in English])";
+                dynamicFlowInst = "(Generate the lesson flow STRICTLY using the 7E's format. Use these exact numbered headings: **1. Engage**, **2. Explore**, **3. Explain**, **4. Elaborate**, and **5. Extend**. <br><br>CRUCIAL: Include a Differentiated Group Activity.)";
+            } else if (strategy === 'idowedoyoudo') {
+                dynamicFlowInst = "(Generate the lesson flow STRICTLY using Gradual Release. Use these exact headings: **1. I Do** (Modeling), **2. We Do** (Guided Practice), and **3. You Do** (Independent/Group Practice). <br><br>CRUCIAL: In the 'You Do' phase, you MUST include a Differentiated Group Activity.)";
+            }
+
+            let referenceInstruction = "";
+            if (uploadedPdfText) {
+                let daysStr = selectedDays.length > 0 ? selectedDays.join(", ") : "the entire exemplar";
+                referenceInstruction = `\n\n=== REFERENCE LESSON EXEMPLAR ===\n${uploadedPdfText.substring(0, 50000)}\n==================================\n\nCRITICAL INSTRUCTION: Base the lesson plan heavily on the provided Reference Lesson Exemplar above. Specifically focus your extraction and synthesis on the content intended for: [${daysStr}]. Synthesize into a SINGLE cohesive 1-session plan.`;
+            }
+
+            const curriculumStandardsText = curriculumStandards || (outLang === 'fil' ? 'Bumuo ng angkop na content standards batay sa kasanayang pampagkatuto.' : 'Generate applicable content standards based on the learning competency.' );
+            const performanceStandardsText = performanceStandards || (outLang === 'fil' ? 'Bumuo ng angkop na performance standards batay sa kasanayang pampagkatuto.' : 'Generate applicable performance standards based on the learning competency.' );
+            const ppstText = ppstIndicators || (outLang === 'fil' ? 'Pumili ng angkop na PPST/COI indicators at Learning Design Principles.' : 'Choose appropriate PPST/COI indicators and Learning Design Principles.' );
+
+            const userQuery = `
+Please create a lesson plan using the uploaded DepEd/ILAW Lesson Plan Template with ANNOTATIONS and the following details:
+- Learning Area: ${area}
+- Name of Teacher/s: ${teacher}
+- Grade Level and Section: ${grade}
+- No. of Sessions: ${sessions}
+- Learning Competency: ${competency}
+- Curriculum Standards: ${curriculumStandardsText}
+- Performance Standards: ${performanceStandardsText}
+- Learning Objectives: ${objectives || promptObjFallback}
+- PPST/COI Indicators for Annotations: ${ppstText}${contextStr}${referenceInstruction}
+
+FORMAT REQUIREMENT:
+Return ONLY valid HTML. Do not use Markdown tables. Do not include code fences. Use the exact sequence below. Fill every content cell with a complete lesson plan response.
+
+<h2 class="lp-title">SEMI-DETAILED LESSON PLAN</h2>
+
+<table class="lp-table top-table">
+  <tr><td class="lp-label" style="width:38%;">${t.name}</td><td>(Generate a concise and relevant lesson title)</td></tr>
+  <tr><td class="lp-label">${t.area}</td><td>${area}</td></tr>
+  <tr><td class="lp-label">${t.teacher}</td><td>${teacher}</td></tr>
+  <tr><td class="lp-label">${t.grade}</td><td>${grade}</td></tr>
+  <tr><td class="lp-label">${t.sessions}</td><td>${sessions}</td></tr>
+  <tr><td class="lp-label">${t.ref}<span class="lp-help">(books, websites, toolkits, etc.)</span></td><td>(Generate specific and realistic references.)</td></tr>
+  <tr><td class="lp-label">${t.ai}</td><td>${t.aiText}</td></tr>
+</table>
+
+<table class="lp-table intentions-table">
+  <tr class="lp-section-header">
+    <td style="width:38%;"><span class="lp-section-title">${t.intentionsHead}</span></td>
+    <td><em>${t.intentionsDesc}</em></td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.compTitle}</td>
+    <td><strong>Learning Competency:</strong><br>${competency}<br><br><strong>Curriculum Standards:</strong><br>${curriculumStandardsText}<br><br><strong>Performance Standards:</strong><br>${performanceStandardsText}</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.objTitle}</td>
+    <td>${objectives || '(Generate specific, measurable objectives categorized into knowledge, skills, and attitudes.)'}</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.contextTitle}</td>
+    <td>(Generate a realistic learner context. Include any contextualization notes from the teacher.)</td>
+  </tr>
+</table>
+
+<table class="lp-table learning-experience-table">
+  <tr class="lp-section-header">
+    <td style="width:30%;"><span class="lp-section-title">${t.expHead}</span></td>
+    <td style="width:46%;"><em>${t.expDesc}</em></td>
+    <td class="lp-annotation" style="width:24%;"><strong>ANNOTATIONS:</strong> Clearly indicate the relevant PPST indicators and Learning Design Principles.</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.preTitle}</td>
+    <td>${dynamicPreInst}</td>
+    <td class="lp-annotation">(Write exact annotations for the Pre-Lesson.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.flowTitle}</td>
+    <td>${dynamicFlowInst}</td>
+    <td class="lp-annotation">(Write exact annotations for every major Flow activity.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.resTitle}</td>
+    <td>(List necessary learning resources, inclusive accommodations, and low-tech alternatives.)</td>
+    <td class="lp-annotation">(Annotate how resources support inclusion.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.integTitle}</td>
+    <td>(List meaningful integration with other learning areas.)</td>
+    <td class="lp-annotation">(Annotate the aligned PPST/COI indicators for integration.)</td>
+  </tr>
+</table>
+
+<table class="lp-table assessment-table">
+  <tr class="lp-section-header">
+    <td style="width:30%;"><span class="lp-section-title">${t.assessHead}</span></td>
+    <td style="width:46%;"><em>${t.assessDesc}</em></td>
+    <td class="lp-annotation" style="width:24%;"><strong>ANNOTATIONS:</strong> Clearly indicate the relevant PPST indicators.</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.formTitle}</td>
+    <td>(Provide an ACTUAL 5-item formative assessment here. Write the exact 5 questions/items the learners will answer based on the lesson.)</td>
+    <td class="lp-annotation">(Annotate how the assessment provides feedback and checks mastery.)</td>
+  </tr>
+</table>
+
+<table class="lp-table ways-forward-table">
+  <tr class="lp-section-header">
+    <td style="width:38%;"><span class="lp-section-title">${t.waysHead}</span></td>
+    <td><em>${t.waysDesc}</em></td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.extTitle}</td>
+    <td>(Generate a practical extension or enrichment activity.)</td>
+  </tr>
+  <tr>
+    <td class="lp-label">${t.refTitle}</td>
+    <td><em>To be filled out after the lesson.</em><br><br><strong>Pre-planned Reflection Prompt:</strong> (Generate one guiding reflection question specific to this lesson.)</td>
+  </tr>
+</table>
+
+<table class="signature-table">
+    <tr>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>${t.prepBy}</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${teacher}</strong><br>
+            ${teacherRole}
+        </td>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>${t.checkBy}</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${checkerName}</strong><br>
+            ${checkerRole}
+        </td>
+    </tr>
+</table>
+`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: sysInst }] }
+            };
+
+            try {
+                const result = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                let generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!generatedText) {
+                    throw new Error("Received an empty response from the AI.");
+                }
+
+                // Intercept image prompt
+                const imgPromptRegex = /\[IMAGE_PROMPT:\s*(.*?)\]/i;
+                const match = generatedText.match(imgPromptRegex);
+                let imagePrompt = match ? match[1] : null;
+
+                const loadingText = currentLang === 'fil' ? 'Binubuo ang AI Visual Aid...' : 'Generating AI Visual Aid...';
+                
+                if (imagePrompt) {
+                    generatedText = generatedText.replace(imgPromptRegex, `
+                        <div id="ai-image-container" class="my-6 p-6 border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 flex flex-col items-center justify-center min-h-[160px] text-center">
+                            <i class="fas fa-palette text-2xl text-blue-400 mb-3 animate-pulse"></i>
+                            <p class="text-sm font-semibold text-blue-600 m-0">${loadingText}</p>
+                        </div>
+                    `);
+                }
+
+                const trimmedOutput = generatedText.trim();
+                outputContent.innerHTML = trimmedOutput.includes('<table') ? trimmedOutput : marked.parse(trimmedOutput);
+                
+                loadingState.classList.add('hidden');
+                outputContent.classList.remove('hidden');
+                copyBtn.classList.remove('hidden');
+                downloadBtn.classList.remove('hidden');
+
+                if (imagePrompt) {
+                    generateImage(imagePrompt, apiKey);
+                }
+
+            } catch (error) {
+                console.error("API Error:", error);
+                loadingState.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                showError("Failed to generate the lesson plan. Please ensure your connection is stable and try again.");
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> <span id="generate-btn-text">${translations[currentLang].generateBtn}</span>`;
+                generateBtn.classList.remove('opacity-80', 'cursor-not-allowed');
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(outputContent);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            try {
+                document.execCommand('copy');
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="fas fa-check text-green-400"></i> <span>Copied!</span>';
+                copyBtn.classList.replace('bg-slate-800', 'bg-green-700');
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.classList.replace('bg-green-700', 'bg-slate-800');
+                }, 2000);
+            } catch (err) {
+                showError("Failed to copy text. Please select the text manually and press Ctrl+C.");
+            }
+            selection.removeAllRanges();
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const content = document.getElementById('output-content').innerHTML;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            
+            const mainTables = tempDiv.querySelectorAll('table:not(.signature-table)');
+            mainTables.forEach(table => {
+                table.setAttribute('border', '1');
+                table.style.borderCollapse = 'collapse';
+                table.style.width = '100%';
+                table.style.border = '2px solid black';
+                
+                const cells = table.querySelectorAll('th, td');
+                cells.forEach(cell => {
+                    cell.style.border = '1px solid black';
+                    cell.style.padding = '10px';
+                    cell.style.verticalAlign = 'top';
+                });
+            });
+
+            const sigTables = tempDiv.querySelectorAll('table.signature-table');
+            sigTables.forEach(table => {
+                table.setAttribute('border', '0');
+                table.style.border = 'none';
+                table.style.width = '100%';
+                table.style.marginTop = '40px';
+                
+                const cells = table.querySelectorAll('td');
+                cells.forEach(cell => {
+                    cell.style.border = 'none';
+                    cell.style.padding = '10px';
+                    cell.style.verticalAlign = 'top';
+                });
+            });
+
+            const processedContent = tempDiv.innerHTML;
+            
+            const htmlString = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <style>
+                        table { border-collapse: collapse; }
+                        .lp-title { text-align: center; font-weight: 800; font-style: italic; font-size: 18pt; margin-bottom: 12pt; }
+                        .lp-table { width: 100%; border-collapse: collapse; border: 2px solid black; margin-bottom: 24pt; table-layout: fixed; }
+                        .lp-table td { border: 1px solid black; padding: 8pt; vertical-align: top; }
+                        .lp-label { font-weight: 800; font-style: italic; }
+                        .lp-help { display: block; font-size: 9pt; font-weight: 700; font-style: italic; margin-top: 4pt; }
+                        .lp-section-header td { background: #d9d9d9; font-weight: 800; font-style: italic; }
+                        .lp-section-title { display: block; font-size: 16pt; font-weight: 900; font-style: italic; }
+                        .lp-annotation { font-size: 9pt; }
+                        h2 { margin: 0; font-size: 1.5em; font-weight: bold; padding-top: 10px;}
+                        em { font-style: italic; color: #4b5563; }
+                    </style>
+                </head>
+                <body>
+                    ${processedContent}
+                </body>
+                </html>
+            `;
+            
+            try {
+                const converted = htmlDocx.asBlob(htmlString);
+                saveAs(converted, 'AI_Master_Teacher_Lesson_Plan.docx');
+                
+                const originalText = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '<i class="fas fa-check text-green-600"></i> <span>Downloaded!</span>';
+                setTimeout(() => {
+                    downloadBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error("DOCX generation error:", err);
+                showError("Failed to generate DOCX. Try using the Copy button instead.");
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "name": "SilidPinoy Studio",
+  "short_name": "SilidPinoy",
+  "description": "AI teaching studio for Filipino educators — tests, lesson plans, TOS, slides, and activities",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#F7F6F3",
+  "theme_color": "#5B46E8",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Test Maker",
+      "short_name": "Tests",
+      "description": "Generate summative tests",
+      "url": "/index.html#test-maker",
+      "icons": [{ "src": "favicon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Lesson Plan",
+      "short_name": "Lessons",
+      "description": "Create DepEd-aligned lesson plans",
+      "url": "/index.html#lesson-plan",
+      "icons": [{ "src": "favicon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "PPT Maker",
+      "short_name": "Slides",
+      "description": "Generate PowerPoint presentations",
+      "url": "/index.html#ppt-maker",
+      "icons": [{ "src": "favicon.svg", "sizes": "96x96" }]
+    }
+  ]
+}
