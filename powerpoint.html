@@ -1160,7 +1160,7 @@ visuals: state.visuals,
             if (saved.assessmentType) state.assessmentType = saved.assessmentType;
             if (saved.assessmentItems) state.assessmentItems = saved.assessmentItems;
             if (saved.assessmentDifficulty) state.assessmentDifficulty = saved.assessmentDifficulty;
-            if (saved.visuals) state.visuals = saved.visuals;
+            if (saved.visuals) state.visuals = (saved.visuals === 'none') ? 'none' : 'emoji';
             if (saved.slideRange) state.slideRange = saved.slideRange;
             if (saved.dllSlideRange) state.dllSlideRange = saved.dllSlideRange;
             if (saved.presentationTitle) state.presentationTitle = saved.presentationTitle;
@@ -1646,8 +1646,6 @@ return fallback[i % fallback.length];
             }
 
             body.innerHTML = html;
-            var genBtn = $('preview-gen-img');
-            if (genBtn) genBtn.addEventListener('click', function () { generateSlideImage(state.current, s.suggestedVisual); });
         }
 
 function escapeHtml(str) {
@@ -1854,6 +1852,8 @@ function escapeHtml(str) {
                             slide.addText(emojiForSlide(s, i), { x: bx, y: by + 0.4, w: bw, h: bh - 1.1, fontSize: 90, align: 'center', valign: 'middle' });
                             slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: bx + 0.2, y: by + bh - 0.75, w: bw - 0.4, h: 0.6, fontSize: 11, align: 'center', color: theme.text, italic: true });
                         };
+                        var useImageLeft = isImageLayout && emojiMode && layout === 'content_image_left';
+                        var useImageRight = isImageLayout && emojiMode && layout === 'content_image_right';
                         if (useImageLeft) {
                             emojiBox(0.4, 1.5, 3.8, 3.8);
                             slide.addShape('rect', { x: 4.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
@@ -1864,9 +1864,6 @@ function escapeHtml(str) {
                             slide.addShape('rect', { x: 0.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
                             slide.addText(bbullets, { x: 0.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
                             emojiBox(5.8, 1.5, 3.8, 3.8);
-                        } else {
-                                slide.addText('[ Visual Area ]\n\n' + (s.suggestedVisual || ''), { x: 6.0, y: 1.7, w: 3.4, h: 3.4, fontSize: 13, align: 'center', color: theme.primary, valign: 'middle', italic: true });
-                            }
                         } else {
                             slide.addShape('rect', { x: 0.5, y: 1.5, w: 9, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
                             slide.addShape('rect', { x: 0.5, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
