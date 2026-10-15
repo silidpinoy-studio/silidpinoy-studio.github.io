@@ -536,6 +536,11 @@
                             </button>
                         </div>
                         <p id="visuals-hint" class="text-xs text-ink/50 mt-3 leading-relaxed">AI-generated illustrations powered by Gemini for slides that have a visual idea. Requires a Gemini API key.</p>
+                        <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-1.5">Max images to generate <span class="text-ink/25">(default 5)</span></label>
+                        <input type="number" id="max-images-input" min="1" max="20" value="5"
+                            class="w-full max-w-xs rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
+                            placeholder="5">
+                        <p class="text-[10px] text-ink/40 mt-1">Limits AI image generation per deck to stay within free tier. Only applies in AI Images / Images + Emoji modes.</p>
                         <div id="youtube-input-wrap" class="hidden mt-3">
                             <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">YouTube Video URL <span class="text-ink/25">(optional)</span></label>
                             <input type="text" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..."
@@ -1437,6 +1442,13 @@
                 }
             });
             if (!withVisual.length) return;
+
+            // Limit max images per deck (default 5, user configurable)
+            var maxImagesEl = $('max-images-input');
+            var maxImages = (maxImagesEl && parseInt(maxImagesEl.value, 10)) || 5;
+            if (maxImages > 0 && withVisual.length > maxImages) {
+                withVisual = withVisual.slice(0, maxImages);
+            }
 
             var total = withVisual.length;
             var done = 0;
