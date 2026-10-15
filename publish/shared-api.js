@@ -39,10 +39,12 @@
 
   function friendlyError(msg) {
     if (!msg) return 'Something went wrong. Please check your key and try again.';
-    if (msg.indexOf('API key not valid') !== -1) return 'Your API key is not valid. Raw: ' + msg;
+    if (msg.indexOf('API key not valid') !== -1) return 'Your API key is not valid. Please paste a fresh key from aistudio.google.com/apikey.';
+    if (msg.indexOf('invalid authentication credentials') !== -1) return 'Your API key is not valid. Please paste a fresh key from aistudio.google.com/apikey.';
     if (msg.indexOf('Permission denied') !== -1) return 'Permission denied. Make sure the Generative Language API is enabled for your Google account.';
-    if (msg.indexOf('quota') !== -1) return 'Quota exceeded. Raw: ' + msg;
-    if (msg.indexOf('not found') !== -1) return 'This API key does not have access to Gemini. Raw: ' + msg;
+    if (msg.indexOf('quota') !== -1) return 'Daily quota reached for this key. Add a backup key in Settings, or try again later.';
+    if (msg.indexOf('not found') !== -1 && msg.indexOf('API version') !== -1) return 'The AI model is unavailable right now. Please try again later.';
+    if (msg.indexOf('not found') !== -1) return 'This API key does not have access to Gemini. Use a key from aistudio.google.com/apikey.';
     if (msg.indexOf('Invalid JSON') !== -1 || msg.indexOf('Unexpected token') !== -1) return 'The AI returned an invalid response. Please try again.';
     return msg;
   }
