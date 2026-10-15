@@ -190,17 +190,16 @@
     if (!key || !key.trim()) {
       return Promise.resolve({ ok: false, friendly: 'Please paste your API key first.' });
     }
-    var url = API_BASE;
-    var payload = { contents: [{ parts: [{ text: 'Say OK' }] }] };
+    // Use models.list endpoint - doesn't require a specific model, just validates the key
+    var url = 'https://generativelanguage.googleapis.com/v1beta/models';
 
     return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key.trim() },
-      body: JSON.stringify(payload),
+      method: 'GET',
+      headers: { 'x-goog-api-key': key.trim() },
       signal: signal
     }).then(function (r) {
       return r.json().then(function (data) {
-        if (r.ok && data.candidates) return { ok: true };
+        if (r.ok && data.models) return { ok: true };
         return { ok: false, friendly: friendlyError((data.error && data.error.message) || '') };
       });
     }, function () {
