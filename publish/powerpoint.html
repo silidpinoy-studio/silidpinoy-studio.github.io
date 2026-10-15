@@ -1376,11 +1376,10 @@
         /* One call to the Gemini image model with a given key. Resolves to
            { ok:true, dataUrl } or { ok:false, retryable, msg }. */
         function apiImageAttempt(key, promptText) {
-            var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + IMAGE_API_MODEL +
-                ':generateContent?key=' + encodeURIComponent(key);
+            var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + IMAGE_API_MODEL + ':generateContent';
             return fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: promptText }] }],
                     generationConfig: { responseModalities: ['IMAGE'] }
