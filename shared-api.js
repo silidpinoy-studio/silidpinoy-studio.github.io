@@ -14,7 +14,7 @@
 (function () {
   'use strict';
 
-  var API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+  var API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
   var DELAYS = [2000, 4000, 8000, 15000];
 
