@@ -60,12 +60,15 @@
   function fetchWithRetry(url, body, opts) {
     var retries = opts.retries !== undefined ? opts.retries : 4;
     var signal = opts.signal || null;
+    var apiKey = opts.apiKey || null;
     var attempt = 0;
 
     function doFetch() {
+      var headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['x-goog-api-key'] = apiKey;
       return fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify(body),
         signal: signal
       }).then(function (res) {
@@ -128,14 +131,13 @@
     if (schema) genConfig.responseSchema = schema;
     payload.generationConfig = genConfig;
 
-    var url = API_BASE + '?key=' + encodeURIComponent(key);
+    var url = API_BASE;
 
-    return fetchWithRetry(url, payload, { signal: signal, retries: 4 }).catch(function (err) {
+    return fetchWithRetry(url, payload, { signal: signal, retries: 4, apiKey: key }).catch(function (err) {
       var msg = (err && err.message) || '';
       var isQuotaOrBusy = /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable|429/i.test(msg);
       if (backupKey && backupKey !== key && isQuotaOrBusy) {
-        var backupUrl = API_BASE + '?key=' + encodeURIComponent(backupKey);
-        return fetchWithRetry(backupUrl, payload, { signal: signal, retries: 4 });
+        return fetchWithRetry(url, payload, { signal: signal, retries: 4, apiKey: backupKey });
       }
       throw err;
     });
@@ -188,12 +190,12 @@
     if (!key || !key.trim()) {
       return Promise.resolve({ ok: false, friendly: 'Please paste your API key first.' });
     }
-    var url = API_BASE + '?key=' + encodeURIComponent(key.trim());
+    var url = API_BASE;
     var payload = { contents: [{ parts: [{ text: 'Say OK' }] }] };
 
     return fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key.trim() },
       body: JSON.stringify(payload),
       signal: signal
     }).then(function (r) {
