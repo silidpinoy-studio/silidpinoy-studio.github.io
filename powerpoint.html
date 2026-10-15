@@ -518,15 +518,7 @@
                             <h3>Slide Visuals</h3>
                         </div>
                         <div class="pill-group" id="visuals-pills">
-                            <button type="button" data-visuals="images" class="visuals-toggle active">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
-                                AI Images
-                            </button>
-                            <button type="button" data-visuals="both" class="visuals-toggle">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><path d="M12 5.5h4"/><path d="M14 3.5v4"/></svg>
-                                Images + Emoji
-                            </button>
-                            <button type="button" data-visuals="emoji" class="visuals-toggle">
+                            <button type="button" data-visuals="emoji" class="visuals-toggle active">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                                 Emoji Icons
                             </button>
@@ -535,12 +527,7 @@
                                 None
                             </button>
                         </div>
-                        <p id="visuals-hint" class="text-xs text-ink/50 mt-3 leading-relaxed">AI-generated illustrations powered by Gemini for slides that have a visual idea. Requires a Gemini API key.</p>
-                        <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mt-3 mb-1.5">Max images to generate <span class="text-ink/25">(default 5)</span></label>
-                        <input type="number" id="max-images-input" min="1" max="20" value="5"
-                            class="w-full max-w-xs rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                            placeholder="5">
-                        <p class="text-[10px] text-ink/40 mt-1">Limits AI image generation per deck to stay within free tier. Only applies in AI Images / Images + Emoji modes.</p>
+                        <p id="visuals-hint" class="text-xs text-ink/50 mt-3 leading-relaxed">Emoji icons for slide visuals. No API key required.</p>
                         <div id="youtube-input-wrap" class="hidden mt-3">
                             <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">YouTube Video URL <span class="text-ink/25">(optional)</span></label>
                             <input type="text" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..."
@@ -702,10 +689,7 @@
             dllText: '',               // uploaded/pasted source text
             uploadedFileName: '',
             presentationTitle: '',
-            generatedImages: {},       // slide index -> data URL
-            generatingImages: {},
-            imageErrors: {},
-            visuals: 'images',         // images | both | emoji | none
+            visuals: 'emoji',         // emoji | none
             slideRange: '8-12',        // 5-8 | 8-12 | 12-16 | 16-20 | 20+  (topic mode)
             dllSlideRange: '12-16',    // deck size for DLL / lesson mode
             youtubeUrl: ''             // optional YouTube URL for current slide
@@ -1091,24 +1075,19 @@
                 assessmentType: state.assessmentType,
                 assessmentItems: state.assessmentItems,
                 assessmentDifficulty: state.assessmentDifficulty,
-                visuals: state.visuals,
-                slideRange: state.slideRange,
-                dllSlideRange: state.dllSlideRange,
-                presentationTitle: state.presentationTitle,
-                fileName: state.fileName,
-                generatedImages: state.generatedImages,
-                savedAt: Date.now()
-            };
-            try {
-                localStorage.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
-            } catch (e) {
-                // storage full (usually the image data URLs) — retry without images
-                try {
-                    payload.generatedImages = {};
-                    localStorage.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
-                } catch (e2) { /* give up */ }
-            }
+visuals: state.visuals,
+            slideRange: state.slideRange,
+            dllSlideRange: state.dllSlideRange,
+            presentationTitle: state.presentationTitle,
+            fileName: state.fileName,
+            savedAt: Date.now()
+        };
+        try {
+            localStorage.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
+        } catch (e) {
+            // storage full — give up silently
         }
+    }
         function clearSavedPptState() {
             try { localStorage.removeItem(SAVED_PPT_KEY); } catch (e) {}
         }
@@ -1160,8 +1139,7 @@
                     selectedTheme: state.selectedTheme,
                     selectedLanguage: state.selectedLanguage,
                     slideRange: state.slideRange,
-                    dllSlideRange: state.dllSlideRange,
-                    generatedImages: state.generatedImages
+                    dllSlideRange: state.dllSlideRange
                 }),
                 summary: state.slides.length + ' slides' + (state.mode ? ' · ' + state.mode.toUpperCase() : ''),
                 meta: { slideCount: state.slides.length, mode: state.mode }
@@ -1187,8 +1165,6 @@
             if (saved.dllSlideRange) state.dllSlideRange = saved.dllSlideRange;
             if (saved.presentationTitle) state.presentationTitle = saved.presentationTitle;
             if (saved.fileName) state.fileName = saved.fileName;
-            if (saved.generatedImages) state.generatedImages = saved.generatedImages;
-            state.generatingImages = {}; state.imageErrors = {};
             MODE_META.dll.filePrefix = 'Lesson_' + state.selectedDay.replace(/\s+/g, '') + '_Presentation';
 
             // sync the mode tabs + cards and the option pills with the restored state
@@ -1266,7 +1242,6 @@
                 });
                 state.current = 0;
                 renderPreview();
-                autoGenerateImages();
             }).catch(function (err) {
                 console.error(err);
                 setPhase('empty');
@@ -1326,7 +1301,6 @@
                 });
                 state.current = 0;
                 renderPreview();
-                autoGenerateImages();
                 savePptState();
                 pptSaveToLibrary();
             }).catch(function (err) {
@@ -1365,207 +1339,7 @@
                 if (t.indexOf(pairs[k][0]) !== -1) return pairs[k][1];
             }
             var fallback = ['🌟', '✨', '🔷', '📘', '🎯', '💠'];
-            return fallback[i % fallback.length];
-        }
-
-        /* ---------- image generation: Gemini Nano Banana 2 Lite ----------
-           Uses gemini-3.1-flash-lite-image (Nano Banana 2 Lite) for image generation.
-           This is Gemini's fastest and cheapest image model. No external fallback services. */
-        var IMAGE_API_MODEL = 'gemini-3.1-flash-lite-image';
-
-        function visualPrompt(visual) {
-            return 'Create a square educational illustration for a classroom presentation slide. ' +
-                'Clean flat vector style, bright friendly colors, no text, no letters, no numbers, no watermark. Scene: ' + visual;
-        }
-
-        /* One call to the Gemini image model with a given key. Resolves to
-           { ok:true, dataUrl } or { ok:false, retryable, msg }. */
-        function apiImageAttempt(key, promptText) {
-            var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + IMAGE_API_MODEL + ':generateContent';
-            return fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: { responseModalities: ['IMAGE'] }
-                })
-            }).then(function (res) {
-                return res.json().then(function (data) {
-                    if (!res.ok) {
-                        var msg = (data.error && data.error.message) || ('HTTP error ' + res.status);
-                        var retryable = res.status === 429 || res.status >= 500 ||
-                            /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable/i.test(msg);
-                        // Show raw message for quota errors to debug
-                        var displayMsg = /quota/i.test(msg) ? 'Quota exceeded. Raw: ' + msg : msg;
-                        return { ok: false, retryable: retryable, msg: displayMsg };
-                    }
-                    var parts = (data.candidates && data.candidates[0] && data.candidates[0].content &&
-                                 data.candidates[0].content.parts) || [];
-                    for (var i = 0; i < parts.length; i++) {
-                        if (parts[i] && parts[i].inlineData && parts[i].inlineData.data) {
-                            return { ok: true, dataUrl: 'data:' + (parts[i].inlineData.mimeType || 'image/png') + ';base64,' + parts[i].inlineData.data };
-                        }
-                    }
-                    return { ok: false, retryable: true, msg: 'The image model returned no image. Try again.' };
-                });
-            }, function () {
-                return { ok: false, retryable: true, msg: 'Network error contacting the image model.' };
-            });
-        }
-
-        /* Primary key → backup key (quota/busy). Resolves to a data URL. */
-        function smartSlideImage(visual) {
-            var promptText = visualPrompt(visual);
-            var k1 = (state.apiKey || '').trim();
-            var k2 = (state.apiKey2 || '').trim();
-            var runWithKey = function (key) {
-                return apiImageAttempt(key, promptText).then(function (r) {
-                    if (r.ok) return r.dataUrl;
-                    if (r.retryable && k2 && k2 !== key) return runWithKey(k2);
-                    throw new Error(r.msg);
-                });
-            };
-            if (!k1) throw new Error('API key required for image generation. Please set your Gemini API key in Settings.');
-            return runWithKey(k1);
-        }
-
-        /* ---------- auto image generation after deck creation ---------- */
-        // Generates images for slides that have a visual suggestion, sequentially so the
-        // free image service isn't hammered. Retries transient failures once, then reports
-        // which slides couldn't get an image so the user can retry those manually.
-        function autoGenerateImages() {
-            if (state.visuals !== 'images' && state.visuals !== 'both') return; // emoji & none modes skip the image service; 'both' only fetches for slides with a visual idea
-            var withVisual = [];
-            state.slides.forEach(function (s, i) {
-                if (s.suggestedVisual && s.suggestedVisual.length > 5 &&
-                    s.suggestedVisual.toLowerCase() !== 'none' &&
-                    !state.generatedImages[i]) {
-                    withVisual.push(i);
-                }
-            });
-            if (!withVisual.length) return;
-
-            // Limit max images per deck (default 5, user configurable)
-            var maxImagesEl = $('max-images-input');
-            var maxImages = (maxImagesEl && parseInt(maxImagesEl.value, 10)) || 5;
-            if (maxImages > 0 && withVisual.length > maxImages) {
-                withVisual = withVisual.slice(0, maxImages);
-            }
-
-            var total = withVisual.length;
-            var done = 0;
-            var failed = 0;
-            var cancelled = false;
-            var status = $('img-status');
-            var statusText = $('img-status-text');
-            var statusPct = $('img-status-pct');
-            var statusBar = $('img-status-bar');
-            var cancelBtn = $('img-cancel-btn');
-            var statusSpinner = $('img-status-spinner');
-            var showStatus = function () {
-                var pct = total > 0 ? Math.round((done / total) * 100) : 0;
-                if (statusText) statusText.textContent = 'Generating images… ' + done + '/' + total;
-                if (statusPct) statusPct.textContent = pct + '%';
-                if (statusBar) statusBar.style.width = pct + '%';
-            };
-            var hideStatus = function (delayMs) {
-                setTimeout(function () {
-                    if (status) status.classList.add('hidden');
-                    if (statusBar) { statusBar.classList.add('from-iris-500', 'to-iris-400'); statusBar.classList.remove('from-amber-400', 'to-amber-300', 'from-emerald-400', 'to-emerald-300'); statusBar.style.width = '0%'; }
-                    if (statusSpinner) statusSpinner.classList.remove('hidden');
-                    if (cancelBtn) cancelBtn.classList.add('hidden');
-                }, delayMs);
-            };
-            var cleanup = function () {
-                if (cancelBtn) cancelBtn.classList.add('hidden');
-            };
-
-            // Wire cancel button
-            if (cancelBtn) {
-                cancelBtn.classList.remove('hidden');
-                cancelBtn.onclick = function () {
-                    cancelled = true;
-                    cleanup();
-                    if (statusText) statusText.textContent = 'Cancelled — ' + done + '/' + total + ' images generated.';
-                    if (statusSpinner) statusSpinner.classList.add('hidden');
-                    if (statusBar) { statusBar.classList.add('from-amber-400', 'to-amber-300'); statusBar.classList.remove('from-iris-500', 'to-iris-400'); }
-                    hideStatus(5000);
-                };
-            }
-
-            if (status) {
-                status.classList.remove('hidden');
-                if (statusSpinner) statusSpinner.classList.remove('hidden');
-                showStatus();
-            }
-
-            var finish = function () {
-                cleanup();
-                if (!status) return;
-                var pct = total > 0 ? Math.round((done / total) * 100) : 0;
-                if (statusBar) { statusBar.style.width = '100%'; }
-                if (statusPct) statusPct.textContent = '100%';
-                if (failed > 0) {
-                    statusText.textContent = failed + ' image' + (failed === 1 ? '' : 's') + ' failed — tap retry on the slide.';
-                    if (statusBar) { statusBar.classList.remove('from-iris-500', 'to-iris-400'); statusBar.classList.add('from-amber-400', 'to-amber-300'); }
-                    if (statusSpinner) statusSpinner.classList.add('hidden');
-                    hideStatus(12000);
-                } else {
-                    if (statusText) statusText.textContent = 'All images generated!';
-                    if (statusBar) { statusBar.classList.remove('from-iris-500', 'to-iris-400'); statusBar.classList.add('from-emerald-400', 'to-emerald-300'); }
-                    if (statusSpinner) statusSpinner.classList.add('hidden');
-                    hideStatus(2500);
-                }
-            };
-
-            // attempt 0 = first try, 1 = one retry after a short pause.
-            // Gemini image model only — no external fallback.
-            var fetchImage = function (i, visual) {
-                return smartSlideImage(visual);
-            };
-
-            var run = function (idx) {
-                if (cancelled || idx >= withVisual.length) {
-                    finish();
-                    return;
-                }
-                var i = withVisual[idx];
-                var visual = state.slides[i].suggestedVisual;
-                state.generatingImages[i] = true;
-                if (state.current === i) renderPreview();
-
-                fetchImage(i, visual)
-                    .catch(function () {
-                        // one retry after a pause (transient network / throttle errors)
-                        return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(function () {
-                            if (cancelled) throw new Error('cancelled');
-                            return fetchImage(i, visual);
-                        });
-                    })
-                    .then(function (dataUrl) {
-                        if (cancelled) return;
-                        state.generatedImages[i] = dataUrl;
-                        state.generatingImages[i] = false;
-                        delete state.imageErrors[i];
-                        if (state.current === i) renderPreview();
-                        savePptState();
-                    })
-                    .catch(function (err) {
-                        if (cancelled) return;
-                        console.error('Image generation failed for slide ' + (i + 1) + ':', err);
-                        state.generatingImages[i] = false;
-                        state.imageErrors[i] = 'Could not load image. Check your connection and try again.';
-                        failed++;
-                        if (state.current === i) renderPreview();
-                    })
-                    .then(function () {
-                        if (cancelled) return;
-                        done++;
-                        showStatus();
-                        setTimeout(function () { run(idx + 1); }, 350);
-                    });
-            };
-            run(0);
+return fallback[i % fallback.length];
         }
 
         function dllSourceText() {
@@ -1734,19 +1508,10 @@
                     '</div>';
                 }
                 if (state.visuals === 'none') return '';
-                var img = state.generatedImages[state.current];
-                if (img) {
-                    return '<div class="relative rounded-xl overflow-hidden" style="width:42%;min-height:180px"><img src="' + img + '" class="absolute inset-0 w-full h-full object-cover"/><span class="absolute inset-0 grid place-items-center bg-black/30 opacity-0 hover:opacity-100 transition text-white text-[10px] font-bold uppercase tracking-wider">Generated</span></div>';
-                }
                 if (!hasIdea) return '';
                 return '<div class="flex flex-col items-center justify-center text-center rounded-xl border-2 border-dashed p-4 gap-2" style="width:42%;min-height:180px;border-color:' + theme.secondary + '80">' +
                     '<span class="text-[10px] font-bold uppercase tracking-wider opacity-50" style="color:' + theme.text + '">Visual</span>' +
                     '<span class="text-[11px] italic leading-tight opacity-60" style="color:' + theme.text + '">' + escapeHtml(visual) + '</span>' +
-                    '<button id="preview-gen-img" class="mt-1 px-3 py-1.5 rounded-lg text-white text-[11px] font-bold flex items-center gap-1.5 btn-spring" style="background:' + theme.secondary + '">' +
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>' +
-                        (state.generatingImages[state.current] ? 'Creating…' : 'Generate Image') +
-                    '</button>' +
-                    (state.imageErrors[state.current] ? '<span class="text-[10px] text-red-500 font-medium">' + state.imageErrors[state.current] + '</span>' : '') +
                 '</div>';
             }
 
@@ -1885,32 +1650,8 @@
             if (genBtn) genBtn.addEventListener('click', function () { generateSlideImage(state.current, s.suggestedVisual); });
         }
 
-        function escapeHtml(str) {
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        /* ---------- per-slide image generation (Gemini image model) ---------- */
-        function generateSlideImage(index, visualPrompt) {
-            if (state.visuals !== 'images' && state.visuals !== 'both') return;
-            if (!visualPrompt || visualPrompt.length < 3) {
-                setError('No visual suggestion available for this slide.');
-                return;
-            }
-            state.generatingImages[index] = true;
-            state.imageErrors[index] = null;
-            if (state.current === index) renderPreview();
-            smartSlideImage(visualPrompt)
-                .then(function (dataUrl) {
-                    state.generatedImages[index] = dataUrl;
-                    state.generatingImages[index] = false;
-                    if (state.current === index) renderPreview();
-                })
-                .catch(function (err) {
-                    console.error('Image generation error:', err);
-                    state.generatingImages[index] = false;
-                    state.imageErrors[index] = 'Could not generate image. Check your connection.';
-                    if (state.current === index) renderPreview();
-                });
+function escapeHtml(str) {
+            return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"');
         }
 
         /* ---------- print / PDF handout (every slide + its notes, one per page) ---------- */
@@ -2105,25 +1846,16 @@
                         }
                         if (isPlayful) playfulDecorate(slide, i);
                         var bbullets = textObjects(contentLines, { bullet: { type: 'bullet', color: theme.secondary }, color: theme.text });
-                        var img = state.generatedImages[i];
                         var isImageLayout = layout === 'content_image_left' || layout === 'content_image_right';
                         var hasIdea = !!(s.suggestedVisual && s.suggestedVisual.length > 5 && s.suggestedVisual.toLowerCase() !== 'none');
-                        var emojiMode = state.visuals === 'emoji' || (state.visuals === 'both' && !hasIdea);
-                        var wantImage = state.visuals === 'images' || (state.visuals === 'both' && hasIdea);
-                        var useImageRight = isImageLayout && state.visuals !== 'none' && (layout === 'content_image_right' || state.visuals === 'emoji' || state.visuals === 'both' || wantImage);
-                        var useImageLeft = isImageLayout && state.visuals !== 'none' && layout === 'content_image_left' && (state.visuals === 'emoji' || state.visuals === 'both' || wantImage);
+                        var emojiMode = state.visuals === 'emoji';
                         var emojiBox = function (bx, by, bw, bh) {
                             slide.addShape('rect', { x: bx, y: by, w: bw, h: bh, fill: { color: theme.accent }, rectRadius: 0.1 });
                             slide.addText(emojiForSlide(s, i), { x: bx, y: by + 0.4, w: bw, h: bh - 1.1, fontSize: 90, align: 'center', valign: 'middle' });
                             slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: bx + 0.2, y: by + bh - 0.75, w: bw - 0.4, h: 0.6, fontSize: 11, align: 'center', color: theme.text, italic: true });
                         };
                         if (useImageLeft) {
-                            if (emojiMode) emojiBox(0.4, 1.5, 3.8, 3.8);
-                            else if (img) slide.addImage({ data: img, x: 0.4, y: 1.5, w: 3.8, h: 3.8 });
-                            else {
-                                slide.addShape('rect', { x: 0.4, y: 1.5, w: 3.8, h: 3.8, fill: { color: theme.accent }, rectRadius: 0.1, line: { color: theme.secondary, width: 1.5, dashType: 'dash' } });
-                                slide.addText('[ Visual Area ]\n\n' + (s.suggestedVisual || ''), { x: 0.6, y: 1.7, w: 3.4, h: 3.4, fontSize: 13, align: 'center', color: theme.primary, valign: 'middle', italic: true });
-                            }
+                            emojiBox(0.4, 1.5, 3.8, 3.8);
                             slide.addShape('rect', { x: 4.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
                             slide.addShape('rect', { x: 4.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
                             slide.addText(bbullets, { x: 4.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
@@ -2131,10 +1863,8 @@
                             slide.addShape('rect', { x: 0.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
                             slide.addShape('rect', { x: 0.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
                             slide.addText(bbullets, { x: 0.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
-                            if (emojiMode) emojiBox(5.8, 1.5, 3.8, 3.8);
-                            else if (img) slide.addImage({ data: img, x: 5.8, y: 1.5, w: 3.8, h: 3.8 });
-                            else {
-                                slide.addShape('rect', { x: 5.8, y: 1.5, w: 3.8, h: 3.8, fill: { color: theme.accent }, rectRadius: 0.1, line: { color: theme.secondary, width: 1.5, dashType: 'dash' } });
+                            emojiBox(5.8, 1.5, 3.8, 3.8);
+                        } else {
                                 slide.addText('[ Visual Area ]\n\n' + (s.suggestedVisual || ''), { x: 6.0, y: 1.7, w: 3.4, h: 3.4, fontSize: 13, align: 'center', color: theme.primary, valign: 'middle', italic: true });
                             }
                         } else {
@@ -2161,8 +1891,7 @@
                             align: 'center', fontFace: isPlayful ? 'Arial' : 'Georgia'
                         });
                         var cbullets = textObjects(contentLines, { bullet: { code: '2022', color: isPlayful ? theme.secondary : undefined } });
-                        var simg = state.generatedImages[i];
-                        if (state.visuals === 'emoji' || (state.visuals === 'both' && !simg)) {
+                        if (state.visuals === 'emoji') {
                             slide.addText(cbullets, {
                                 x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
                                 valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
@@ -2170,12 +1899,6 @@
                             slide.addShape('rect', { x: 6.5, y: 1.6, w: 4.2, h: 3.6, fill: { color: isPlayful ? theme.accent : 'EDEBF8' }, rectRadius: 0.1 });
                             slide.addText(emojiForSlide(s, i), { x: 6.5, y: 1.9, w: 4.2, h: 2.4, fontSize: 96, align: 'center', valign: 'middle' });
                             slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: 6.5, y: 4.4, w: 4.2, h: 0.6, fontSize: 11, align: 'center', color: isPlayful ? theme.text : '6B6578', italic: true });
-                        } else if (simg) {
-                            slide.addText(cbullets, {
-                                x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
-                                valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
-                            });
-                            slide.addImage({ data: simg, x: 6.5, y: 1.6, w: 4.2, h: 3.6, sizing: { type: 'contain', w: 4.2, h: 3.6 } });
                         } else {
                             slide.addText(cbullets, {
                                 x: isFirst ? 1.2 : 1.0, y: isFirst ? 2.3 : 1.8,
@@ -2566,9 +2289,6 @@
                     if (data.selectedLanguage) state.selectedLanguage = data.selectedLanguage;
                     if (data.slideRange) state.slideRange = data.slideRange;
                     if (data.dllSlideRange) state.dllSlideRange = data.dllSlideRange;
-                    if (data.generatedImages) state.generatedImages = data.generatedImages;
-                    state.generatingImages = {};
-                    state.imageErrors = {};
                     var tRange = $('topic-slide-range');
                     if (tRange) tRange.value = state.slideRange;
                     var dRange = $('dll-slide-range');
