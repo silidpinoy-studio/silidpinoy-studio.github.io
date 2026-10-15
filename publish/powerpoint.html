@@ -1395,7 +1395,9 @@
                         var msg = (data.error && data.error.message) || ('HTTP error ' + res.status);
                         var retryable = res.status === 429 || res.status >= 500 ||
                             /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable/i.test(msg);
-                        return { ok: false, retryable: retryable, msg: msg };
+                        // Show raw message for quota errors to debug
+                        var displayMsg = /quota/i.test(msg) ? 'Quota exceeded. Raw: ' + msg : msg;
+                        return { ok: false, retryable: retryable, msg: displayMsg };
                     }
                     var parts = (data.candidates && data.candidates[0] && data.candidates[0].content &&
                                  data.candidates[0].content.parts) || [];
