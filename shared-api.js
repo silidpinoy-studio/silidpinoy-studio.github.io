@@ -42,7 +42,7 @@
     if (msg.indexOf('API key not valid') !== -1) return 'Your API key is not valid. Get a new one at aistudio.google.com/apikey and update it in Settings.';
     if (msg.indexOf('Permission denied') !== -1) return 'Permission denied. Make sure the Generative Language API is enabled for your Google account.';
     if (msg.indexOf('quota') !== -1) return 'You have used up your free Gemini quota for today. Try again tomorrow, or use a backup key.';
-    if (msg.indexOf('not found') !== -1) return 'This API key does not have access to Gemini. Raw error: ' + msg;
+    if (msg.indexOf('not found') !== -1) return 'This API key does not have access to Gemini. Create a new key at aistudio.google.com/apikey.';
     if (msg.indexOf('Invalid JSON') !== -1 || msg.indexOf('Unexpected token') !== -1) return 'The AI returned an invalid response. Please try again.';
     return msg;
   }
