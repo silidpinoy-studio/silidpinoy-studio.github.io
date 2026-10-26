@@ -2756,7 +2756,7 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     /* the preview grid mirrors the export fix: a fixed layout with a colgroup
        so no item column (item 8) can outgrow its neighbours on screen */
     const grid = await page.evaluate(() => {
-      const t = document.querySelector('table.table-fixed');
+      const t = document.querySelector('table[data-ia-grid]');
       if (!t) return null;
       return Array.from(t.querySelectorAll('colgroup col')).map(c => Math.round(c.getBoundingClientRect().width));
     });
@@ -2764,6 +2764,24 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     assert.equal(grid.length, 13, 'every preview column must carry a width');
     assert.equal(new Set(grid.slice(5, 10)).size, 1,
       'all preview item columns must share ONE width — got ' + JSON.stringify(grid.slice(5, 10)));
+
+    /* the School / Subject / School Year / Grading Period block lives in its
+       own table, so editing a cell width there cannot move the score grid */
+    const split = await page.evaluate(() => {
+      const tables = Array.from(document.querySelectorAll('.overflow-x-auto table'));
+      const info = tables.find(t => /School:/.test(t.textContent));
+      const gridT = document.querySelector('table[data-ia-grid]');
+      return {
+        tables: tables.length,
+        infoIsOwnTable: !!info && info !== gridT,
+        infoHoldsGrid: !!info && /Total No\. of Items/.test(info.textContent)
+      };
+    });
+    assert.ok(split.tables >= 2, 'the preview must render the info block and the score grid as separate tables');
+    assert.ok(split.infoIsOwnTable,
+      'School/Subject/School Year/Grading Period must sit in a table of their own');
+    assert.ok(!split.infoHoldsGrid,
+      'the info table must not share cells with the score grid');
 
     /* both annexes are previewed on-screen from the same HTML the exports use */
     const annexPreviews = await page.evaluate(() => {
@@ -2827,6 +2845,19 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     const itemWidths = hw.slice(5, 10);
     assert.equal(new Set(itemWidths).size, 1,
       'all numbered item columns must share ONE width — got ' + JSON.stringify(itemWidths));
+
+    /* the info block (School / Subject / School Year / Grading Period) is a
+       table of its own, so the teacher can resize its cells in Word without
+       disturbing the score grid above or below */
+    const exportTables = [...docHtml.matchAll(/<table[\s\S]*?<\/table>/g)].map(m => m[0]);
+    const infoTable = exportTables.find(t => /School:/.test(t));
+    assert.ok(infoTable, 'the export must render the School/Subject info block');
+    assert.match(infoTable, /Grading Period/,
+      'all four info fields must live together in the info table');
+    assert.doesNotMatch(infoTable, /Total No\. of Items/,
+      'the info table must not share cells with the score grid');
+    assert.ok(exportTables.some(t => /Total No\. of Items/.test(t)),
+      'the score grid must remain its own table');
 
     // both DepEd annexes, named after the forms with the template content
     const grab = async (name) => {

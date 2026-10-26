@@ -1844,8 +1844,6 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
           const m = iaBuildModel(meta, sections, itemCount);
           const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           const totalCols = 5 + m.items + 3;
-          const rightSpan = Math.max(4, Math.round(totalCols * 0.25));
-          const leftSpan = totalCols - 2 - rightSpan;
           const border = 'border:1px solid #555555;';
 
           /* Uniform column widths: every numbered item column gets the SAME
@@ -1873,8 +1871,16 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
             }).join('')}</tr>`;
           };
           const head = (text) => [text, 1, 'font-weight:bold;background:#e9e9e9;'];
-          const field = (text) => [text, 1, 'font-weight:bold;background:#f3f3f3;text-align:left;'];
           const cell = (text, span, extra) => [text, span || 1, extra || ''];
+
+          /* The School / Subject / School Year / Grading Period block sits in a
+             table OF ITS OWN, so widening one of its cells in Word never moves
+             the score grid below (they used to share one column grid). */
+          const infoRow = (l1, v1, l2, v2) => {
+            const infoCell = (text, w, style) =>
+              `<td width="${w}" style="${border}padding:2px 3px;vertical-align:middle;font-size:8pt;width:${w}%;${style}">${esc(text)}</td>`;
+            return `<tr>${infoCell(l1, 12, 'font-weight:bold;background:#f3f3f3;text-align:left;')}${infoCell(v1, 38, 'text-align:left;')}${infoCell(l2, 12, 'font-weight:bold;background:#f3f3f3;text-align:left;')}${infoCell(v2, 38, 'text-align:left;')}</tr>`;
+          };
 
           const dataRows = m.rows.map(r => renderRow([
             cell(meta.subjectCode || meta.subject),
@@ -1929,8 +1935,10 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
             : '';
           const content = `${logoHtml}${headerHtml}
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-${renderRow([field('School:'), cell(si.schoolName || '', leftSpan, 'text-align:left;'), field('School Year:'), cell(meta.schoolYear, rightSpan)])}
-${renderRow([field('Subject'), cell(meta.subject, leftSpan, 'text-align:left;'), field('Grading Period'), cell(meta.gradingPeriod, rightSpan)])}
+${infoRow('School:', si.schoolName || '', 'School Year:', meta.schoolYear)}
+${infoRow('Subject', meta.subject, 'Grading Period', meta.gradingPeriod)}
+</table>
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
 ${renderRow([cell(IA_TITLE, totalCols, 'font-weight:bold;padding:4px;')])}
 ${headers}
 ${dataRows}
@@ -2573,8 +2581,6 @@ ${signTable([
           // Data + column maths for the Excel-style preview.
           const xl = iaBuildModel(meta, sections, itemCount);
           const xlCols = 5 + xl.items + 3;
-          const xlRight = Math.max(4, Math.round(xlCols * 0.25));
-          const xlLeft = xlCols - 2 - xlRight;
           // Uniform columns, mirroring the Word export fix: a fixed layout with
           // explicit widths stops one item column (item 8) outgrowing the rest.
           const xItemW = 34;
@@ -2583,6 +2589,11 @@ ${signTable([
           const xCols = Array.from({ length: xlCols },
             (_, i) => (i < 5 ? xFixedW[i] : i < 5 + xl.items ? xItemW : xRightW[i - 5 - xl.items]));
           const xTableW = xCols.reduce((a, b) => a + b, 0);
+          // The School/Subject/School Year/Grading Period block gets its own
+          // table and its own column grid, exactly like the export: resizing a
+          // cell there can never shift the score grid underneath it.
+          const xInfoLabelW = 120;
+          const xInfoValueW = Math.round((xTableW - 2 * xInfoLabelW) / 2);
           const xHead = 'border border-ink/30 px-1.5 py-1 text-[10px] font-semibold text-center bg-ink/10 whitespace-nowrap';
           const xCell = 'border border-ink/30 px-1.5 py-1 text-[10px] text-center whitespace-nowrap';
           const xlHeaders = [
@@ -2644,23 +2655,31 @@ ${signTable([
                   {iaHeaderJsx()}
                   <table className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xTableW }}>
                     <colgroup>
-                      {xCols.map((w, i) => <col key={i} style={{ width: w }} />)}
+                      <col style={{ width: xInfoLabelW }} />
+                      <col style={{ width: xInfoValueW }} />
+                      <col style={{ width: xInfoLabelW }} />
+                      <col style={{ width: xTableW - 2 * xInfoLabelW - xInfoValueW }} />
                     </colgroup>
                     <tbody>
                       <tr>
                         <td className={`${xCell} font-semibold bg-ink/5 text-left`}>School:</td>
-                        <td colSpan={xlLeft} className={`${xCell} text-left`}>{schoolInfo.schoolName}</td>
-                        {/* labels span a few columns so they don't sit inside a
-                            single 34px item column and overflow */}
-                        <td colSpan={3} className={`${xCell} font-semibold bg-ink/5`}>School Year:</td>
-                        <td colSpan={xlRight - 2} className={xCell}>{meta.schoolYear}</td>
+                        <td className={`${xCell} text-left`}>{schoolInfo.schoolName}</td>
+                        <td className={`${xCell} font-semibold bg-ink/5`}>School Year:</td>
+                        <td className={xCell}>{meta.schoolYear}</td>
                       </tr>
                       <tr>
                         <td className={`${xCell} font-semibold bg-ink/5 text-left`}>Subject</td>
-                        <td colSpan={xlLeft} className={`${xCell} text-left`}>{meta.subject}</td>
-                        <td colSpan={3} className={`${xCell} font-semibold bg-ink/5`}>Grading Period</td>
-                        <td colSpan={xlRight - 2} className={xCell}>{meta.gradingPeriod}</td>
+                        <td className={`${xCell} text-left`}>{meta.subject}</td>
+                        <td className={`${xCell} font-semibold bg-ink/5`}>Grading Period</td>
+                        <td className={xCell}>{meta.gradingPeriod}</td>
                       </tr>
+                    </tbody>
+                  </table>
+                  <table data-ia-grid className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xTableW }}>
+                    <colgroup>
+                      {xCols.map((w, i) => <col key={i} style={{ width: w }} />)}
+                    </colgroup>
+                    <tbody>
                       <tr>
                         <td colSpan={xlCols} className={`${xCell} py-2 text-xs font-bold`}>{IA_TITLE}</td>
                       </tr>
