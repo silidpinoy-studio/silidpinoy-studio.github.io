@@ -1843,7 +1843,6 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
           const si = iaSi();
           const m = iaBuildModel(meta, sections, itemCount);
           const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          const totalCols = 5 + m.items + 3;
           const border = 'border:1px solid #555555;';
 
           /* Uniform column widths: every numbered item column gets the SAME
@@ -1851,25 +1850,39 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
              far wider column than its neighbours). Fixed columns keep a little
              more room for their labels. Left block 30 (Subject 7 · Grade 5 ·
              Section 7 · Takers 6 · Items 5) + right block 18 (Raw 6 · MPS 5 ·
-             Mastery 7) — the numbered columns share the remaining 52. */
-          const fixedSum = 48;
-          const itemW = Math.max(1.2, (100 - fixedSum) / m.items);
-          const colW = (i) => (i < 5 ? [7, 5, 7, 6, 5][i] : i < 5 + m.items ? itemW : [6, 5, 7][i - 5 - m.items]);
-          const pct = (n) => Math.round(n * 100) / 100;
+             Mastery 7) — the numbered columns share the remaining 52.
 
-          // Cells are [text, span, extraStyle]; renderRow keeps a running column
-          // cursor so every cell carries the exact width of the columns it spans.
-          const renderRow = (cells) => {
-            let idx = 0;
-            return `<tr>${cells.map(([text, span, extra]) => {
-              const n = span || 1;
-              let width = 0;
-              for (let k = idx; k < idx + n; k++) width += colW(k);
-              idx += n;
-              const w = pct(width);
-              return `<td${n > 1 ? ` colspan="${n}"` : ''} width="${w}" style="${border}padding:2px 3px;text-align:center;vertical-align:middle;font-size:8pt;width:${w}%;${extra || ''}">${esc(text)}</td>`;
-            }).join('')}</tr>`;
-          };
+             Wide tests are printed in readable BANDS — AT MOST TWO. The
+             FIRST band holds the first 30 items and spans the FULL page width
+             (no summary block, so its item columns get 70% ÷ 30 — roomier
+             than a single grid). Everything after item 30 goes into one second
+             band, which repeats the left block and carries the 18% summary
+             block. Both bands share ONE item-column width, taken as the
+             tighter of "band 1 fills the page" and "band 2 fits the page" —
+             so every column lines up exactly from one band to the next, even
+             when a very wide band 2 pulls both below full width. */
+          const leftFixed = 30;   // Subject 7 · Grade 5 · Section 7 · Takers 6 · Items 5
+          const rightFixed = 18;  // Raw 6 · MPS 5 · Mastery 7
+          const fixedSum = leftFixed + rightFixed;
+          const pct = (n) => Math.round(n * 100) / 100;
+          const BAND_ONE = 30;   // band 1: the first 30 items, full page width
+          const bands = [];
+          if (m.items > 0) {
+            bands.push([0, Math.min(m.items, BAND_ONE)]);
+            if (m.items > BAND_ONE) bands.push([BAND_ONE, m.items]);
+          }
+          // One shared item-column width, so every band's columns line up
+          // exactly. Band 1 (no summary block) fills the page with 70 ÷ 30
+          // per item; band 2 needs 52 ÷ its item count to fit alongside the
+          // summary block. Whichever is TIGHTER wins: bands then match
+          // perfectly, even if a very wide band 2 pulls both below full
+          // width. A single grid still splits the 52 left after both fixed
+          // blocks.
+          const restN = m.items > BAND_ONE ? m.items - BAND_ONE : 0;
+          const itemW = bands.length > 1
+            ? Math.min((100 - leftFixed) / BAND_ONE, (100 - fixedSum) / restN)
+            : Math.max(1.2, (100 - fixedSum) / Math.max(1, m.items));
+
           const head = (text) => [text, 1, 'font-weight:bold;background:#e9e9e9;'];
           const cell = (text, span, extra) => [text, span || 1, extra || ''];
 
@@ -1882,42 +1895,88 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
             return `<tr>${infoCell(l1, 12, 'font-weight:bold;background:#f3f3f3;text-align:left;')}${infoCell(v1, 38, 'text-align:left;')}${infoCell(l2, 12, 'font-weight:bold;background:#f3f3f3;text-align:left;')}${infoCell(v2, 38, 'text-align:left;')}</tr>`;
           };
 
-          const dataRows = m.rows.map(r => renderRow([
-            cell(meta.subjectCode || meta.subject),
-            cell(meta.gradeLevel),
-            cell(r.name || 'Section'),
-            cell(String(r.takers)),
-            cell(String(m.items)),
-            ...r.scores.map(v => cell(String(v))),
-            cell(String(r.raw), 1, 'font-weight:bold;'),
-            cell(String(Math.round(r.mps))),
-            cell(iaFixed(r.mastery, 2))
-          ])).join('');
+          /* One band = one self-contained grid table covering items
+             [start, end). It carries the title, its own header row, the section
+             rows and the per-item totals for ITS items.
 
-          const totalRow = renderRow([
-            cell(''),
-            cell('Total', 2, 'font-weight:bold;background:#f3f3f3;'),
-            cell(String(m.totalTakers)),
-            cell(String(m.items)),
-            ...m.perItem.map(v => cell(String(v))),
-            cell(String(m.totalRaw), 1, 'font-weight:bold;'),
-            cell(String(Math.round(m.mps)), 1, 'font-weight:bold;'),
-            cell(iaFixed(m.mastery, 2), 1, 'font-weight:bold;')
-          ]);
+             The summary block (Total Raw Score · MPS · Mastery Level) holds
+             WHOLE-TEST values, so it appears only on the LAST band — repeating
+             it on earlier bands reads as if those totals described just that
+             band's items. Earlier bands simply end after their item columns,
+             sharing band 1's column widths so the grids line up vertically. */
+          const buildBand = (bandIdx, start, end) => {
+            const n = end - start;
+            const isLast = bandIdx === bands.length - 1;
+            const totalCols = 5 + n + (isLast ? 3 : 0);
+            // The single shared itemW applies to BOTH bands, so their item
+            // columns line up exactly from one band to the next.
+            const colW = (i) => (i < 5 ? [7, 5, 7, 6, 5][i] : i < 5 + n ? itemW : [6, 5, 7][i - 5 - n]);
+            const colWidths = Array.from({ length: totalCols }, (_, i) => colW(i));
+            const bandW = Math.min(100, pct(colWidths.reduce((a, b) => a + b, 0)));
+            // Cells are [text, span, extraStyle]; renderRow keeps a running
+            // column cursor so every cell carries the width of its columns.
+            const renderRow = (cells) => {
+              let idx = 0;
+              return `<tr>${cells.map(([text, span, extra]) => {
+                const cn = span || 1;
+                let width = 0;
+                for (let k = idx; k < idx + cn; k++) width += colWidths[k];
+                idx += cn;
+                const w = pct(width);
+                return `<td${cn > 1 ? ` colspan="${cn}"` : ''} width="${w}" style="${border}padding:2px 3px;text-align:center;vertical-align:middle;font-size:8pt;width:${w}%;${extra || ''}">${esc(text)}</td>`;
+              }).join('')}</tr>`;
+            };
 
-          const mpsRow = renderRow([
-            cell(''),
-            cell('MPS per Item', 3, 'font-weight:bold;background:#f3f3f3;'),
-            cell(''),
-            ...m.mpsPerItem.map(v => cell(iaTrim(v))),
-            cell(''), cell(''), cell('')
-          ]);
+            const dataRows = m.rows.map(r => renderRow([
+              cell(meta.subjectCode || meta.subject),
+              cell(meta.gradeLevel),
+              cell(r.name || 'Section'),
+              cell(String(r.takers)),
+              cell(String(m.items)),
+              ...r.scores.slice(start, end).map(v => cell(String(v))),
+              ...(isLast ? [
+                cell(String(r.raw), 1, 'font-weight:bold;'),
+                cell(String(Math.round(r.mps))),
+                cell(iaFixed(r.mastery, 2))
+              ] : [])
+            ])).join('');
 
-          const headers = renderRow([
-            head('Subject'), head('Grade Level'), head('Section'), head('Total No. of Takers'), head('Total No. of Items'),
-            ...Array.from({ length: m.items }, (_, i) => head(String(i + 1))),
-            head('Total Raw Score'), head('MPS'), head('Mastery Level')
-          ]);
+            const totalRow = renderRow([
+              cell(''),
+              cell('Total', 2, 'font-weight:bold;background:#f3f3f3;'),
+              cell(String(m.totalTakers)),
+              cell(String(m.items)),
+              ...m.perItem.slice(start, end).map(v => cell(String(v))),
+              ...(isLast ? [
+                cell(String(m.totalRaw), 1, 'font-weight:bold;'),
+                cell(String(Math.round(m.mps)), 1, 'font-weight:bold;'),
+                cell(iaFixed(m.mastery, 2), 1, 'font-weight:bold;')
+              ] : [])
+            ]);
+
+            const mpsRow = renderRow([
+              cell(''),
+              cell('MPS per Item', 3, 'font-weight:bold;background:#f3f3f3;'),
+              cell(''),
+              ...m.mpsPerItem.slice(start, end).map(v => cell(iaTrim(v))),
+              ...(isLast ? [cell(''), cell(''), cell('')] : [])
+            ]);
+
+            const headers = renderRow([
+              head('Subject'), head('Grade Level'), head('Section'), head('Total No. of Takers'), head('Total No. of Items'),
+              ...Array.from({ length: n }, (_, i) => head(String(start + i + 1))),
+              ...(isLast ? [head('Total Raw Score'), head('MPS'), head('Mastery Level')] : [])
+            ]);
+
+            const title = bandIdx === 0 ? IA_TITLE : `${IA_TITLE} — Items ${start + 1}–${end}`;
+            return `<table style="width:${bandW}%;border-collapse:collapse;table-layout:fixed;">
+${renderRow([cell(title, totalCols, 'font-weight:bold;padding:4px;')])}
+${headers}
+${dataRows}
+${totalRow}
+${mpsRow}
+</table>`;
+          };
 
           const logoHtml = (si.schoolLogo1 || si.schoolLogo2)
             ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => `<img src="${src}" style="height:50px;" alt="" />`).join('&nbsp;&nbsp;&nbsp;')}</p>`
@@ -1938,13 +1997,7 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
 ${infoRow('School:', si.schoolName || '', 'School Year:', meta.schoolYear)}
 ${infoRow('Subject', meta.subject, 'Grading Period', meta.gradingPeriod)}
 </table>
-<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-${renderRow([cell(IA_TITLE, totalCols, 'font-weight:bold;padding:4px;')])}
-${headers}
-${dataRows}
-${totalRow}
-${mpsRow}
-</table>
+${bands.map(([s, e], i) => buildBand(i, s, e)).join('\n')}
 ${sigTable}`;
           const body = forDoc ? `<div class="WordSection1">${content}</div>` : content;
           return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">${pageCss}<title>${esc(IA_TITLE)}</title></head><body style="font-family:Arial,Helvetica,sans-serif;font-size:9pt;">${body}</body></html>`;
@@ -2025,12 +2078,22 @@ ${sigTable}`;
               `<td style="padding:0;text-align:right;"><table style="border-collapse:collapse;"><tr>${inner}</tr></table></td>` +
               '</tr></table>';
           };
+          /* Left: "Name of School: …". Right area: the Assessment Conducted
+             line together with the (Pls. put check in the box) ST-1 / ST-2 /
+             TE checkboxes — both moved to the right-hand side, matching the
+             template. A borderless table keeps the halves aligned in Word. */
+          const nameSchoolRow = () =>
+            '<table style="width:100%;border-collapse:collapse;"><tr>' +
+            `<td width="45" style="width:45%;border:none;padding:0 12pt 0 0;font-size:11pt;text-align:left;vertical-align:top;">${esc(`Name of School: ${school}`)}</td>` +
+            '<td width="55" style="width:55%;border:none;padding:0;font-size:11pt;text-align:right;vertical-align:top;">' +
+            `<p style="margin:3pt 0;">${esc(`Assessment Conducted: ${meta.assessment || ''}`)}</p>` +
+            checkboxRow() +
+            '</td></tr></table>';
           const headBlock = (title, subLine, extraLine) =>
             '<div style="text-align:center;line-height:1.35;">' +
             `<p style="margin:2pt 0;font-size:13pt;font-weight:bold;">${esc(title)}</p>` +
             `<p style="margin:2pt 0;font-size:11pt;">${esc(subLine)}</p></div>` +
-            p(`Name of ${school}   Assessment Conducted: ${meta.assessment || ''}`) +
-            checkboxRow() +
+            nameSchoolRow() +
             p(extraLine);
           /* The DepEd letterhead block, straight from Settings — the same lines
              the main item-analysis export prints. It keeps its own font (Arial /
@@ -2066,9 +2129,22 @@ ${sigTable}`;
             'Learners may have succeeded on familiar examples but got stuck on unfamiliar ones',
             'The multi-step reasoning the items require may have caused learners to lose track halfway through the solution'
           ];
-          const reasonFor = (d) => {
+          /* Classroom-delivery causes — the exam is only half the story; the
+             lesson itself may not have landed. Causes alternate: one row
+             explains the exam scenario, the next the classroom delivery, so
+             both perspectives always appear in the table. */
+          const REASON_DELIVERY = [
+            'The competency may not have been fully covered during classroom delivery, so learners met it for the first time in the test',
+            'Classroom practice may have stayed at whole-class level, leaving slower learners without the guided practice they needed',
+            'The lesson pace may have moved on before every learner could demonstrate the skill',
+            'Real-life examples and visuals may not have been used enough during instruction for the concept to stick',
+            'Quick checks during the lesson may not have surfaced these gaps before the exam'
+          ];
+          const reasonFor = (d, i) => {
             const where = d.n ? `${d.n > 1 ? 'items' : 'item'} ${d.nums}` : 'its items';
-            const pool = d.avg < 40 ? REASON_SEVERE : REASON_WEAK;
+            const pool = i % 2 === 1
+              ? REASON_DELIVERY
+              : (d.avg < 40 ? REASON_SEVERE : REASON_WEAK);
             let h = 0;
             const key = `${d.nums}:${d.avg.toFixed(2)}`;
             for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -2121,18 +2197,31 @@ ${signTable([
               [w[2], 'Reasons/s/Cause/s', 'text-align:left;font-weight:bold;'],
               [w[3], 'Proposed Intervention Activity', 'text-align:left;font-weight:bold;']
             ]);
-            const list = (leastMastered.length ? leastMastered : []).slice(0, 8);
-            const dataRows = list.map((c, i) => {
+            /* Only competencies that are genuinely LOW by score belong here —
+               below the 60% MPS benchmark. The weakest skill in an otherwise
+               strong class is not "least mastered". Subject stays on the
+               first row only, as the template does. */
+            const LOW_MPS = 60;
+            const list = (leastMastered.length ? leastMastered : [])
+              .filter(c => parseFloat(c.average) < LOW_MPS)
+              .slice(0, 8);
+            const dataRows = list.length ? list.map((c, i) => {
               const d = compDetail(c.competency);
               return tr([
                 [w[0], i === 0 ? (meta.subjectCode || meta.subject) : '', 'text-align:left;vertical-align:top;'],
                 [w[1], c.competency, 'text-align:left;vertical-align:top;'],
-                [w[2], reasonFor(d), 'text-align:left;vertical-align:top;'],
+                [w[2], reasonFor(d, i), 'text-align:left;vertical-align:top;'],
                 [w[3], interventionFor(d), 'text-align:left;vertical-align:top;']
               ]);
-            }).join('\n');
+            }).join('\n')
+              : tr([
+                [w[0], meta.subjectCode || meta.subject, 'text-align:left;vertical-align:top;'],
+                [w[1], `None — every competency scored ${LOW_MPS}% or above.`, 'text-align:left;vertical-align:top;'],
+                [w[2], '', 'vertical-align:top;'],
+                [w[3], '', 'vertical-align:top;']
+              ]);
             const blank = tr(w.map(x => [x, '', 'height:34pt;']));
-            const pad = Math.max(0, 8 - list.length);
+            const pad = Math.max(0, 8 - (list.length || 1));
             content = `${logos}${headerHtml}${headBlock(
               `Annex 3. School Consolidated List of Least Mastered Competencies for the ${term} Term, SY: ${meta.schoolYear}`,
               `${term} Term Item Analysis Report (SY: ${meta.schoolYear})`,
@@ -2580,26 +2669,55 @@ ${signTable([
 
           // Data + column maths for the Excel-style preview.
           const xl = iaBuildModel(meta, sections, itemCount);
-          const xlCols = 5 + xl.items + 3;
           // Uniform columns, mirroring the Word export fix: a fixed layout with
           // explicit widths stops one item column (item 8) outgrowing the rest.
           const xItemW = 34;
           const xFixedW = [150, 90, 100, 130, 120];
           const xRightW = [110, 60, 100];
-          const xCols = Array.from({ length: xlCols },
-            (_, i) => (i < 5 ? xFixedW[i] : i < 5 + xl.items ? xItemW : xRightW[i - 5 - xl.items]));
-          const xTableW = xCols.reduce((a, b) => a + b, 0);
+          // Bands mirror the export: AT MOST TWO. Band 1 holds the first 30
+          // items at full width; everything else lands in one second band
+          // alongside the summary columns.
+          const xBandOne = 30;
+          const xBands = [];
+          if (xl.items > 0) {
+            xBands.push([0, Math.min(xl.items, xBandOne)]);
+            if (xl.items > xBandOne) xBands.push([xBandOne, xl.items]);
+          }
+          // One shared item-column width for BOTH bands (mirrors the export):
+          // band 1 sets the sheet width, and a wide band 2 — it carries the
+          // summary block — pulls both bands down to the same narrower column
+          // so the grids line up exactly.
+          const xFixedSum = xFixedW.reduce((a, b) => a + b, 0);
+          const xRightSum = xRightW.reduce((a, b) => a + b, 0);
+          const xSheetW = xFixedSum + Math.min(xl.items, xBandOne) * xItemW;
+          const xSharedItemW = xBands.length > 1
+            ? Math.max(2, Math.floor(Math.min(xItemW,
+              (xSheetW - xFixedSum - xRightSum) / Math.max(1, xl.items - xBandOne))))
+            : xItemW;
+          const xBandCols = (bi, start, end) => {
+            const n = end - start;
+            // The summary columns (Total Raw Score · MPS · Mastery Level) are
+            // whole-test values — they sit on the LAST band only, so no one
+            // mistakes them for a total of that band's items alone.
+            const isLast = bi === xBands.length - 1;
+            return [...xFixedW,
+              ...Array.from({ length: n }, () => xSharedItemW),
+              ...(isLast ? xRightW : [])];
+          };
+          const xBandW = (bi, start, end) => xBandCols(bi, start, end).reduce((a, b) => a + b, 0);
           // The School/Subject/School Year/Grading Period block gets its own
           // table and its own column grid, exactly like the export: resizing a
-          // cell there can never shift the score grid underneath it.
+          // cell there can never shift the score grid underneath it. It is as
+          // wide as the first band so everything still lines up.
+          const xInfoW = xBandW(0, xBands[0] ? xBands[0][0] : 0, xBands[0] ? xBands[0][1] : 0);
           const xInfoLabelW = 120;
-          const xInfoValueW = Math.round((xTableW - 2 * xInfoLabelW) / 2);
+          const xInfoValueW = Math.round((xInfoW - 2 * xInfoLabelW) / 2);
           const xHead = 'border border-ink/30 px-1.5 py-1 text-[10px] font-semibold text-center bg-ink/10 whitespace-nowrap';
           const xCell = 'border border-ink/30 px-1.5 py-1 text-[10px] text-center whitespace-nowrap';
-          const xlHeaders = [
+          const xlHeaders = (start, end, withTotals) => [
             'Subject', 'Grade Level', 'Section', 'Total No. of Takers', 'Total No. of Items',
-            ...Array.from({ length: xl.items }, (_, i) => i + 1),
-            'Total Raw Score', 'MPS', 'Mastery Level'
+            ...Array.from({ length: end - start }, (_, i) => start + i + 1),
+            ...(withTotals ? ['Total Raw Score', 'MPS', 'Mastery Level'] : [])
           ];
 
           return (
@@ -2653,12 +2771,12 @@ ${signTable([
               <div className="p-4 overflow-x-auto">
                 <div className="w-max">
                   {iaHeaderJsx()}
-                  <table className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xTableW }}>
+                  <table className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xInfoW }}>
                     <colgroup>
                       <col style={{ width: xInfoLabelW }} />
                       <col style={{ width: xInfoValueW }} />
                       <col style={{ width: xInfoLabelW }} />
-                      <col style={{ width: xTableW - 2 * xInfoLabelW - xInfoValueW }} />
+                      <col style={{ width: xInfoW - 2 * xInfoLabelW - xInfoValueW }} />
                     </colgroup>
                     <tbody>
                       <tr>
@@ -2675,53 +2793,61 @@ ${signTable([
                       </tr>
                     </tbody>
                   </table>
-                  <table data-ia-grid className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xTableW }}>
-                    <colgroup>
-                      {xCols.map((w, i) => <col key={i} style={{ width: w }} />)}
-                    </colgroup>
-                    <tbody>
-                      <tr>
-                        <td colSpan={xlCols} className={`${xCell} py-2 text-xs font-bold`}>{IA_TITLE}</td>
-                      </tr>
-                      <tr>
-                        {xlHeaders.map((h, i) => (
-                          <th key={i} className={xHead}>{h}</th>
-                        ))}
-                      </tr>
-                      {xl.rows.map((r, i) => (
-                        <tr key={i} className="hover:bg-iris-50/60">
-                          <td className={xCell}>{meta.subjectCode || meta.subject}</td>
-                          <td className={xCell}>{meta.gradeLevel}</td>
-                          <td className={xCell}>{r.name || `Section ${i + 1}`}</td>
-                          <td className={xCell}>{r.takers}</td>
-                          <td className={xCell}>{xl.items}</td>
-                          {r.scores.map((v, j) => <td key={j} className={xCell}>{v}</td>)}
-                          <td className={`${xCell} font-semibold`}>{r.raw}</td>
-                          <td className={xCell}>{Math.round(r.mps)}</td>
-                          <td className={xCell}>{iaFixed(r.mastery, 2)}</td>
-                        </tr>
-                      ))}
-                      <tr className="bg-ink/5 font-semibold">
-                        <td className={xCell}></td>
-                        <td colSpan={2} className={`${xCell} text-left`}>Total</td>
-                        <td className={xCell}>{xl.totalTakers}</td>
-                        <td className={xCell}>{xl.items}</td>
-                        {xl.perItem.map((v, j) => <td key={j} className={xCell}>{v}</td>)}
-                        <td className={xCell}>{xl.totalRaw}</td>
-                        <td className={xCell}>{Math.round(xl.mps)}</td>
-                        <td className={xCell}>{iaFixed(xl.mastery, 2)}</td>
-                      </tr>
-                      <tr className="bg-ink/5 font-semibold">
-                        <td className={xCell}></td>
-                        <td colSpan={3} className={`${xCell} text-left`}>MPS per Item</td>
-                        <td className={xCell}></td>
-                        {xl.mpsPerItem.map((v, j) => <td key={j} className={xCell}>{iaTrim(v)}</td>)}
-                        <td className={xCell}></td>
-                        <td className={xCell}></td>
-                        <td className={xCell}></td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  {xBands.map(([start, end], bi) => {
+                    const isLast = bi === xBands.length - 1;
+                    const cols = xBandCols(bi, start, end);
+                    const tableW = xBandW(bi, start, end);
+                    const title = bi === 0 ? IA_TITLE : `${IA_TITLE} \u2014 Items ${start + 1}\u2013${end}`;
+                    return (
+                      <table key={bi} data-ia-grid className="border-collapse table-fixed text-[10px] text-ink" style={{ width: tableW }}>
+                        <colgroup>
+                          {cols.map((w, i) => <col key={i} style={{ width: w }} />)}
+                        </colgroup>
+                        <tbody>
+                          <tr>
+                            <td colSpan={cols.length} className={`${xCell} py-2 text-xs font-bold`}>{title}</td>
+                          </tr>
+                          <tr>
+                            {xlHeaders(start, end, isLast).map((h, i) => (
+                              <th key={i} className={xHead}>{h}</th>
+                            ))}
+                          </tr>
+                          {xl.rows.map((r, i) => (
+                            <tr key={i} className="hover:bg-iris-50/60">
+                              <td className={xCell}>{meta.subjectCode || meta.subject}</td>
+                              <td className={xCell}>{meta.gradeLevel}</td>
+                              <td className={xCell}>{r.name || `Section ${i + 1}`}</td>
+                              <td className={xCell}>{r.takers}</td>
+                              <td className={xCell}>{xl.items}</td>
+                              {r.scores.slice(start, end).map((v, j) => <td key={j} className={xCell}>{v}</td>)}
+                              {isLast && <td className={`${xCell} font-semibold`}>{r.raw}</td>}
+                              {isLast && <td className={xCell}>{Math.round(r.mps)}</td>}
+                              {isLast && <td className={xCell}>{iaFixed(r.mastery, 2)}</td>}
+                            </tr>
+                          ))}
+                          <tr className="bg-ink/5 font-semibold">
+                            <td className={xCell}></td>
+                            <td colSpan={2} className={`${xCell} text-left`}>Total</td>
+                            <td className={xCell}>{xl.totalTakers}</td>
+                            <td className={xCell}>{xl.items}</td>
+                            {xl.perItem.slice(start, end).map((v, j) => <td key={j} className={xCell}>{v}</td>)}
+                            {isLast && <td className={xCell}>{xl.totalRaw}</td>}
+                            {isLast && <td className={xCell}>{Math.round(xl.mps)}</td>}
+                            {isLast && <td className={xCell}>{iaFixed(xl.mastery, 2)}</td>}
+                          </tr>
+                          <tr className="bg-ink/5 font-semibold">
+                            <td className={xCell}></td>
+                            <td colSpan={3} className={`${xCell} text-left`}>MPS per Item</td>
+                            <td className={xCell}></td>
+                            {xl.mpsPerItem.slice(start, end).map((v, j) => <td key={j} className={xCell}>{iaTrim(v)}</td>)}
+                            {isLast && <td className={xCell}></td>}
+                            {isLast && <td className={xCell}></td>}
+                            {isLast && <td className={xCell}></td>}
+                          </tr>
+                        </tbody>
+                      </table>
+                    );
+                  })}
                   <div className="flex flex-wrap gap-x-16 gap-y-6 mt-8 px-4 text-[11px]">
                     {iaSignatories().map((b, i) => (
                       <div key={i} className="min-w-40">

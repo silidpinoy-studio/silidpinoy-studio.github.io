@@ -2730,7 +2730,7 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       await page.locator('[id^="score-input-"]').evaluateAll(e => e.map(x => x.value)),
       ['4', '4', '4', '4', '4'],
       'Fill All must set every item score in one go');
-    for (const [i, v] of [4, 3, 2, 1, 0].entries()) {
+    for (const [i, v] of [45, 40, 10, 5, 2].entries()) {
       await page.locator(`#score-input-${i}`).fill(String(v));
     }
     await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
@@ -2796,6 +2796,37 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     assert.match(annexPreviews.annex1, /Annex 1\. MPS per Learning Area for the SECOND Term, SY: 2025-2026/);
     assert.match(annexPreviews.annex1, /IMELDA DISTRICT/i,
       'the Annex 1 preview must carry the Settings district');
+    // "Name of School: …" on the left; "Assessment Conducted: …" AND the
+    // ST-1 / ST-2 / TE checkboxes both live in the right-hand area
+    const nameRows = await page.evaluate(() => {
+      const out = {};
+      for (const kind of ['annex1', 'annex3']) {
+        const el = document.querySelector(`[data-annex-preview="${kind}"]`);
+        const hit = el ? Array.from(el.querySelectorAll('td'))
+          .find(td => td.textContent.trim().startsWith('Assessment Conducted:')) : null;
+        if (!hit) { out[kind] = null; continue; }
+        const first = hit.parentElement ? hit.parentElement.querySelector('td') : null;
+        out[kind] = {
+          align: getComputedStyle(hit).textAlign,
+          left: first ? first.textContent.trim().slice(0, 20) : '',
+          boxes: /Pls\. put check in the box/.test(hit.textContent) && /ST-1/.test(hit.textContent),
+          leftClean: first ? !/Pls\. put check/.test(first.textContent) : false
+        };
+      }
+      return out;
+    });
+    for (const kind of ['annex1', 'annex3']) {
+      const nameRow = nameRows[kind];
+      assert.ok(nameRow, `the ${kind} preview must keep the Assessment Conducted line`);
+      assert.equal(nameRow.align, 'right',
+        `${kind}: the Assessment Conducted label must sit in the RIGHT area`);
+      assert.match(nameRow.left, /^Name of School/,
+        `${kind}: the left side must read "Name of School: …"`);
+      assert.ok(nameRow.boxes,
+        `${kind}: the checkboxes must sit in the right-hand area with the label`);
+      assert.ok(nameRow.leftClean,
+        `${kind}: the checkboxes must not leak into the left Name-of-School cell`);
+    }
     // the Settings letterhead block opens both annexes
     assert.match(annexPreviews.annex1, /Republic of the Philippines/i,
       'the annex must open with the DepEd header from Settings');
@@ -2818,10 +2849,22 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       'the Annex 3 preview must show the Settings approver');
     assert.match(annexPreviews.annex3, /may have/i,
       'the Reasons/s/Cause/s column must say why learners got the items wrong');
+    assert.match(annexPreviews.annex3,
+      /during classroom delivery|Classroom practice|lesson pace|during instruction|Quick checks during the lesson/,
+      'causes must also reflect the classroom delivery, not only the exam');
     assert.match(annexPreviews.annex3, /% answered correctly/,
       'the cause must stay tied to the measured accuracy');
     assert.doesNotMatch(annexPreviews.annex3, /below the 60% MPS benchmark/,
       'the cause column must not just restate the mastery band');
+    // only genuinely low competencies (below the 60% MPS benchmark) are listed:
+    // the test scores out of 50 takers are 90 / 80 / 20 / 10 / 4 % — only the
+    // last three qualify as least mastered
+    assert.match(annexPreviews.annex3, /Evaluates media bias/,
+      'a competency below the benchmark must be listed');
+    assert.doesNotMatch(annexPreviews.annex3, /Identifies the main idea/,
+      'a competency at 90% must NOT be called least mastered');
+    assert.doesNotMatch(annexPreviews.annex3, /Analyzes the credibility of sources/,
+      'a competency at 80% must NOT be listed — only low scores qualify');
     assert.match(annexPreviews.annex3, /Reteach with concrete examples/,
       'Annex 3 must fill the Proposed Intervention column from the results');
 
@@ -2886,6 +2929,7 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     }
     const a1t = await readExport(a1);
     assert.match(a1t, /Annex 1\. MPS per Learning Area for the SECOND Term, SY: 2025-2026/);
+    assert.match(a1t, /Name of School:/, 'the annex line must read "Name of School: …"');
     assert.match(a1t, /IMELDA DISTRICT/i, 'Annex 1 must show the Settings district');
     assert.match(a1t, /Assessment Conducted: NOVEMBER EXAM/);
     assert.match(a1t, /Mean Score/, 'Annex 1 must keep the template\u2019s columns');
@@ -2896,6 +2940,7 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     assert.match(a3.name, /^Annex3_Least-Mastered-Competencies_Second_2025-2026\.(docx|doc)$/);
     const a3t = await readExport(a3);
     assert.match(a3t, /Annex 3\. School Consolidated List of Least Mastered Competencies for the SECOND Term, SY: 2025-2026/);
+    assert.match(a3t, /Name of School:/, 'Annex 3 must read "Name of School: …"');
     assert.match(a3t, /Evaluates media bias/, 'the least mastered competency must be listed');
     assert.match(a3t, /Learning Area: MEDIA INFORMATION LITERACY/);
     assert.match(a3t, /Reviewed by/);
@@ -2912,6 +2957,116 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       'Settings must hold the District field the annexes read');
 
     assert.deepEqual(errors, [], 'the item analysis flow must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
+   26. wide reports print in readable bands instead of one squeezed row
+   =============================================================== */
+
+test('the Item Analysis bands a wide report into readable grids', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  try {
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    const start = page.getByRole('button', { name: 'Get Started' });
+    if (!(await start.count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+    await start.click();
+    await page.getByRole('button', { name: /Manual Entry/ }).click();
+
+    const ITEMS = 45;
+    await page.getByPlaceholder(/Identifies the main idea/).fill(
+      Array.from({ length: ITEMS }, (_, i) => `${i + 1}. Demonstrates competency ${i + 1}`).join('\n'));
+    await page.locator('input[type="number"][max="200"]').fill(String(ITEMS));
+    await page.waitForTimeout(150);
+    await page.locator('#fill-all-score').fill('4');
+    await page.getByRole('button', { name: 'Fill All' }).click();
+    await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
+    await page.locator('input[type="number"][min="1"]:not([max])').fill('50');
+    await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.getByRole('button', { name: 'Generate Report' }).click();
+    await page.getByRole('heading', { name: 'Analysis Report' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(300);
+
+    // preview: band 1 = 30 items at FULL page width, band 2 = the remainder,
+    // shorter but with identical item-column widths; totals on the LAST band
+    const bands = await page.evaluate(() => Array.from(document.querySelectorAll('table[data-ia-grid]')).map(g => {
+      const cols = Array.from(g.querySelectorAll('colgroup col')).map(c => Math.round(c.getBoundingClientRect().width));
+      const hasTotals = /Total Raw Score/.test(g.textContent);
+      return {
+        n: cols.length,
+        width: cols.reduce((a, b) => a + b, 0),
+        itemW: cols.slice(5, cols.length - (hasTotals ? 3 : 0)),
+        hasTotals,
+        title: (g.querySelector('tbody tr td') || {}).textContent || ''
+      };
+    }));
+    assert.equal(bands.length, 2, '45 items must render as two bands, not one squeezed grid');
+    assert.deepEqual(bands.map(b => b.n), [35, 23],
+      'band 1 holds items 1–30; only the last band carries the 3 summary columns');
+    assert.equal(bands[0].itemW.length, 30, 'the first band must hold exactly 30 items');
+    assert.equal(bands[0].hasTotals, false,
+      'the whole-test summary block must NOT sit on an earlier band (it reads as a per-band total)');
+    assert.equal(bands[1].hasTotals, true,
+      'the last band must carry Total Raw Score / MPS / Mastery Level');
+    for (const b of bands) {
+      assert.equal(new Set(b.itemW).size, 1, 'item columns must stay uniform inside a band');
+    }
+    assert.equal(new Set([...bands[0].itemW, ...bands[1].itemW]).size, 1,
+      'item columns must keep the SAME width across bands so the grids line up');
+    assert.ok(bands[0].width > bands[1].width,
+      'band 1 must span the full page and the remainder band stay shorter — got ' +
+      bands[0].width + 'px vs ' + bands[1].width + 'px');
+    assert.match(bands[1].title, /Items 31–45/, 'the second band must announce its item range');
+
+    // the .doc export prints the same bands
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 20000 }),
+      page.getByRole('button', { name: 'Export DOC', exact: true }).click()
+    ]);
+    const docHtml = fs.readFileSync(await dl.path(), 'utf8');
+    const grids = [...docHtml.matchAll(/<table[\s\S]*?<\/table>/g)]
+      .map(m => m[0]).filter(t => /Total No\. of Items/.test(t));
+    assert.equal(grids.length, 2, 'the export must print two banded grids');
+    const bandWidths = grids.map(g => {
+      const header = [...g.matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+        .map(m => m[1]).find(r => /Total No\. of Items/.test(r)) || '';
+      return [...header.matchAll(/<td[^>]*\swidth="([\d.]+)"/g)].map(m => Number(m[1]));
+    });
+    assert.deepEqual(bandWidths.map(w => w.length), [35, 23],
+      'only the last export band may carry the Total Raw Score / MPS / Mastery columns');
+    assert.doesNotMatch(grids[0], /Total Raw Score/,
+      'the earlier export band must not repeat the whole-test summary block');
+    assert.match(grids[1], /Total Raw Score/,
+      'the last export band must carry the summary block');
+    const itemCols = bandWidths.map((w, i) => w.slice(5, 5 + [30, 15][i]));
+    for (const items of itemCols) {
+      assert.equal(new Set(items).size, 1, 'band item columns must be uniform');
+      assert.ok(Math.min(...items) >= 2,
+        'band item columns must stay at least 2% wide (readable) — got ' + Math.min(...items));
+    }
+    assert.equal(new Set(itemCols.flat()).size, 1,
+      'export item columns must keep the SAME width across bands so the grids line up');
+    const bandSums = bandWidths.map(w => Math.round(w.reduce((a, b) => a + b, 0) * 100) / 100);
+    assert.ok(bandSums[0] >= 99,
+      'the first export band must span the full page — got ' + bandSums[0] + '%');
+    assert.ok(bandSums[1] < bandSums[0],
+      'the remainder band must end short of band 1 — got ' + bandSums[1] + '% vs ' + bandSums[0] + '%');
+    assert.match(grids[1], /Items 31–45/, 'the export band must announce its item range');
+
+    assert.deepEqual(errors, [], 'the banded report must not raise page errors');
   } finally {
     await context.close();
   }
