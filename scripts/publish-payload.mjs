@@ -28,6 +28,8 @@ export const PAYLOAD = PAGES.concat([
   'shared-toast.js',
   'deped-options.js',
   'favicon.svg',
+  'silid pinoy logo.jpg',
+  'silidpinoy_logo.png',
   'apple-touch-icon.png',
   'layout.html',
   'app.js',

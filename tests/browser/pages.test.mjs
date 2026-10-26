@@ -312,8 +312,10 @@ test('SilidAPI retries transient failures and falls back to the backup key', { t
     const hits = [];
     await page.route('**/generativelanguage.googleapis.com/**', async (route) => {
       const url = route.request().url();
-      hits.push(url);
-      const isPrimary = url.includes('key=PRIMARY_KEY');
+      /* the key rides the x-goog-api-key header, not a ?key= URL param */
+      const key = (route.request().headers()['x-goog-api-key'] || '');
+      hits.push({ url, key });
+      const isPrimary = key === 'PRIMARY_KEY';
       if (isPrimary) {
         return route.fulfill({
           status: 429,
@@ -336,8 +338,8 @@ test('SilidAPI retries transient failures and falls back to the backup key', { t
 
     assert.equal(text, 'served by backup');
     assert.ok(hits.length >= 6, `expected primary retries then backup, saw ${hits.length} calls`);
-    assert.ok(hits.slice(0, 5).every((u) => u.includes('key=PRIMARY_KEY')), 'primary should be tried first');
-    assert.ok(hits[hits.length - 1].includes('key=BACKUP_KEY'), 'last attempt should use the backup key');
+    assert.ok(hits.slice(0, 5).every((h) => h.key === 'PRIMARY_KEY'), 'primary should be tried first');
+    assert.equal(hits[hits.length - 1].key, 'BACKUP_KEY', 'last attempt should use the backup key');
   } finally {
     await context.close();
   }
@@ -754,6 +756,13 @@ test('the Lesson Plan Maker keeps the sequence dropdown (with Custom Flow) in mu
       'the Lesson Plan Sequence dropdown must stay visible in multigrade mode');
     assert.ok(await page.locator('#ui-sequence-label').isVisible(),
       'the sequence label must stay with its dropdown');
+    // exactly one Custom Flow entry per dropdown — a duplicated option shows the
+    // same label twice after i18n renames both to "Custom Flow"
+    for (const id of ['#lessonSequence', '#coiLessonSequence']) {
+      const customCount = await page.locator(id + ' option[value="custom"]').count();
+      assert.equal(customCount, 1,
+        id + ' must offer Custom Flow exactly once, not a redundant duplicate');
+    }
     await page.selectOption('#lessonSequence', 'custom');
     await page.waitForTimeout(300);
     assert.ok(await page.locator('#custom-flow-btn').isVisible(),
@@ -774,8 +783,8 @@ test('the Lesson Plan Maker keeps the sequence dropdown (with Custom Flow) in mu
     await page.selectOption('#gradeLevelSel', 'Grade 1');
     await page.fill('#sectionInput', 'Mabini');
     await page.locator('.competency-input').first().fill('Count objects one to ten.');
-    await page.fill('#multigradeTeacherName', 'Juan Dela Cruz');
-    await page.fill('#multigradeSection', 'SAMPAGUITA');
+    // teacher + section come from Settings / the main form — there are no
+    // #multigradeTeacherName / #multigradeSection inputs on the page
     await page.fill('#multigradeTime', 'MONDAY-TUESDAY 8:00 AM - 10:00 AM');
     await page.locator('.mg-level').nth(0).fill('Kindergarten');
     await page.locator('.mg-competency').nth(0).fill('Count objects one to ten.');
@@ -886,7 +895,7 @@ test('Test Maker shows the generated test instead of an error', { timeout: LONG_
     const shown = await page.evaluate(() => ({
       output: (document.querySelector('.prose.prose-slate') || {}).innerText || '',
       errorBox: (document.querySelector('.bg-red-50') || {}).innerText || null,
-      warnings: (document.querySelector('.bg-amber-50') || {}).innerText || null,
+      warnings: (document.querySelector('[data-testid="validation-warnings"]') || {}).innerText || null,
       saved: localStorage.getItem('saved_test_output') || '',
       body: document.body.innerText
     }));
@@ -1088,7 +1097,7 @@ test('the Test Maker offers the K-3 activities and generates an emoji test from 
     const shown = await page.evaluate(() => ({
       output: (document.querySelector('.prose.prose-slate') || {}).innerText || '',
       errorBox: (document.querySelector('.bg-red-50') || {}).innerText || null,
-      warnings: (document.querySelector('.bg-amber-50') || {}).innerText || null
+      warnings: (document.querySelector('[data-testid="validation-warnings"]') || {}).innerText || null
     }));
 
     assert.equal(shown.errorBox, null, 'a successful K-3 generation must not show the error banner');
@@ -1201,7 +1210,7 @@ test('a Filipino test does not raise false section warnings', { timeout: LONG_TI
 
     const shown = await page.evaluate(() => ({
       output: (document.querySelector('.prose.prose-slate') || {}).innerText || '',
-      warnings: (document.querySelector('.bg-amber-50') || {}).innerText || null
+      warnings: (document.querySelector('[data-testid="validation-warnings"]') || {}).innerText || null
     }));
     assert.equal(shown.warnings, null, 'a Filipino test must not raise false "section not found" warnings');
     assert.ok(shown.output.includes('gumagawa ng pagkain'), 'the Filipino test body must be shown');
@@ -2335,7 +2344,7 @@ test('a math test keeps its formulas intact and typesets them in the preview', {
 
     // and the math rules are re-checked on the raw output: the sample's $a*b$
     // must reach the teacher as an amber validation warning
-    const banner = await page.evaluate(() => (document.querySelector('.bg-amber-50') || {}).innerText || null);
+    const banner = await page.evaluate(() => (document.querySelector('[data-testid="validation-warnings"]') || {}).innerText || null);
     assert.ok(banner && /asterisk/.test(banner),
       'a formula containing * must raise a validation warning in math mode — got: ' + banner);
 
@@ -2655,6 +2664,223 @@ test('a math test keeps an inline SVG figure intact in the preview and the expor
     assert.equal(docxFigures.rawSvg, 0, 'no raw <svg> markup may remain in the .docx package — Word drops the element');
 
     assert.deepEqual(errors, [], 'the SVG figure must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
+   25. the Item Analysis reads Settings and exports the DepEd annexes
+   =============================================================== */
+
+test('the Item Analysis report uses Settings and exports both annexes', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html', {
+    initScript: () => {
+      try {
+        localStorage.setItem('school_info', JSON.stringify({
+          schoolName: 'GUINTOLAN NATIONAL HIGH SCHOOL', schoolAddress: '123 Main Street, Imelda',
+          regionNo: 'IV-A', regionName: 'CALABARZON', division: 'CAVITE', district: 'Imelda',
+          schoolLogo1: '', schoolLogo2: '',
+          teacherName: 'JHONAS M. OPADA', teacherTitle: 'Subject Teacher', department: '',
+          checkedBy: 'MARIA CLARA', checkedByPosition: 'Department Head',
+          approvedBy: 'VON ANDREI B BASUG', approvedByPosition: 'HEAD TEACHER I'
+        }));
+      } catch { /* storage unavailable */ }
+    }
+  });
+  try {
+    // the studio home lists every tool — open the Item Analyzer first
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    const start = page.getByRole('button', { name: 'Get Started' });
+    if (!(await start.count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+    await start.click();
+    await page.getByRole('button', { name: /Manual Entry/ }).click();
+
+    // task 3 — the shared fields are no longer collected here
+    const labels = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('label span')).map(s => s.textContent.trim()));
+    assert.ok(!labels.includes('School'),
+      'Report Details must not re-ask the school name — Settings owns it');
+    assert.ok(!labels.some(l => /^Submitted (by|to)$/.test(l)),
+      'Report Details must not re-ask the signatories — Settings owns them');
+    assert.ok(labels.includes('School Year') && labels.includes('Grading Period') &&
+      labels.includes('Grade Level') && labels.includes('Assessment Conducted'),
+      'the table header fields must remain in Report Details');
+
+    await page.getByPlaceholder(/Identifies the main idea/).fill(
+      ['1. Identifies the main idea', '2. Analyzes the credibility of sources',
+       '3. Recognizes propaganda techniques', '4. Compares conflicting reports',
+       '5. Evaluates media bias'].join('\n'));
+    await page.locator('input[type="number"][max="200"]').fill('5');
+    await page.waitForTimeout(150);
+    // one value typed once fills every item
+    await page.locator('#fill-all-score').fill('4');
+    await page.getByRole('button', { name: 'Fill All' }).click();
+    await page.waitForTimeout(150);
+    assert.deepEqual(
+      await page.locator('[id^="score-input-"]').evaluateAll(e => e.map(x => x.value)),
+      ['4', '4', '4', '4', '4'],
+      'Fill All must set every item score in one go');
+    for (const [i, v] of [4, 3, 2, 1, 0].entries()) {
+      await page.locator(`#score-input-${i}`).fill(String(v));
+    }
+    await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
+    await page.locator('input[type="number"][min="1"]:not([max])').fill('50');
+    await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
+    await page.getByLabel(/Assessment Type/).selectOption('ST-1');
+
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.getByRole('button', { name: 'Generate Report' }).click();
+    await page.getByRole('heading', { name: 'Analysis Report' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(300);
+
+    // task 2 — the preview header and signatures come from Settings
+    const report = await page.evaluate(() => document.body.innerText);
+    assert.match(report, /Republic of the Philippines/i, 'the preview must carry the DepEd preamble');
+    assert.match(report, /GUINTOLAN NATIONAL HIGH SCHOOL/i, 'the preview must read the Settings school');
+    assert.match(report, /IMELDA DISTRICT/i, 'the preview must read the Settings district');
+    assert.match(report, /JHONAS M\. OPADA/, 'the preview must sign off with the Settings teacher');
+    assert.equal(await page.locator('img[alt="DepEd letterhead"]').count(), 0,
+      'the preview must not print the old letterhead image');
+
+    /* the preview grid mirrors the export fix: a fixed layout with a colgroup
+       so no item column (item 8) can outgrow its neighbours on screen */
+    const grid = await page.evaluate(() => {
+      const t = document.querySelector('table.table-fixed');
+      if (!t) return null;
+      return Array.from(t.querySelectorAll('colgroup col')).map(c => Math.round(c.getBoundingClientRect().width));
+    });
+    assert.ok(grid, 'the Excel-style preview must use a fixed layout with explicit column widths');
+    assert.equal(grid.length, 13, 'every preview column must carry a width');
+    assert.equal(new Set(grid.slice(5, 10)).size, 1,
+      'all preview item columns must share ONE width — got ' + JSON.stringify(grid.slice(5, 10)));
+
+    /* both annexes are previewed on-screen from the same HTML the exports use */
+    const annexPreviews = await page.evaluate(() => {
+      const out = {};
+      for (const kind of ['annex1', 'annex3']) {
+        const el = document.querySelector(`[data-annex-preview="${kind}"]`);
+        out[kind] = el ? el.innerText : null;
+      }
+      return out;
+    });
+    assert.ok(annexPreviews.annex1, 'the report must preview Annex 1 before download');
+    assert.match(annexPreviews.annex1, /Annex 1\. MPS per Learning Area for the SECOND Term, SY: 2025-2026/);
+    assert.match(annexPreviews.annex1, /IMELDA DISTRICT/i,
+      'the Annex 1 preview must carry the Settings district');
+    // the Settings letterhead block opens both annexes
+    assert.match(annexPreviews.annex1, /Republic of the Philippines/i,
+      'the annex must open with the DepEd header from Settings');
+    assert.match(annexPreviews.annex1, /SCHOOLS DIVISION OFFICE OF CAVITE/,
+      'the annex header must carry the Settings division');
+    // the assessment type chosen in Report Details is ticked, exactly once
+    const tick = annexPreviews.annex1.indexOf('\u2713');
+    assert.ok(tick > -1, 'the chosen assessment box must be ticked in the annex');
+    assert.ok(annexPreviews.annex1.indexOf('ST-1') > tick,
+      'the tick must sit inside the ST-1 box');
+    assert.equal((annexPreviews.annex1.match(/\u2713/g) || []).length, 1,
+      'exactly one assessment box may be ticked');
+    assert.match(annexPreviews.annex1, /JHONAS M\. OPADA/,
+      'the Annex 1 preview must carry the Settings signatories');
+    assert.ok(annexPreviews.annex3, 'the report must preview Annex 3 before download');
+    assert.match(annexPreviews.annex3, /Annex 3\. School Consolidated List of Least Mastered Competencies/);
+    assert.match(annexPreviews.annex3, /Proposed Intervention Activity/,
+      'the Annex 3 preview must keep the template\u2019s columns');
+    assert.match(annexPreviews.annex3, /VON ANDREI B BASUG/,
+      'the Annex 3 preview must show the Settings approver');
+    assert.match(annexPreviews.annex3, /may have/i,
+      'the Reasons/s/Cause/s column must say why learners got the items wrong');
+    assert.match(annexPreviews.annex3, /% answered correctly/,
+      'the cause must stay tied to the measured accuracy');
+    assert.doesNotMatch(annexPreviews.annex3, /below the 60% MPS benchmark/,
+      'the cause column must not just restate the mastery band');
+    assert.match(annexPreviews.annex3, /Reteach with concrete examples/,
+      'Annex 3 must fill the Proposed Intervention column from the results');
+
+    // tasks 1 + 4 — the .doc export: landscape, Settings header, uniform widths
+    const [doc] = await Promise.all([
+      page.waitForEvent('download', { timeout: 20000 }),
+      page.getByRole('button', { name: 'Export DOC', exact: true }).click()
+    ]);
+    const docHtml = fs.readFileSync(await doc.path(), 'utf8');
+    assert.match(docHtml, /size:11\.0in 8\.5in/, 'the .doc export must print landscape');
+    assert.doesNotMatch(docHtml, /deped-letterhead/, 'the export must not embed the letterhead');
+    assert.match(docHtml, /SCHOOLS DIVISION OFFICE OF CAVITE/, 'the export header must come from Settings');
+    assert.match(docHtml, /VON ANDREI B BASUG/, 'the export must sign off from Settings');
+
+    const rows = [...docHtml.matchAll(/<tr>(.*?)<\/tr>/gs)].map(m => m[1]);
+    const widthsOf = (row) => [...row.matchAll(/<td[^>]*\swidth="([\d.]+)"/g)].map(m => Number(m[1]));
+    const hw = widthsOf(rows.find(r => /Total No\. of Items/.test(r)) || '');
+    const dw = widthsOf(rows.find(r => /BABBAGE/.test(r)) || '');
+    assert.equal(hw.length, 13, 'every column of the header row must carry an explicit width');
+    assert.deepEqual(hw, dw, 'data cells must use the header row\u2019s column widths');
+    const itemWidths = hw.slice(5, 10);
+    assert.equal(new Set(itemWidths).size, 1,
+      'all numbered item columns must share ONE width — got ' + JSON.stringify(itemWidths));
+
+    // both DepEd annexes, named after the forms with the template content
+    const grab = async (name) => {
+      const [dl] = await Promise.all([
+        page.waitForEvent('download', { timeout: 20000 }),
+        page.getByRole('button', { name }).click()
+      ]);
+      return { name: dl.suggestedFilename(), bytes: fs.readFileSync(await dl.path()) };
+    };
+    /* html-docx-js embeds the HTML as a quoted-printable MHT chunk (altChunk),
+       so .docx text is read from word/afchunk.mht — document.xml holds only the
+       page size. */
+    const readExport = async (res) => {
+      if (!res.name.endsWith('.docx')) return res.bytes.toString('utf8');
+      const mht = await page.evaluate(async (b64) => {
+        const zip = await window.JSZip.loadAsync(b64, { base64: true });
+        return await zip.file('word/afchunk.mht').async('string');
+      }, res.bytes.toString('base64'));
+      return mht.replace(/=\r?\n/g, '').replace(/<[^>]+>/g, '');
+    };
+
+    const a1 = await grab(/Annex 1/);
+    assert.match(a1.name, /^Annex1_MPS-per-Learning-Area_Second_2025-2026\.(docx|doc)$/);
+    if (a1.name.endsWith('.docx')) {
+      assert.equal(a1.bytes.subarray(0, 2).toString('latin1'), 'PK', 'Annex 1 must be a real package');
+    }
+    const a1t = await readExport(a1);
+    assert.match(a1t, /Annex 1\. MPS per Learning Area for the SECOND Term, SY: 2025-2026/);
+    assert.match(a1t, /IMELDA DISTRICT/i, 'Annex 1 must show the Settings district');
+    assert.match(a1t, /Assessment Conducted: NOVEMBER EXAM/);
+    assert.match(a1t, /Mean Score/, 'Annex 1 must keep the template\u2019s columns');
+    assert.match(a1t, /Prepared by/);
+    assert.match(a1t, /Certified Correct/);
+
+    const a3 = await grab(/Annex 3/);
+    assert.match(a3.name, /^Annex3_Least-Mastered-Competencies_Second_2025-2026\.(docx|doc)$/);
+    const a3t = await readExport(a3);
+    assert.match(a3t, /Annex 3\. School Consolidated List of Least Mastered Competencies for the SECOND Term, SY: 2025-2026/);
+    assert.match(a3t, /Evaluates media bias/, 'the least mastered competency must be listed');
+    assert.match(a3t, /Learning Area: MEDIA INFORMATION LITERACY/);
+    assert.match(a3t, /Reviewed by/);
+    assert.match(a3t, /Approved/);
+
+    // and Settings keeps the district the annexes read
+    await page.getByRole('button', { name: /New Analysis/ }).click();
+    await page.waitForTimeout(300);
+    if (await page.locator('button:has-text("Get Started")').count()) {
+      await page.getByRole('button', { name: 'Get Started' }).click();
+    }
+    await page.getByRole('button', { name: /School & Personal Info/ }).first().click({ timeout: 10000 });
+    assert.equal(await page.locator('input[name="district"]').inputValue(), 'Imelda',
+      'Settings must hold the District field the annexes read');
+
+    assert.deepEqual(errors, [], 'the item analysis flow must not raise page errors');
   } finally {
     await context.close();
   }

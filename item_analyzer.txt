@@ -1,0 +1,850 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  UploadCloud, 
+  FileText, 
+  Table as TableIcon, 
+  CheckCircle, 
+  AlertTriangle, 
+  Download,
+  Loader2,
+  RefreshCw,
+  Info,
+  BrainCircuit,
+  ListOrdered,
+  BarChart3
+} from 'lucide-react';
+
+// --- Pangunahing Lohika at Constants ---
+
+const getMasteryLevel = (percentage) => {
+  if (percentage >= 90) return "High Mastery";
+  if (percentage >= 70) return "Moderately Average Mastery";
+  if (percentage >= 50) return "Average Mastery";
+  if (percentage >= 20) return "Low Mastery";
+  return "No Mastery";
+};
+
+const getMasteryBadgeColor = (level) => {
+  switch (level) {
+    case "High Mastery": return "bg-green-500/10 text-green-400 border-green-500/20";
+    case "Moderately Average Mastery": return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+    case "Average Mastery": return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
+    case "Low Mastery": return "bg-orange-500/10 text-orange-400 border-orange-500/20";
+    case "No Mastery": return "bg-red-500/10 text-red-400 border-red-500/20";
+    default: return "bg-gray-800 text-gray-300 border-gray-700";
+  }
+};
+
+const getBarColor = (percentage) => {
+  if (percentage >= 90) return 'bg-green-500 hover:bg-green-400';
+  if (percentage >= 70) return 'bg-blue-500 hover:bg-blue-400';
+  if (percentage >= 50) return 'bg-yellow-500 hover:bg-yellow-400';
+  if (percentage >= 20) return 'bg-orange-500 hover:bg-orange-400';
+  return 'bg-red-500 hover:bg-red-400';
+};
+
+const getHexColor = (percentage) => {
+  if (percentage >= 90) return '#22c55e';
+  if (percentage >= 70) return '#3b82f6';
+  if (percentage >= 50) return '#eab308';
+  if (percentage >= 20) return '#f97316';
+  return '#ef4444';
+};
+
+// Retry wrapper para sa AI API calls
+const fetchWithRetry = async (url, options, retries = 5) => {
+  const delays = [1000, 2000, 4000, 8000, 16000];
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      if (i === retries - 1) throw new Error(`API Error: ${res.status}`);
+    } catch (err) {
+      if (i === retries - 1) throw err;
+    }
+    await new Promise(r => setTimeout(r, delays[i]));
+  }
+};
+
+export default function App() {
+  const [step, setStep] = useState(0); // 0: Home, 1: Upload, 2: Analyzing, 3: Results
+  const [tosFile, setTosFile] = useState(null);
+  
+  // Mga State para sa Manual Score Entry
+  const [itemCount, setItemCount] = useState(10);
+  const [manualScores, setManualScores] = useState(Array.from({length: 10}, (_, i) => ({ itemNo: i+1, score: '' })));
+  
+  const [totalLearners, setTotalLearners] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [loadingStatus, setLoadingStatus] = useState("");
+  
+  const [results, setResults] = useState([]);
+  const [summaryStats, setSummaryStats] = useState({});
+  const [aiInsight, setAiInsight] = useState("");
+  const [leastMastered, setLeastMastered] = useState([]);
+  const [overallScores, setOverallScores] = useState({ mean: 0, mps: 0 }); // New state for MPS
+
+  // Dinamikong pag-load ng mga parsing libraries para sa Word at PDF
+  useEffect(() => {
+    const loadScript = (src) => {
+      if (!document.querySelector(`script[src="${src}"]`)) {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        document.body.appendChild(script);
+      }
+    };
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  }, []);
+
+  // Mga Handler para sa Pag-upload at Input
+  const handleItemCountChange = (e) => {
+    const count = parseInt(e.target.value) || 1;
+    if (count > 200) return; // Limitahan sa 200 items para iwas lag
+    setItemCount(count);
+    
+    // I-adjust ang array size habang pinapanatili ang mga na-type nang scores
+    setManualScores(prev => {
+      return Array.from({length: count}, (_, i) => {
+         const existing = prev.find(p => p.itemNo === i + 1);
+         return existing ? existing : { itemNo: i + 1, score: '' };
+      });
+    });
+  };
+
+  const handleScoreChange = (index, value) => {
+    const newScores = [...manualScores];
+    newScores[index].score = value;
+    setManualScores(newScores);
+  };
+
+  const handleScoreKeyDown = (e, index) => {
+    // Kapag pinindot ang Enter, lumipat sa susunod na input field
+    if (e.key === 'Enter') {
+      e.preventDefault(); 
+      const nextInput = document.getElementById(`score-input-${index + 1}`);
+      if (nextInput) {
+        nextInput.focus();
+      }
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    setErrorMsg("");
+    const file = e.dataTransfer.files[0];
+    if (file) setTosFile(file);
+  };
+
+  const handleFileSelect = (e) => {
+    setErrorMsg("");
+    const file = e.target.files[0];
+    if (file) setTosFile(file);
+  };
+
+  // --- Lohika sa Pag-extract ng File ---
+  const extractTosText = async (file) => {
+    return new Promise(async (resolve, reject) => {
+      const extension = file.name.split('.').pop().toLowerCase();
+      
+      if (extension === 'pdf' && window.pdfjsLib) {
+        try {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          resolve(fullText.substring(0, 15000));
+        } catch (err) {
+          resolve("Could not extract clean text from the PDF.");
+        }
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          let text = "";
+          if (extension === 'docx' && window.mammoth) {
+            const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
+            text = result.value;
+          } else {
+            const binaryString = new TextDecoder('utf-8', { fatal: false }).decode(e.target.result);
+            text = binaryString.replace(/[^a-zA-Z0-9\s.,?!-]/g, '');
+          }
+          resolve(text.substring(0, 15000));
+        } catch (err) {
+          resolve("Could not extract clean text. The file might be purely visual.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const analyzeData = async () => {
+    if (!tosFile) {
+      setErrorMsg("Please upload your TOS document.");
+      return;
+    }
+    
+    setStep(2); 
+    setErrorMsg("");
+    
+    try {
+      // 1. Kunin ang raw text mula sa TOS
+      setLoadingStatus("Extracting text from the TOS document...");
+      const tosText = await extractTosText(tosFile);
+
+      if (!tosText.trim()) {
+        throw new Error("The TOS document appears to be empty or unreadable.");
+      }
+
+      // 2. Ipa-analisa sa AI ang competencies batay sa bilang ng items
+      setLoadingStatus("AI is analyzing competencies in the TOS...");
+      const apiKey = ""; 
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+      
+      const prompt = `
+        You are an expert Educational Data Analyzer.
+        I am providing you with text extracted from a Table of Specifications (TOS).
+        The test has a total of ${itemCount} items based on user input.
+        
+        TOS TEXT:
+        ${tosText}
+        
+        TASK:
+        1. Read the TOS to find the test items and their corresponding learning competencies/objectives.
+        2. Map every item number from 1 to ${itemCount} to its corresponding competency based on the TOS.
+        3. Do NOT make up competencies. If you cannot find a specific competency for an item, label it "Unspecified Competency".
+        
+        OUTPUT:
+        Provide a valid JSON Array. Do not include markdown formatting like \`\`\`json. Just the raw array.
+        Structure each object as follows:
+        [
+          { "itemNo": 1, "competency": "Identifies the main idea" },
+          { "itemNo": 2, "competency": "Uses context clues" }
+        ]
+      `;
+
+      const aiPayload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      };
+
+      const response = await fetchWithRetry(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(aiPayload)
+      });
+
+      const aiResult = await response.json();
+      const rawJsonResponse = aiResult.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!rawJsonResponse) {
+        throw new Error("AI failed to understand the document.");
+      }
+
+      // 3. Pag-isahin ang datos mula sa AI at ang mga manual scores
+      setLoadingStatus("Calculating mastery levels...");
+      const parsedData = JSON.parse(rawJsonResponse);
+      
+      let finalData = [];
+      let counts = {
+        "High Mastery": 0,
+        "Moderately Average Mastery": 0,
+        "Average Mastery": 0,
+        "Low Mastery": 0,
+        "No Mastery": 0
+      };
+
+      manualScores.forEach(ms => {
+        // Kunin ang competency mula sa AI output, default kapag wala
+        const aiItem = parsedData.find(p => p.itemNo === ms.itemNo) || {};
+        
+        // Siguraduhing tama ang bilang (hindi lalagpas sa total learners)
+        const safeCorrect = Math.min(Number(ms.score) || 0, Number(totalLearners));
+        const percentage = (safeCorrect / Number(totalLearners)) * 100;
+        const mastery = getMasteryLevel(percentage);
+        
+        counts[mastery]++;
+
+        finalData.push({
+          itemNo: ms.itemNo,
+          competency: aiItem.competency || `Item ${ms.itemNo}`,
+          correctResponses: safeCorrect,
+          percentage: percentage.toFixed(2),
+          masteryLevel: mastery
+        });
+      });
+
+      // Calculate Mean Score and MPS based on the provided formula
+      const totalCorrectAllItems = finalData.reduce((acc, curr) => acc + curr.correctResponses, 0);
+      const meanScore = totalCorrectAllItems / Number(totalLearners);
+      const mps = (meanScore / itemCount) * 100;
+      setOverallScores({ mean: meanScore.toFixed(2), mps: mps.toFixed(2) });
+
+      // Kunin ang 5 Pinakamababang Competencies
+      const competencyGroups = {};
+      finalData.forEach(item => {
+        if (!competencyGroups[item.competency]) {
+          competencyGroups[item.competency] = { totalPercentage: 0, count: 0 };
+        }
+        competencyGroups[item.competency].totalPercentage += parseFloat(item.percentage);
+        competencyGroups[item.competency].count += 1;
+      });
+
+      const competenciesAverages = Object.keys(competencyGroups).map(comp => ({
+        competency: comp,
+        average: (competencyGroups[comp].totalPercentage / competencyGroups[comp].count).toFixed(2)
+      }));
+
+      competenciesAverages.sort((a, b) => parseFloat(a.average) - parseFloat(b.average));
+      setLeastMastered(competenciesAverages.slice(0, 5));
+
+      setResults(finalData);
+      setSummaryStats(counts);
+
+      // 4. Gumawa ng AI Insight text
+      let insight = `The AI successfully read your document and scores. Based on the data of ${totalLearners} learners across ${finalData.length} items: `;
+      if (counts["High Mastery"] >= finalData.length * 0.5) {
+        insight += "The class shows excellent understanding; over half of the items achieved High Mastery. ";
+      } else if (counts["No Mastery"] + counts["Low Mastery"] > finalData.length * 0.4) {
+        insight += "Many competencies resulted in Low or No Mastery, indicating a strong need for reteaching. ";
+      } else {
+        insight += "The overall performance indicates Average to Moderately Average mastery. ";
+      }
+      
+      const hardestItem = [...finalData].sort((a, b) => parseFloat(a.percentage) - parseFloat(b.percentage))[0];
+      if (hardestItem) {
+        insight += `The most challenging area identified in the data is Item ${hardestItem.itemNo} ("${hardestItem.competency}" - ${hardestItem.percentage}% correct). Focus your next review session here.`;
+      }
+
+      setAiInsight(insight);
+      setStep(3); 
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message || "An error occurred while analyzing the data.");
+      setStep(1); 
+    }
+  };
+
+  const resetApp = () => {
+    setStep(1);
+    setTosFile(null);
+    setManualScores(Array.from({length: itemCount}, (_, i) => ({ itemNo: i+1, score: '' })));
+    setResults([]);
+    setLeastMastered([]);
+    setOverallScores({ mean: 0, mps: 0 });
+    setErrorMsg("");
+  };
+
+  const downloadCSV = () => {
+    const headers = ["Item Number", "Competency", "Correct Responses", "Percentage", "Mastery Level"];
+    const rows = results.map(r => [r.itemNo, `"${r.competency.replace(/"/g, '""')}"`, r.correctResponses, r.percentage + "%", r.masteryLevel]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n" 
+      + rows.map(e => e.join(",")).join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "item_analysis_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadDoc = () => {
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Item Analysis Report</title></head><body>";
+    const footer = "</body></html>";
+
+    let chartHtml = `
+      <h2 style="font-family: sans-serif;">Item Performance Chart</h2>
+      <table border="0" cellpadding="0" cellspacing="2" style="width: 100%; text-align: center; font-family: sans-serif; table-layout: fixed;">
+        <tr style="height: 200px; vertical-align: bottom;">
+          ${results.map(r => {
+            const h = Math.max(parseFloat(r.percentage) * 2, 10);
+            return `
+            <td style="vertical-align: bottom; padding: 0;">
+              <table border="0" cellpadding="0" cellspacing="0" style="width: 100%; margin: 0 auto;">
+                <tr><td style="height: ${h}px; background-color: ${getHexColor(parseFloat(r.percentage))}; font-size: 1px; line-height: 1px;">&nbsp;</td></tr>
+              </table>
+            </td>
+            `;
+          }).join('')}
+        </tr>
+        <tr>
+          ${results.map(r => `
+            <td style="font-size: 10px; color: #555; padding-top: 5px;">${r.itemNo}</td>
+          `).join('')}
+        </tr>
+      </table>
+      <br/>
+    `;
+
+    let html = `
+      <h1 style="text-align: center; color: #4f46e5; font-family: sans-serif;">Item Analyzer Report</h1>
+      <p style="font-family: sans-serif;"><strong>Total Number of Learners:</strong> ${totalLearners}</p>
+      <p style="font-family: sans-serif;"><strong>Total Test Items:</strong> ${itemCount}</p>
+      <p style="font-family: sans-serif;"><strong>Mean Score:</strong> ${overallScores.mean}</p>
+      <p style="font-family: sans-serif;"><strong>Mean Percentage Score (MPS):</strong> ${overallScores.mps}%</p>
+      <hr/>
+      <h2 style="font-family: sans-serif;">AI Data Interpretation</h2>
+      <p style="font-family: sans-serif;">${aiInsight}</p>
+      
+      <h2 style="font-family: sans-serif; color: #ef4444;">Top 5 Least Mastered Competencies (Needs Focus)</h2>
+      <ol style="font-family: sans-serif; color: #b91c1c;">
+        ${leastMastered.map(comp => `<li><strong>${comp.competency}</strong> - ${comp.average}% Average Score</li>`).join('')}
+      </ol>
+
+      <h2 style="font-family: sans-serif;">Summary Statistics</h2>
+      <ul style="font-family: sans-serif;">
+        <li><strong>High Mastery:</strong> ${summaryStats["High Mastery"] || 0}</li>
+        <li><strong>Moderately Average Mastery:</strong> ${summaryStats["Moderately Average Mastery"] || 0}</li>
+        <li><strong>Average Mastery:</strong> ${summaryStats["Average Mastery"] || 0}</li>
+        <li><strong>Low Mastery:</strong> ${summaryStats["Low Mastery"] || 0}</li>
+        <li><strong>No Mastery:</strong> ${summaryStats["No Mastery"] || 0}</li>
+      </ul>
+
+      ${chartHtml}
+
+      <h2 style="font-family: sans-serif;">Detailed Item Analysis</h2>
+      <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: sans-serif;">
+        <tr style="background-color: #f3f4f6;">
+          <th>Item #</th>
+          <th>Competency (from TOS)</th>
+          <th>Correct Responses</th>
+          <th>Percentage</th>
+          <th>Mastery Level</th>
+        </tr>
+        ${results.map(r => `
+          <tr>
+            <td style="text-align: center;">${r.itemNo}</td>
+            <td>${r.competency}</td>
+            <td style="text-align: center;">${r.correctResponses} / ${totalLearners}</td>
+            <td style="text-align: center;">${r.percentage}%</td>
+            <td style="text-align: center;">${r.masteryLevel}</td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+    const sourceHTML = header + html + footer;
+    const blob = new Blob(['\ufeff', sourceHTML], {
+      type: 'application/msword'
+    });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Item_Analysis_Report.doc';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // --- Mga Views ---
+
+  const renderHomeStep = () => (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-8 animate-in fade-in zoom-in duration-700">
+      <div className="bg-indigo-600/20 p-6 rounded-full border border-indigo-500/30 shadow-[0_0_50px_-10px_rgba(79,70,229,0.3)]">
+        <BrainCircuit size={64} className="text-indigo-400" />
+      </div>
+      <div className="max-w-2xl space-y-4">
+        <h1 className="text-5xl font-extrabold text-white tracking-tight">
+          Welcome to <span className="text-indigo-400">ITEM ANALYZER</span>
+        </h1>
+        <p className="text-xl text-gray-400 leading-relaxed">
+          Speed up and simplify your item analysis. Upload your Table of Specifications (TOS) and input the scores, let AI understand and calculate everything for you.
+        </p>
+      </div>
+      <button 
+        onClick={() => setStep(1)}
+        className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white bg-indigo-600 rounded-xl overflow-hidden transition-all hover:bg-indigo-500 hover:scale-105 shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)]"
+      >
+        <span className="mr-2 text-lg">Get Started Now</span>
+        <BrainCircuit size={24} className="group-hover:rotate-12 transition-transform" />
+      </button>
+    </div>
+  );
+
+  const renderUploadStep = () => (
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in zoom-in duration-500">
+      <div className="text-center space-y-2">
+        <h2 className="text-3xl font-bold text-white tracking-tight">AI Intelligent Item Analyzer</h2>
+        <p className="text-gray-400">Upload your TOS and type the class scores. AI will automatically match the competencies to the scores you entered.</p>
+      </div>
+
+      {errorMsg && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3">
+          <AlertTriangle size={20} className="flex-shrink-0" />
+          <p className="font-medium text-sm">{errorMsg}</p>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* TOS Upload Section */}
+        <div 
+          className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl transition-all duration-200 h-[380px] ${
+            tosFile ? 'border-indigo-500 bg-indigo-500/10' : 'border-gray-700 bg-gray-800/50 hover:border-indigo-400 hover:bg-gray-800'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {tosFile ? (
+            <div className="flex flex-col items-center space-y-3">
+              <div className="p-3 bg-indigo-500/20 rounded-full text-indigo-400">
+                <FileText size={32} />
+              </div>
+              <p className="font-semibold text-white text-center">{tosFile.name}</p>
+              <button onClick={() => setTosFile(null)} className="text-sm text-red-400 hover:text-red-300 hover:underline">Remove file</button>
+            </div>
+          ) : (
+            <>
+              <div className="p-4 bg-gray-700/50 rounded-full text-gray-400 mb-4">
+                <UploadCloud size={32} />
+              </div>
+              <p className="font-medium text-gray-300">1. Upload TOS Document</p>
+              <p className="text-sm text-gray-500 mt-1">Accepts .pdf, .docx, .txt</p>
+              <label className="mt-4 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-200 hover:bg-gray-600 cursor-pointer transition-colors">
+                Browse Files
+                <input type="file" className="hidden" accept=".pdf,.doc,.docx,.txt" onChange={handleFileSelect} />
+              </label>
+            </>
+          )}
+        </div>
+
+        {/* Manual Scores Input Section */}
+        <div className="relative flex flex-col p-6 border-2 border-solid rounded-2xl border-green-500/50 bg-green-900/10 h-[380px]">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 border-b border-green-500/20 pb-4 gap-2">
+            <h3 className="font-bold text-white flex items-center gap-2">
+              <ListOrdered size={24} className="text-green-400" />
+              2. Enter Scores
+            </h3>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-300">Number of Items:</label>
+              <input 
+                type="number" 
+                value={itemCount} 
+                onChange={handleItemCountChange} 
+                className="w-16 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-sm focus:border-green-500 focus:outline-none text-center" 
+                min="1"
+                max="200"
+              />
+            </div>
+          </div>
+          
+          {/* Scrollable listahan ng inputs */}
+          <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+            {manualScores.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between bg-gray-900/60 p-2 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors">
+                <span className="text-gray-300 text-sm font-medium w-20">Item {item.itemNo}</span>
+                <input 
+                  id={`score-input-${idx}`}
+                  type="number" 
+                  placeholder="Correct Responses"
+                  value={item.score}
+                  onChange={(e) => handleScoreChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleScoreKeyDown(e, idx)}
+                  className="w-full ml-2 bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:border-green-500 outline-none placeholder:text-gray-500 hide-arrows"
+                  min="0"
+                  max={totalLearners}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-800/50 p-6 rounded-2xl shadow-sm border border-gray-700 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+            <Info size={20} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-200">Total Number of Learners in Class</label>
+            <p className="text-xs text-gray-400">This is important to calculate the correct percentage for each item</p>
+          </div>
+        </div>
+        <input 
+          type="number" 
+          value={totalLearners} 
+          onChange={(e) => setTotalLearners(e.target.value)}
+          className="w-32 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-center text-lg font-semibold text-white"
+          min="1"
+        />
+      </div>
+
+      <div className="flex flex-col items-center space-y-4 pt-4">
+        <button 
+          onClick={analyzeData}
+          disabled={!tosFile}
+          className={`flex items-center space-x-2 px-8 py-3.5 rounded-xl font-bold text-lg w-full md:w-auto shadow-md transition-all ${
+            tosFile 
+              ? 'bg-indigo-600 text-white hover:bg-indigo-500 hover:shadow-lg hover:shadow-indigo-500/20 transform hover:-translate-y-0.5' 
+              : 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed'
+          }`}
+        >
+          <BrainCircuit size={24} />
+          <span>Analyze with AI</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAnalyzingStep = () => (
+    <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-300">
+      <div className="relative">
+        <div className="absolute inset-0 bg-indigo-500/20 rounded-full animate-ping opacity-75"></div>
+        <div className="relative bg-indigo-500/10 p-6 rounded-full text-indigo-400">
+          <Loader2 size={48} className="animate-spin" />
+        </div>
+      </div>
+      <h3 className="mt-8 text-2xl font-bold text-white">Processing Documents</h3>
+      <p className="mt-2 text-indigo-400 font-medium">{loadingStatus}</p>
+      <p className="mt-2 text-gray-400 max-w-md text-center text-sm">
+        AI is reading your TOS to find the competencies and matching them with the scores you entered.
+      </p>
+    </div>
+  );
+
+  const renderResultsStep = () => (
+    <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-700">
+      {/* Mga Pindutan (Header Actions) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-800/80 p-4 rounded-xl shadow-sm border border-gray-700 backdrop-blur-sm">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Analysis Report</h2>
+          <p className="text-sm text-gray-400">Total Learners Evaluated: <span className="font-semibold text-gray-200">{totalLearners}</span></p>
+        </div>
+        <div className="flex space-x-3 w-full sm:w-auto">
+          <button onClick={resetApp} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg font-medium transition-colors">
+            <RefreshCw size={18} />
+            <span className="hidden sm:inline">New Analysis</span>
+          </button>
+          <button onClick={downloadCSV} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+            <Download size={18} />
+            <span>Export CSV</span>
+          </button>
+          <button onClick={downloadDoc} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors">
+            <FileText size={18} />
+            <span>Export DOC</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Overall Performance Metrics (MPS) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-indigo-900/40 border border-indigo-500/20 p-6 rounded-2xl shadow-sm backdrop-blur-sm flex flex-col justify-center items-center text-center">
+          <h4 className="text-indigo-300 text-sm font-semibold uppercase tracking-wider mb-2">Mean Score</h4>
+          <span className="text-5xl font-black text-indigo-400">{overallScores.mean}</span>
+          <p className="text-xs text-indigo-200/50 mt-2">Total Correct Responses / Learners</p>
+        </div>
+        <div className="bg-purple-900/40 border border-purple-500/20 p-6 rounded-2xl shadow-sm backdrop-blur-sm flex flex-col justify-center items-center text-center">
+          <h4 className="text-purple-300 text-sm font-semibold uppercase tracking-wider mb-2">Mean Percentage Score (MPS)</h4>
+          <div className="flex items-baseline gap-1">
+            <span className="text-5xl font-black text-purple-400">{overallScores.mps}</span>
+            <span className="text-2xl font-bold text-purple-400">%</span>
+          </div>
+          <p className="text-xs text-purple-200/50 mt-2">(Mean Score / Test Items) × 100</p>
+        </div>
+      </div>
+
+      {/* Insight Card ng AI */}
+      <div className="bg-gradient-to-br from-indigo-900/40 to-blue-900/40 border border-indigo-500/20 p-6 rounded-2xl shadow-sm backdrop-blur-sm">
+        <div className="flex items-start space-x-4">
+          <div className="p-3 bg-indigo-500/20 rounded-xl shadow-sm text-indigo-400">
+            <BrainCircuit size={24} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-indigo-300">AI Data Interpretation</h3>
+            <p className="mt-1 text-indigo-200/80 leading-relaxed">{aiInsight}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid para sa Buod na Estadistika */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {[
+          { label: "High", count: summaryStats["High Mastery"], color: "bg-green-500/10 text-green-400 border-green-500/20" },
+          { label: "Mod. Avg", count: summaryStats["Moderately Average Mastery"], color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+          { label: "Average", count: summaryStats["Average Mastery"], color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
+          { label: "Low", count: summaryStats["Low Mastery"], color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
+          { label: "No Mastery", count: summaryStats["No Mastery"], color: "bg-red-500/10 text-red-400 border-red-500/20" },
+        ].map((stat, idx) => (
+          <div key={idx} className={`p-4 rounded-xl border text-center ${stat.color} shadow-sm flex flex-col justify-center items-center backdrop-blur-sm`}>
+            <span className="text-3xl font-black">{stat.count || 0}</span>
+            <span className="text-xs font-semibold uppercase tracking-wider mt-1 opacity-80">{stat.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Item Performance Bar Chart */}
+      <div className="bg-gray-800/80 p-6 rounded-2xl shadow-sm border border-gray-700 backdrop-blur-sm">
+        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+          <BarChart3 size={20} className="text-indigo-400" />
+          Item Performance Chart
+        </h3>
+        <div className="h-64 w-full flex items-end gap-1 md:gap-2 overflow-x-auto custom-scrollbar pb-2 pt-10 px-2 border-b border-l border-gray-700">
+          {results.map((row) => (
+            <div key={row.itemNo} className="relative group flex-1 flex flex-col justify-end min-w-[20px] md:min-w-[30px] h-full cursor-pointer">
+              {/* Tooltip */}
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-20 w-48 pointer-events-none">
+                <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-xl border border-gray-600 text-center">
+                  <p className="font-bold text-sm text-gray-100">Item {row.itemNo}</p>
+                  <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{row.competency}</p>
+                  <p className="font-black text-lg mt-1 text-white">{row.percentage}%</p>
+                  <p className="text-[10px] uppercase tracking-wider mt-1 text-gray-400">{row.masteryLevel}</p>
+                </div>
+                <div className="w-3 h-3 bg-gray-900 border-b border-r border-gray-600 transform rotate-45 translate-y-[-50%]"></div>
+              </div>
+              
+              {/* Bar */}
+              <div 
+                className={`w-full rounded-t-sm transition-all duration-300 shadow-[0_0_10px_rgba(0,0,0,0.2)] ${getBarColor(parseFloat(row.percentage))}`}
+                style={{ height: `${Math.max(parseFloat(row.percentage), 5)}%` }}
+              ></div>
+              
+              {/* X-axis Label */}
+              <span className="text-[10px] md:text-xs text-gray-400 text-center mt-2 w-full truncate">{row.itemNo}</span>
+            </div>
+          ))}
+        </div>
+        
+        {/* Legend */}
+        <div className="flex flex-wrap justify-center gap-4 mt-6 text-xs text-gray-400">
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-green-500"></div> High</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-blue-500"></div> Mod. Avg</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-yellow-500"></div> Average</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-orange-500"></div> Low</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500"></div> None</div>
+        </div>
+      </div>
+
+      {/* Top 5 Pinakamababang Competencies */}
+      {leastMastered.length > 0 && (
+        <div className="bg-red-900/10 border border-red-500/20 p-6 rounded-2xl shadow-sm backdrop-blur-sm">
+          <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+            <AlertTriangle size={20} />
+            Top 5 Least Mastered Competencies (Needs Focus)
+          </h3>
+          <div className="grid md:grid-cols-1 gap-3">
+            {leastMastered.map((comp, idx) => (
+              <div key={idx} className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-red-500/10">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-400 font-bold text-sm">#{idx + 1}</span>
+                  <span className="text-gray-200 font-medium">{comp.competency}</span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-red-400 font-bold">{comp.average}%</span>
+                  <span className="text-gray-500 text-xs">Avg. Score</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Detalyadong Talahanayan */}
+      <div className="bg-gray-800/80 rounded-2xl shadow-sm border border-gray-700 overflow-hidden backdrop-blur-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-900/50 border-b border-gray-700">
+                <th className="py-4 px-6 text-sm font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Item #</th>
+                <th className="py-4 px-6 text-sm font-semibold text-gray-400 uppercase tracking-wider">AI Read Competency (from TOS)</th>
+                <th className="py-4 px-6 text-sm font-semibold text-gray-400 uppercase tracking-wider text-center">Correct Responses</th>
+                <th className="py-4 px-6 text-sm font-semibold text-gray-400 uppercase tracking-wider text-center">Percentage</th>
+                <th className="py-4 px-6 text-sm font-semibold text-gray-400 uppercase tracking-wider">Mastery Level</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700/50">
+              {results.map((row) => (
+                <tr key={row.itemNo} className="hover:bg-gray-700/30 transition-colors">
+                  <td className="py-4 px-6 text-sm font-bold text-gray-200">{row.itemNo}</td>
+                  <td className="py-4 px-6 text-sm text-gray-300 max-w-sm" title={row.competency}>
+                    {row.competency}
+                  </td>
+                  <td className="py-4 px-6 text-sm text-center">
+                    <span className="font-semibold text-gray-200">{row.correctResponses}</span>
+                    <span className="text-gray-500 text-xs ml-1">/ {totalLearners}</span>
+                  </td>
+                  <td className="py-4 px-6 text-sm font-bold text-gray-300 text-center">
+                    {row.percentage}%
+                  </td>
+                  <td className="py-4 px-6 text-sm">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${getMasteryBadgeColor(row.masteryLevel)}`}>
+                      {row.masteryLevel}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] font-sans text-gray-100 selection:bg-indigo-500/30 selection:text-indigo-200 pb-12">
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        
+        /* Tinatanggal ang up/down arrows sa number inputs ng correct responses */
+        .hide-arrows::-webkit-inner-spin-button,
+        .hide-arrows::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .hide-arrows {
+          -moz-appearance: textfield;
+        }
+      `}} />
+      
+      {/* Top Navbar */}
+      <nav className="bg-gray-900/80 backdrop-blur-md border-b border-gray-800 px-6 py-4 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div 
+            className="flex items-center space-x-3 cursor-pointer"
+            onClick={() => { if(step !== 2) setStep(0); }}
+          >
+            <div className="bg-indigo-600 text-white p-2 rounded-lg shadow-lg shadow-indigo-500/20">
+              <CheckCircle size={24} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-white">ITEM <span className="text-indigo-400">ANALYZER</span></h1>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-10">
+        {step === 0 && renderHomeStep()}
+        {step === 1 && renderUploadStep()}
+        {step === 2 && renderAnalyzingStep()}
+        {step === 3 && renderResultsStep()}
+      </main>
+    </div>
+  );
+}

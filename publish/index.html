@@ -186,6 +186,14 @@
       X:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
       Table:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/>',
       ClipboardList:'<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>',
+      BarChart3:'<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+      Play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+      Info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+      ListOrdered:'<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+      Edit3:'<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+      Clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      ShieldCheck:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+      Save:'<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
     };
     function LucideIcon({ name, className = '', strokeWidth = 2, ...props }) {
       const [loaded, setLoaded] = useState(false);
@@ -242,6 +250,7 @@
       { id:'lesson', name:'iLaw Lesson Plan', desc:'DepEd-aligned lesson plans drafted in minutes, not hours.', icon:'ClipboardList', ready:true, url:'lesson.html' },
       { id:'ppt', name:'PPT Maker', desc:'Turn any topic, DLL, exam, or quiz into a polished slide deck automatically.', icon:'Presentation', ready:true, url:'powerpoint.html' },
       { id:'activity', name:'Activity Sheet Maker', desc:'Turn any lesson plan into a beautiful module-style worksheet with puzzles, tables, and icons.', icon:'ClipboardCheck', ready:true, url:'activity.html' },
+      { id:'item-analysis', name:'Item Analyzer', desc:'Upload a TOS and enter scores to get mastery levels, least-mastered competencies, and exportable reports.', icon:'BarChart3', ready:true },
     ];
 
     /* ============================================================
@@ -298,8 +307,8 @@
       const [apiKeyTestStatus, setApiKeyTestStatus] = useState('');
       const [apiKeyTestMsg, setApiKeyTestMsg] = useState('');
       const [schoolInfo, setSchoolInfo] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('school_info')) || { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
-        catch { return { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
+        try { return JSON.parse(localStorage.getItem('school_info')) || { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',district:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
+        catch { return { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',district:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
       });
       const fileInputRef = useRef(null);
       const keyDropdownRef = useRef(null);
@@ -349,6 +358,7 @@
         const h = window.location.hash;
         if (h === '#settings') { setCurrentView('settings'); setShowKeyInput(false); }
         else if (h === '#creator') { setCurrentView('creator'); }
+        else if (h === '#item-analysis') { setCurrentView('item-analysis'); }
         if (h) {
           /* Use the absolute URL minus the hash: on a file:// page a path-only URL is
              treated as a separate origin and Chrome refuses it. */
@@ -1252,6 +1262,1678 @@
       };
 
       /* ============================================================
+         SIMPLIFIED ITEM ANALYSIS (Excel-style) report model
+
+         Mirrors Item-Analysis-*.xlsx: the DepEd school block read from
+         Settings, a header block (School / School Year / Subject / Grading
+         Period), one table row per section, a "Total" row and an "MPS per
+         Item" row, then the signatories block from Settings.
+         ============================================================ */
+      const IA_TITLE = 'SIMPLIFIED ITEM ANALYSIS PER SUBJECT';
+
+      const iaBlankScores = (n) => Array.from({ length: n }, (_, i) => ({ itemNo: i + 1, score: '', competency: '' }));
+      const iaNewSection = (n) => ({ name: '', takers: 50, scores: iaBlankScores(n) });
+      const iaNum = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+      const iaFixed = (n, d) => (Number(n) || 0).toFixed(d);
+      const iaTrim = (n) => String(Math.round((Number(n) || 0) * 100) / 100);
+
+      /* One Excel data row: raw counts exactly as entered (the workbook
+         itself never clamps them against the number of takers). */
+      const iaSectionRow = (sec, items) => {
+        const takers = iaNum(sec.takers);
+        const scores = Array.from({ length: items }, (_, i) => {
+          const raw = Number((sec.scores[i] || {}).score) || 0;
+          return raw > 0 ? raw : 0;
+        });
+        const raw = scores.reduce((a, b) => a + b, 0);
+        const mps = takers > 0 ? raw / takers : 0;              // AK column
+        const mastery = items > 0 ? (mps / items) * 100 : 0;    // AL column
+        return { name: String(sec.name || '').trim(), takers, scores, raw, mps, mastery };
+      };
+
+      const iaBuildModel = (meta, sections, items) => {
+        const all = sections.map(s => iaSectionRow(s, items));
+        const filled = all.filter(r => r.name !== '' || r.takers > 0 || r.scores.some(v => v > 0));
+        const rows = filled.length ? filled : all.slice(0, 1);
+        const perItem = Array.from({ length: items }, (_, i) => rows.reduce((a, r) => a + (r.scores[i] || 0), 0));
+        const totalTakers = rows.reduce((a, r) => a + r.takers, 0);
+        const totalRaw = perItem.reduce((a, b) => a + b, 0);
+        const mps = totalTakers > 0 ? totalRaw / totalTakers : 0;
+        const mastery = items > 0 ? (mps / items) * 100 : 0;
+        // Per-item contribution to the MPS, over all takers, so the row adds up
+        // to the mastery figure. (The workbook divides by the first section only.)
+        const mpsPerItem = perItem.map(v => (totalTakers > 0 && items > 0) ? (v / totalTakers) / items * 100 : 0);
+        return { meta, rows, items, perItem, totalTakers, totalRaw, mps, mastery, mpsPerItem };
+      };
+
+      /* ============================================================
+         Reading the competencies
+
+         A TOS is read WITHOUT the AI first, so mapping works offline and
+         never depends on a key. Handles the layouts teachers actually use:
+           - numbered lists   "1. Identifies the main idea"
+                              "Item 2: Solves quadratic equations"
+           - item ranges      "1-5. Uses context clues"
+           - TOS table rows   "Defines media literacy | 1-5 | 6-8 |30"
+                              (cells keep " | " separators from the extractor)
+         Returns one string per test item ("" when nothing was found).
+         ============================================================ */
+      const IA_NUM_CELL = /^\d+(?:\s*[-–—,]\s*\d+)*$/;
+
+      const iaNumberList = (cell) => {
+        const out = [];
+        const parts = String(cell).replace(/[–—]/g, '-').split(',');
+        for (const part of parts) {
+          const t = part.trim();
+          if (!t) continue;
+          const range = t.match(/^(\d+)\s*-\s*(\d+)$/);
+          if (range) {
+            let a = Number(range[1]), b = Number(range[2]);
+            if (a > b) { const s = a; a = b; b = s; }
+            if (b - a <= 500) for (let n = a; n <= b; n++) out.push(n);
+            continue;
+          }
+          if (/^\d+$/.test(t)) out.push(Number(t));
+        }
+        return out;
+      };
+
+      const iaParseCompetencies = (text, itemCount) => {
+        const map = Array.from({ length: itemCount }, () => '');
+        // First mapping wins, so a repeated item never overwrites a good entry.
+        const assign = (nums, comp) => {
+          const clean = String(comp || '').replace(/\s+/g, ' ').trim();
+          if (clean.length < 4) return;
+          for (const n of nums) {
+            if (n >= 1 && n <= itemCount && !map[n - 1]) map[n - 1] = clean;
+          }
+        };
+        const lines = String(text || '').replace(/\r/g, '').split('\n');
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line) continue;
+          if (line.includes('|')) {
+            const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+            const numCells = cells.filter(c => IA_NUM_CELL.test(c));
+            if (!numCells.length) continue;
+            // The longest text cell is the competency; in a wide row the last
+            // pure-number cell is the "Total" column, not an item number.
+            const texts = cells.filter(c => !IA_NUM_CELL.test(c));
+            const comp = texts.reduce((a, b) => (b.length > a.length ? b : a), '');
+            let used = numCells;
+            if (numCells.length > 1) used = numCells.slice(0, -1);
+            else if (cells.length >= 4) used = [];
+            assign(used.flatMap(iaNumberList), comp);
+            continue;
+          }
+          const m =
+            line.match(/^item\s*(\d+)\s*[:\-–.)]\s*(.+)$/i) ||
+            line.match(/^(\d+)\s*[-–]\s*(\d+)\s*[.):\-–]?\s+(.+)$/) ||
+            line.match(/^(\d+)\s*[.)]\s*(.+)$/);
+          if (!m) continue;
+          const nums = m.length === 4 ? iaNumberList(m[1] + '-' + m[2]) : iaNumberList(m[1]);
+          assign(nums, m[m.length - 1]);
+        }
+        return map;
+      };
+
+      const ItemAnalyzer = () => {
+        const [step, setStep] = useState(0);
+        const [tosFile, setTosFile] = useState(null);
+        const [manualCompetencies, setManualCompetencies] = useState('');
+        const [useManualCompetencies, setUseManualCompetencies] = useState(false);
+
+        const [itemCount, setItemCount] = useState(10);
+        // Scratch value for the "fill every item at once" control.
+        const [fillScore, setFillScore] = useState('');
+        // One entry per section — the Excel sheet prints one table row each.
+        const [sections, setSections] = useState(() => [iaNewSection(10)]);
+        const [activeIdx, setActiveIdx] = useState(0);
+        const [meta, setMeta] = useState({
+          schoolYear: '2025-2026',
+          subject: 'MEDIA INFORMATION LITERACY',
+          subjectCode: 'MIL',
+          gradingPeriod: 'SECOND',
+          gradeLevel: '12',
+          // used by the DepEd annex exports; school + signatories live in Settings
+          assessment: '',
+          // which annex checkbox (ST-1 / ST-2 / TE) gets ticked on the exports
+          assessmentType: ''
+        });
+
+        const [isDragging, setIsDragging] = useState(false);
+        const [errorMsg, setErrorMsg] = useState('');
+        const [loadingStatus, setLoadingStatus] = useState('');
+
+        const [results, setResults] = useState([]);
+        const [summaryStats, setSummaryStats] = useState({});
+        const [aiInsight, setAiInsight] = useState('');
+        const [leastMastered, setLeastMastered] = useState([]);
+        const [overallScores, setOverallScores] = useState({ mean: 0, mps: 0 });
+
+        // The competency mapping the teacher reviews (step 3) before the report.
+        const [reviewComps, setReviewComps] = useState([]);
+        const [reviewNote, setReviewNote] = useState('');
+
+        // Derived: the section being edited, plus class-wide totals.
+        const currentSection = sections[activeIdx] || sections[0];
+        const manualScores = currentSection.scores;
+        const sectionTakers = iaNum(currentSection.takers);
+        const totalLearners = sections.reduce((a, s) => a + iaNum(s.takers), 0);
+
+        useEffect(() => {
+          const loadScript = (src) => {
+            if (!document.querySelector(`script[src="${src}"]`)) {
+              const s = document.createElement('script'); s.src = src; s.async = true; document.body.appendChild(s);
+            }
+          };
+          loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+          loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+        }, []);
+
+        const getMasteryLevel = (pct) => {
+          if (pct >= 90) return 'High Mastery';
+          if (pct >= 70) return 'Moderately Average Mastery';
+          if (pct >= 50) return 'Average Mastery';
+          if (pct >= 20) return 'Low Mastery';
+          return 'No Mastery';
+        };
+
+        const getMasteryBadge = (level) => {
+          switch (level) {
+            case 'High Mastery': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+            case 'Moderately Average Mastery': return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+            case 'Average Mastery': return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
+            case 'Low Mastery': return 'bg-orange-500/10 text-orange-600 border-orange-500/20';
+            case 'No Mastery': return 'bg-rose-500/10 text-rose-600 border-rose-500/20';
+            default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+          }
+        };
+
+        const getBarColor = (pct) => {
+          if (pct >= 90) return 'bg-emerald-500';
+          if (pct >= 70) return 'bg-blue-500';
+          if (pct >= 50) return 'bg-yellow-500';
+          if (pct >= 20) return 'bg-orange-500';
+          return 'bg-rose-500';
+        };
+
+        const handleItemCountChange = (e) => {
+          const count = Math.max(1, Math.min(200, parseInt(e.target.value) || 1));
+          setItemCount(count);
+          setSections(prev => prev.map(s => ({
+            ...s,
+            scores: Array.from({ length: count }, (_, i) => s.scores.find(x => x.itemNo === i + 1) || { itemNo: i + 1, score: '', competency: '' })
+          })));
+        };
+
+        // One value typed once, applied to every item of every section.
+        const applyFillScore = () => {
+          const raw = String(fillScore).trim();
+          if (raw === '') return;
+          const val = Number(raw);
+          if (!Number.isFinite(val) || val < 0) return;
+          setSections(prev => prev.map(s => {
+            const cap = iaNum(s.takers);
+            const v = cap ? Math.min(val, cap) : val;
+            return { ...s, scores: s.scores.map(sc => ({ ...sc, score: String(v) })) };
+          }));
+        };
+
+        const handleScoreChange = (index, field, value) => {
+          setSections(prev => prev.map((s, si) => {
+            if (si !== activeIdx) return s;
+            const scores = [...s.scores];
+            scores[index] = { ...scores[index], [field]: value };
+            return { ...s, scores };
+          }));
+        };
+
+        const updateSection = (idx, patch) => setSections(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+        const addSection = () => {
+          setSections(prev => [...prev, iaNewSection(itemCount)]);
+          setActiveIdx(sections.length);
+        };
+        const removeSection = (idx) => {
+          if (sections.length <= 1) return;
+          const next = sections.filter((_, i) => i !== idx);
+          setSections(next);
+          setActiveIdx(prev => Math.max(0, Math.min(idx < prev ? prev - 1 : prev, next.length - 1)));
+        };
+        const setMetaField = (key, value) => setMeta(prev => ({ ...prev, [key]: value }));
+
+        const handleCompetencyToggle = () => {
+          setUseManualCompetencies(!useManualCompetencies);
+          if (!useManualCompetencies) setErrorMsg('');
+        };
+
+        const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+        const handleDragLeave = () => { setIsDragging(false); };
+        const handleDrop = (e) => {
+          e.preventDefault(); setIsDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file) setTosFile(file);
+        };
+        const handleFileSelect = (e) => {
+          const file = e.target.files[0];
+          if (file) setTosFile(file);
+        };
+
+        /* Mammoth gives real HTML — keep the table grid (" | " per cell, one
+           line per row) so the competency mapper can follow a TOS table. */
+        const iaHtmlToText = (html) => {
+          let t = String(html);
+          t = t.replace(/<li[^>]*>/gi, '\n- ');
+          // Cell/row ends become " | " and newline sentinels FIRST, so the
+          // paragraph breaks *inside* a cell cannot split the row apart.
+          t = t.replace(/<\/td>|<\/th>/gi, '\u0001').replace(/<\/tr>/gi, '\u0002');
+          t = t.replace(/<\/(p|div|h[1-6])>/gi, '\n');
+          t = t.replace(/\n\s*\u0001/g, '\u0001').replace(/\u0001\s*\n/g, '\u0001');
+          t = t.replace(/\n\s*\u0002/g, '\u0002').replace(/\u0002\s*\n/g, '\u0002');
+          t = t.replace(/\u0001/g, ' | ').replace(/\u0002/g, '\n');
+          return t
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+            .replace(/[ \t]+/g, ' ')
+            .split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+        };
+
+        /* Turn the uploaded TOS into readable text. Throws with a friendly
+           message when the file cannot be used, instead of returning junk. */
+        const extractTosText = async (file) => {
+          const ext = (file.name.split('.').pop() || '').toLowerCase();
+          const CAP = 40000;
+
+          if (ext === 'pdf') {
+            if (!window.pdfjsLib) throw new Error('The PDF reader has not loaded yet — check your connection and try again.');
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            const ab = await file.arrayBuffer();
+            const pdf = await window.pdfjsLib.getDocument({ data: ab }).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const tc = await page.getTextContent();
+              fullText += tc.items.map(it => it.str).join(' ') + '\n';
+            }
+            if (fullText.trim().length < 40) {
+              throw new Error('This PDF has no readable text — it looks like a scanned image. Re-save the TOS as a Word (.docx) file, or type the competencies with Manual Entry.');
+            }
+            return fullText.substring(0, CAP);
+          }
+
+          if (ext === 'docx' || ext === 'doc') {
+            if (!window.mammoth) throw new Error('The Word reader has not loaded yet — check your connection and try again.');
+            const oldDocMsg = 'This is an old ".doc" file, which cannot be read here. Open it in Word and choose File > Save As, pick ".docx", then upload it again.';
+            const ab = await file.arrayBuffer();
+            let html = '';
+            try {
+              const r = await window.mammoth.convertToHtml({ arrayBuffer: ab });
+              html = r.value;
+            } catch (err) {
+              throw new Error(ext === 'doc' ? oldDocMsg : 'This Word file could not be read — it may be corrupted. Try re-saving it and uploading again.');
+            }
+            const text = iaHtmlToText(html);
+            if (text.trim()) return text.substring(0, CAP);
+            throw new Error(ext === 'doc' ? oldDocMsg : 'This Word file appears to be empty.');
+          }
+
+          // .txt (and anything else): read as plain text, nothing stripped
+          const text = await file.text();
+          return text.substring(0, CAP);
+        };
+
+        /* Ask the AI to fill only the items the TOS text did not give us.
+           Already-found mappings are passed along as hints it must keep. */
+        const aiFillCompetencies = async (tosText, mapped, missing) => {
+          const prompt = `
+You are an expert Educational Data Analyzer.
+Below is text from a Table of Specifications (TOS). The test has ${itemCount} items.
+
+ITEMS ALREADY MAPPED — keep these exactly as given:
+${mapped.map((c, i) => (c ? `Item ${i + 1}: ${c}` : '')).filter(Boolean).join('\n') || '(none)'}
+
+ITEMS STILL MISSING — fill these in: ${missing.join(', ')}
+
+TOS TEXT:
+${tosText.substring(0, 12000)}
+
+TASK:
+Return a JSON array covering ONLY the missing items, using the exact competency wording from the TOS.
+Do not make up competencies. If an item is not covered by the TOS, use "Unspecified Competency".
+
+OUTPUT: Valid JSON array only, no markdown.
+Structure: [ { "itemNo": 3, "competency": "..." } ]
+          `;
+          const raw = await window.SilidAPI.callGemini({
+            prompt,
+            responseMimeType: 'application/json',
+            temperature: 0.2
+          });
+          if (!raw) throw new Error('the AI returned nothing');
+          const jsonText = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const start = jsonText.indexOf('[');
+          const end = jsonText.lastIndexOf(']');
+          const parsed = JSON.parse(start >= 0 && end > start ? jsonText.slice(start, end + 1) : jsonText);
+          if (!Array.isArray(parsed)) throw new Error('the AI returned unexpected data');
+          const out = Array.from({ length: itemCount }, () => '');
+          parsed.forEach(p => {
+            const n = Number(p && p.itemNo);
+            const comp = p && typeof p.competency === 'string' ? p.competency.trim() : '';
+            if (n >= 1 && n <= itemCount && comp) out[n - 1] = comp;
+          });
+          return out;
+        };
+
+        /* Step 1 → 2 → 3: read the competencies and map them to items, then
+           hand the mapping to the review step. The reading itself is local —
+           the AI is only asked to fill gaps, and only when a key is set. */
+        const analyzeData = async () => {
+          if (!useManualCompetencies && !tosFile) {
+            setErrorMsg('Please upload a TOS document, or switch to manual competency entry.');
+            return;
+          }
+          if (totalLearners <= 0) {
+            setErrorMsg('Enter the number of takers for at least one section so percentages can be calculated.');
+            return;
+          }
+          setStep(2);
+          setErrorMsg('');
+          try {
+            let mapped = [];
+            let note = '';
+            if (useManualCompetencies) {
+              setLoadingStatus('Reading your competency list...');
+              mapped = iaParseCompetencies(manualCompetencies, itemCount);
+              // per-item boxes from the score grid still count
+              sections[0].scores.forEach((s, i) => {
+                if (!mapped[i] && s.competency) mapped[i] = s.competency;
+              });
+              if (mapped.every(c => !c)) {
+                throw new Error('No competencies were read from your list. Type one per line, e.g. "1. Identifies the main idea" — no API key is needed.');
+              }
+            } else {
+              setLoadingStatus('Extracting text from TOS document...');
+              const tosText = await extractTosText(tosFile);
+              if (!tosText.trim()) throw new Error('The TOS document appears empty or unreadable.');
+              setLoadingStatus('Matching competencies to items...');
+              mapped = iaParseCompetencies(tosText, itemCount);
+              const missing = mapped.reduce((a, c, i) => { if (!c) a.push(i + 1); return a; }, []);
+              if (missing.length && apiKey.trim()) {
+                setLoadingStatus(`AI is filling in ${missing.length} remaining item${missing.length === 1 ? '' : 's'}...`);
+                try {
+                  const filled = await aiFillCompetencies(tosText, mapped, missing);
+                  mapped = mapped.map((c, i) => c || filled[i] || '');
+                } catch (err) {
+                  note = `The AI could not fill in the remaining items (${err.message}). You can type them below.`;
+                }
+              } else if (missing.length && mapped.every(c => !c)) {
+                throw new Error('No competencies could be read from this file. Add your Gemini API key so the AI can read it, or type the competencies with Manual Entry.');
+              } else if (missing.length) {
+                note = `${missing.length} item${missing.length === 1 ? ' was' : 's were'} not found in the TOS — type ${missing.length === 1 ? 'it' : 'them'} below.`;
+              }
+            }
+            setReviewComps(mapped.map(c => c || 'Unspecified Competency'));
+            setReviewNote(note);
+            setStep(3);
+          } catch (err) {
+            console.error(err);
+            setErrorMsg(err.message || 'The competencies could not be read.');
+            setStep(1);
+          }
+        };
+
+        /* Step 3 → 4: the competencies were confirmed on the review screen —
+           compute the mastery figures and build the report. */
+        const finishAnalysis = () => {
+          setErrorMsg('');
+          try {
+            const compList = reviewComps.map(c => String(c || '').trim() || 'Unspecified Competency');
+            let finalData = [];
+            const counts = { 'High Mastery': 0, 'Moderately Average Mastery': 0, 'Average Mastery': 0, 'Low Mastery': 0, 'No Mastery': 0 };
+
+            // Correct responses pooled across every section, as entered.
+            const pooledCorrect = manualScores.map((_, i) => sections.reduce((sum, s) => {
+              const raw = Number((s.scores[i] || {}).score) || 0;
+              return sum + (raw > 0 ? raw : 0);
+            }, 0));
+
+            manualScores.forEach((ms, idx) => {
+              const comp = compList[idx] || `Item ${ms.itemNo}`;
+              const safeCorrect = pooledCorrect[idx] || 0;
+              const pct = totalLearners > 0 ? (safeCorrect / totalLearners) * 100 : 0;
+              const mastery = getMasteryLevel(pct);
+              counts[mastery]++;
+              finalData.push({
+                itemNo: ms.itemNo,
+                competency: comp,
+                correctResponses: safeCorrect,
+                percentage: pct.toFixed(2),
+                masteryLevel: mastery
+              });
+            });
+
+            const totalCorrect = finalData.reduce((a, c) => a + c.correctResponses, 0);
+            const mean = totalLearners > 0 ? totalCorrect / totalLearners : 0;
+            const mps = (mean / itemCount) * 100;
+            setOverallScores({ mean: mean.toFixed(2), mps: mps.toFixed(2) });
+
+            const compGroups = {};
+            finalData.forEach(it => {
+              if (!compGroups[it.competency]) compGroups[it.competency] = { total: 0, n: 0 };
+              compGroups[it.competency].total += parseFloat(it.percentage);
+              compGroups[it.competency].n += 1;
+            });
+            const compAvg = Object.keys(compGroups).map(c => ({ competency: c, average: (compGroups[c].total / compGroups[c].n).toFixed(2) }));
+            compAvg.sort((a, b) => parseFloat(a.average) - parseFloat(b.average));
+            setLeastMastered(compAvg.slice(0, 5));
+
+            let insight = `Based on ${totalLearners} learners across ${finalData.length} items: `;
+            if (counts['High Mastery'] >= finalData.length * 0.5) insight += 'Over half the items reached High Mastery — excellent class understanding. ';
+            else if (counts['No Mastery'] + counts['Low Mastery'] > finalData.length * 0.4) insight += 'Many competencies show Low or No Mastery — reteaching is recommended. ';
+            else insight += 'Overall performance is in the Average to Moderately Average range. ';
+            const hardest = [...finalData].sort((a, b) => parseFloat(a.percentage) - parseFloat(b.percentage))[0];
+            if (hardest) insight += `Most challenging: Item ${hardest.itemNo} ("${hardest.competency}" — ${hardest.percentage}% correct).`;
+            setAiInsight(insight);
+
+            setResults(finalData);
+            setSummaryStats(counts);
+            setStep(4);
+          } catch (err) {
+            console.error(err);
+            setErrorMsg(err.message || 'Analysis failed.');
+          }
+        };
+
+        const resetAnalyzer = () => {
+          setStep(1);
+          setTosFile(null);
+          setSections([iaNewSection(itemCount)]);
+          setActiveIdx(0);
+          setResults([]);
+          setLeastMastered([]);
+          setReviewComps([]);
+          setReviewNote('');
+          setOverallScores({ mean: 0, mps: 0 });
+          setErrorMsg('');
+        };
+
+        const downloadCSV = () => {
+          const rows = results.map(r => [r.itemNo, `"${r.competency.replace(/"/g, '""')}"`, r.correctResponses, r.percentage + '%', r.masteryLevel]);
+          const csv = 'data:text/csv;charset=utf-8,' + ['Item Number,Competency,Correct Responses,Percentage,Mastery Level', ...rows.map(r => r.join(','))].join('\n');
+          const link = document.createElement('a');
+          link.href = encodeURI(csv);
+          link.download = 'item_analysis_report.csv';
+          link.click();
+        };
+
+        /* ---- Word export: same layout as the Excel sheet ---------------- */
+        const wordFileName = (ext) => 'Item_Analysis_' + String(meta.subjectCode || meta.subject || 'Report').trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') + ext;
+
+        const saveWordBlob = (blob, name) => {
+          if (window.saveAs) { window.saveAs(blob, name); return; }
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = name;
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+        };
+
+        /* ── Header & signatories for the report ──────────────────────────
+           Everything here is read from School & Personal Info (Settings). The
+           Item Analysis UI no longer collects school / submitted-by fields, so
+           the preview and every export can never drift from Settings. */
+        const iaSi = () => schoolInfo || {};
+
+        const iaHeaderLines = () => {
+          const si = iaSi();
+          const lines = [{ text: 'Republic of the Philippines', size: 9 }];
+          lines.push({ text: 'Department of Education', size: 11, bold: true, serif: true });
+          const region = si.regionNo || si.regionName
+            ? `REGION ${si.regionNo || ''}${si.regionNo && si.regionName ? ' – ' : ''}${si.regionName ? `${si.regionName} REGION` : ''}`
+            : '';
+          if (region) lines.push({ text: region.toUpperCase(), size: 9, bold: true });
+          if (si.division) lines.push({ text: `SCHOOLS DIVISION OFFICE OF ${si.division}`.toUpperCase(), size: 9, bold: true });
+          if (si.district) lines.push({ text: (/district/i.test(si.district) ? si.district : `${si.district} District`).toUpperCase(), size: 9, bold: true });
+          if (si.schoolName) lines.push({ text: si.schoolName.toUpperCase(), size: 11, bold: true });
+          if (si.schoolAddress) lines.push({ text: si.schoolAddress, size: 9 });
+          return lines;
+        };
+
+        /* Submitted / checked / approved — one list for the preview and Word. */
+        const iaSignatories = () => {
+          const si = iaSi();
+          const list = [
+            { label: 'Submitted by', name: si.teacherName, title: si.teacherTitle },
+            { label: 'Checked by', name: si.checkedBy, title: si.checkedByPosition },
+            { label: 'Submitted to', name: si.approvedBy, title: si.approvedByPosition }
+          ].filter(b => b.name);
+          // Keep the signature area even before Settings is filled in.
+          return list.length ? list : [
+            { label: 'Submitted by', name: '', title: '' },
+            { label: 'Submitted to', name: '', title: '' }
+          ];
+        };
+
+        /* Plain JSX (not a component) so re-renders never remount the logos. */
+        const iaHeaderJsx = () => (
+          <div className="mb-4 text-center">
+            {(iaSi().schoolLogo1 || iaSi().schoolLogo2) && (
+              <div className="flex items-center justify-center gap-4 mb-2">
+                {iaSi().schoolLogo1 && <img src={iaSi().schoolLogo1} alt="" className="h-14 object-contain" />}
+                {iaSi().schoolLogo2 && <img src={iaSi().schoolLogo2} alt="" className="h-14 object-contain" />}
+              </div>
+            )}
+            {iaHeaderLines().map((l, i) => (
+              <p
+                key={i}
+                className={`${l.serif ? 'font-serif' : ''} ${l.bold ? 'font-semibold' : ''} uppercase`}
+                style={{ fontSize: `${Math.round(l.size * 1.34)}px`, lineHeight: 1.3 }}
+              >
+                {l.text}
+              </p>
+            ))}
+          </div>
+        );
+
+        /* opts.forDoc → a .doc (Word HTML) with a landscape @page rule;
+           the .docx path asks html-docx for landscape instead. */
+        const buildItemAnalysisHtml = (opts) => {
+          const forDoc = !!(opts && opts.forDoc);
+          const si = iaSi();
+          const m = iaBuildModel(meta, sections, itemCount);
+          const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const totalCols = 5 + m.items + 3;
+          const rightSpan = Math.max(4, Math.round(totalCols * 0.25));
+          const leftSpan = totalCols - 2 - rightSpan;
+          const border = 'border:1px solid #555555;';
+
+          /* Uniform column widths: every numbered item column gets the SAME
+             width, written onto each cell (Word autofit used to give item 8 a
+             far wider column than its neighbours). Fixed columns keep a little
+             more room for their labels. Left block 30 (Subject 7 · Grade 5 ·
+             Section 7 · Takers 6 · Items 5) + right block 18 (Raw 6 · MPS 5 ·
+             Mastery 7) — the numbered columns share the remaining 52. */
+          const fixedSum = 48;
+          const itemW = Math.max(1.2, (100 - fixedSum) / m.items);
+          const colW = (i) => (i < 5 ? [7, 5, 7, 6, 5][i] : i < 5 + m.items ? itemW : [6, 5, 7][i - 5 - m.items]);
+          const pct = (n) => Math.round(n * 100) / 100;
+
+          // Cells are [text, span, extraStyle]; renderRow keeps a running column
+          // cursor so every cell carries the exact width of the columns it spans.
+          const renderRow = (cells) => {
+            let idx = 0;
+            return `<tr>${cells.map(([text, span, extra]) => {
+              const n = span || 1;
+              let width = 0;
+              for (let k = idx; k < idx + n; k++) width += colW(k);
+              idx += n;
+              const w = pct(width);
+              return `<td${n > 1 ? ` colspan="${n}"` : ''} width="${w}" style="${border}padding:2px 3px;text-align:center;vertical-align:middle;font-size:8pt;width:${w}%;${extra || ''}">${esc(text)}</td>`;
+            }).join('')}</tr>`;
+          };
+          const head = (text) => [text, 1, 'font-weight:bold;background:#e9e9e9;'];
+          const field = (text) => [text, 1, 'font-weight:bold;background:#f3f3f3;text-align:left;'];
+          const cell = (text, span, extra) => [text, span || 1, extra || ''];
+
+          const dataRows = m.rows.map(r => renderRow([
+            cell(meta.subjectCode || meta.subject),
+            cell(meta.gradeLevel),
+            cell(r.name || 'Section'),
+            cell(String(r.takers)),
+            cell(String(m.items)),
+            ...r.scores.map(v => cell(String(v))),
+            cell(String(r.raw), 1, 'font-weight:bold;'),
+            cell(String(Math.round(r.mps))),
+            cell(iaFixed(r.mastery, 2))
+          ])).join('');
+
+          const totalRow = renderRow([
+            cell(''),
+            cell('Total', 2, 'font-weight:bold;background:#f3f3f3;'),
+            cell(String(m.totalTakers)),
+            cell(String(m.items)),
+            ...m.perItem.map(v => cell(String(v))),
+            cell(String(m.totalRaw), 1, 'font-weight:bold;'),
+            cell(String(Math.round(m.mps)), 1, 'font-weight:bold;'),
+            cell(iaFixed(m.mastery, 2), 1, 'font-weight:bold;')
+          ]);
+
+          const mpsRow = renderRow([
+            cell(''),
+            cell('MPS per Item', 3, 'font-weight:bold;background:#f3f3f3;'),
+            cell(''),
+            ...m.mpsPerItem.map(v => cell(iaTrim(v))),
+            cell(''), cell(''), cell('')
+          ]);
+
+          const headers = renderRow([
+            head('Subject'), head('Grade Level'), head('Section'), head('Total No. of Takers'), head('Total No. of Items'),
+            ...Array.from({ length: m.items }, (_, i) => head(String(i + 1))),
+            head('Total Raw Score'), head('MPS'), head('Mastery Level')
+          ]);
+
+          const logoHtml = (si.schoolLogo1 || si.schoolLogo2)
+            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => `<img src="${src}" style="height:50px;" alt="" />`).join('&nbsp;&nbsp;&nbsp;')}</p>`
+            : '';
+          const headerHtml = '<div style="text-align:center;line-height:1.3;margin-bottom:6pt;">' +
+            iaHeaderLines().map(l => `<p style="margin:1pt 0;font-size:${l.size}pt;${l.bold ? 'font-weight:bold;' : ''}${l.serif ? "font-family:'Times New Roman',Georgia,serif;" : ''}">${esc(l.text)}</p>`).join('') +
+            '</div>';
+          const sigs = iaSignatories();
+          const sigW = pct(100 / sigs.length);
+          const sigTable = `<table style="width:100%;border-collapse:collapse;margin-top:18pt;"><tr>${
+            sigs.map(b => `<td width="${sigW}" style="width:${sigW}%;vertical-align:top;font-size:9pt;padding:0 8pt;">${esc(b.label)}:<br /><br /><br /><b>${esc(b.name)}</b>${b.title ? `<br />${esc(b.title)}` : ''}</td>`).join('')
+          }</tr></table>`;
+          const pageCss = forDoc
+            ? '<style>@page WordSection1 {size:11.0in 8.5in; margin:0.4in;} div.WordSection1 {page:WordSection1;}</style>'
+            : '';
+          const content = `${logoHtml}${headerHtml}
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+${renderRow([field('School:'), cell(si.schoolName || '', leftSpan, 'text-align:left;'), field('School Year:'), cell(meta.schoolYear, rightSpan)])}
+${renderRow([field('Subject'), cell(meta.subject, leftSpan, 'text-align:left;'), field('Grading Period'), cell(meta.gradingPeriod, rightSpan)])}
+${renderRow([cell(IA_TITLE, totalCols, 'font-weight:bold;padding:4px;')])}
+${headers}
+${dataRows}
+${totalRow}
+${mpsRow}
+</table>
+${sigTable}`;
+          const body = forDoc ? `<div class="WordSection1">${content}</div>` : content;
+          return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">${pageCss}<title>${esc(IA_TITLE)}</title></head><body style="font-family:Arial,Helvetica,sans-serif;font-size:9pt;">${body}</body></html>`;
+        };
+
+        const downloadDoc = async () => {
+          // @page landscape (see buildItemAnalysisHtml) makes Word print wide.
+          const blob = new Blob(['\ufeff', buildItemAnalysisHtml({ forDoc: true })], { type: 'application/msword' });
+          saveWordBlob(blob, wordFileName('.doc'));
+        };
+
+        const downloadDocx = async () => {
+          if (!window.htmlDocx || !window.saveAs) {
+            const m = 'The DOCX helper has not loaded yet — exporting .doc instead.';
+            if (window.SilidToast) window.SilidToast.warning(m); else console.warn(m);
+            await downloadDoc();
+            return;
+          }
+          try {
+            const blob = window.htmlDocx.asBlob(buildItemAnalysisHtml({}), {
+              orientation: 'landscape',
+              margins: { top: 576, bottom: 576, left: 432, right: 432 }
+            });
+            saveWordBlob(blob, wordFileName('.docx'));
+          } catch (e) {
+            console.error(e);
+            const m = 'Could not build the DOCX file: ' + ((e && e.message) || 'unknown error') + '. Try the .doc button instead.';
+            if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+          }
+        };
+
+        /* ── DepEd annex exports ───────────────────────────────────────────
+           Annex 1 (ST-2)      — MPS per Learning Area
+           Annex 3 (SS-10)     — School Consolidated List of Least Mastered
+                                  Competencies
+           Both follow the official templates; school info and signatories are
+           read from School & Personal Info (Settings). ── */
+        const iaTermLabel = () => {
+          const g = String(meta.gradingPeriod || '').trim();
+          if (!g) return 'First';
+          return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase().replace(/\s*term$/, '');
+        };
+
+        /* The annex body only — shared verbatim by the Word exports and the
+           on-screen preview, so what the teacher sees is what downloads. */
+        const buildAnnexContent = (kind) => {
+          const si = iaSi();
+          const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const pct = (n) => Math.round(n * 100) / 100;
+          const term = iaTermLabel().toUpperCase(); // the templates print "SECOND Term"
+          const school = (si.schoolName || '________________').toUpperCase();
+          const district = si.district ? (/district/i.test(si.district) ? si.district : `${si.district} District`) : '';
+          const m = iaBuildModel(meta, sections, itemCount);
+          const border = 'border:1px solid #444444;';
+
+          // [width%, text, extraStyle] — widths follow the official templates.
+          const td = (w, text, extra) => `<td width="${w}" style="width:${w}%;${border}padding:5px 6px;vertical-align:middle;font-size:10pt;${extra || ''}">${esc(text)}</td>`;
+          const tr = (cells) => `<tr>${cells.map(c => td(c[0], c[1], c[2])).join('')}</tr>`;
+          const p = (text, extra) => `<p style="margin:3pt 0;font-size:11pt;${extra || ''}">${esc(text)}</p>`;
+          const signTable = (blocks) => {
+            const w = pct(100 / blocks.length);
+            return `<table style="width:100%;border-collapse:collapse;margin-top:16pt;"><tr>${blocks.map(b =>
+              `<td width="${w}" style="width:${w}%;vertical-align:top;font-size:10pt;padding:0 8pt;text-align:center;">${esc(b.label)}: ${esc(b.name || '')}${b.name ? '' : '<br /><br />'}<br />${esc(b.title || '')}</td>`
+            ).join('')}</tr></table>`;
+          };
+          /* (Pls. put check in the box) — one box per assessment code; the
+             type picked in Report Details gets the tick. Nested table so Word
+             draws the boxes reliably. */
+          const checkboxRow = () => {
+            const codes = ['ST-1', 'ST-2', 'TE'];
+            const sel = String(meta.assessmentType || '').trim().toUpperCase();
+            const inner = codes.map(code =>
+              `<td style="width:15pt;${border}text-align:center;vertical-align:middle;font-size:9pt;padding:1pt 0;">${sel === code ? '&#10003;' : ''}</td>` +
+              `<td style="border:none;padding:0 9pt 0 3pt;font-size:9pt;">${code}</td>`
+            ).join('');
+            return '<table style="width:100%;border-collapse:collapse;"><tr>' +
+              '<td style="font-size:9pt;padding:0;">(Pls. put check in the box)</td>' +
+              `<td style="padding:0;text-align:right;"><table style="border-collapse:collapse;"><tr>${inner}</tr></table></td>` +
+              '</tr></table>';
+          };
+          const headBlock = (title, subLine, extraLine) =>
+            '<div style="text-align:center;line-height:1.35;">' +
+            `<p style="margin:2pt 0;font-size:13pt;font-weight:bold;">${esc(title)}</p>` +
+            `<p style="margin:2pt 0;font-size:11pt;">${esc(subLine)}</p></div>` +
+            p(`Name of ${school}   Assessment Conducted: ${meta.assessment || ''}`) +
+            checkboxRow() +
+            p(extraLine);
+          /* The DepEd letterhead block, straight from Settings — the same lines
+             the main item-analysis export prints. It keeps its own font (Arial /
+             Times); every other annex text renders in Bookman Old Style. */
+          const headerHtml = '<div data-annex-header="1" style="text-align:center;line-height:1.3;margin-bottom:6pt;font-family:Arial,Helvetica,sans-serif;">' +
+            iaHeaderLines().map(l => `<p style="margin:1pt 0;font-size:${l.size}pt;${l.bold ? 'font-weight:bold;' : ''}font-family:${l.serif ? "'Times New Roman',Georgia,serif" : 'Arial,Helvetica,sans-serif'};">${esc(l.text)}</p>`).join('') +
+            '</div>';
+          const logos = (si.schoolLogo1 || si.schoolLogo2)
+            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => `<img src="${src}" style="height:52px;" alt="" />`).join('&nbsp;&nbsp;&nbsp;')}</p>`
+            : '';
+          /* Annex 3 cause + intervention — computed from the same results the
+             report shows, so the columns are never left blank. */
+          const compDetail = (name) => {
+            const items = results.filter(r => r.competency === name);
+            const avg = items.length ? items.reduce((a, r) => a + (Number(r.percentage) || 0), 0) / items.length : 0;
+            return { nums: items.map(r => r.itemNo).join(', '), avg, n: items.length };
+          };
+          /* Likely causes for the Reasons/s/Cause/s column — why learners got
+             the items wrong, not just what they scored. Severe band (<40%) and
+             moderate band (40–59%) pools; a stable hash of the row's own data
+             picks one, so every row reads differently but never changes
+             between renders. */
+          const REASON_SEVERE = [
+            'Learners may have lacked the foundational skill this competency builds on, so they could not even start the task',
+            'Unfamiliar vocabulary in the items may have stopped learners from understanding what was being asked',
+            'Learners may have confused this competency with a closely related one and applied the wrong procedure',
+            'Close distractors may have led learners to guess instead of reasoning through each step',
+            'Learners may have had too little practice with real-life examples, so they could not transfer the skill to new situations'
+          ];
+          const REASON_WEAK = [
+            'Learners may have rushed and overlooked the key detail in the stem, picking the first plausible option',
+            'Some learners may have understood the concept but misread what the item was asking for',
+            'Learners may have succeeded on familiar examples but got stuck on unfamiliar ones',
+            'The multi-step reasoning the items require may have caused learners to lose track halfway through the solution'
+          ];
+          const reasonFor = (d) => {
+            const where = d.n ? `${d.n > 1 ? 'items' : 'item'} ${d.nums}` : 'its items';
+            const pool = d.avg < 40 ? REASON_SEVERE : REASON_WEAK;
+            let h = 0;
+            const key = `${d.nums}:${d.avg.toFixed(2)}`;
+            for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+            return `${pool[h % pool.length]} (${where} \u2014 ${d.avg.toFixed(2)}% answered correctly)`;
+          };
+          const interventionFor = (d) => (d.avg < 40
+            ? 'Reteach with concrete examples, guided practice and visual aids, then re-check with a short 3-item quiz.'
+            : 'Give targeted reinforcement activities and small-group remediation; revisit common errors through class discussion.');
+          let content;
+          if (kind === 'annex1') {
+            const w = [21, 20, 20, 17, 22];
+            const mean = m.totalTakers > 0 ? m.totalRaw / m.totalTakers : 0;
+            const mpsPct = m.items > 0 ? (mean / m.items) * 100 : 0;
+            const gradeLine = /grade/i.test(meta.gradeLevel || '') ? meta.gradeLevel : `GRADE ${meta.gradeLevel || ''}`;
+            const headRow = tr([
+              [w[0], 'Subject', 'text-align:left;font-weight:bold;'],
+              [w[1], 'No. of Items', 'font-weight:bold;'],
+              [w[2], 'No. of Correct Responses', 'font-weight:bold;'],
+              [w[3], 'Mean Score', 'font-weight:bold;'],
+              [w[4], 'MPS', 'font-weight:bold;']
+            ]);
+            const dataRow = tr([
+              [w[0], meta.subject, 'text-align:left;'],
+              [w[1], String(m.items)],
+              [w[2], String(m.totalRaw)],
+              [w[3], mean.toFixed(2)],
+              [w[4], mpsPct.toFixed(2)]
+            ]);
+            // the form prints eight rows — one filled, seven for handwritten use
+            const blank = tr(w.map(x => [x, '', 'height:28pt;']));
+            content = `${logos}${headerHtml}${headBlock(
+              `Annex 1. MPS per Learning Area for the ${term} Term, SY: ${meta.schoolYear}`,
+              `${term} Term Learning Area MPS (SY: ${meta.schoolYear})`,
+              `Grade Level: ${gradeLine}`
+            )}
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+${headRow}
+${dataRow}
+${blank.repeat(7)}
+</table>
+${signTable([
+              { label: 'Prepared by', name: si.teacherName, title: si.teacherTitle },
+              { label: 'Certified Correct', name: si.checkedBy || si.approvedBy, title: si.checkedByPosition || si.approvedByPosition }
+            ])}`;
+          } else {
+            const w = [23, 24, 29, 24];
+            const headRow = tr([
+              [w[0], 'Learning Area', 'text-align:left;font-weight:bold;'],
+              [w[1], 'Least Mastered Competencies', 'text-align:left;font-weight:bold;'],
+              [w[2], 'Reasons/s/Cause/s', 'text-align:left;font-weight:bold;'],
+              [w[3], 'Proposed Intervention Activity', 'text-align:left;font-weight:bold;']
+            ]);
+            const list = (leastMastered.length ? leastMastered : []).slice(0, 8);
+            const dataRows = list.map((c, i) => {
+              const d = compDetail(c.competency);
+              return tr([
+                [w[0], i === 0 ? (meta.subjectCode || meta.subject) : '', 'text-align:left;vertical-align:top;'],
+                [w[1], c.competency, 'text-align:left;vertical-align:top;'],
+                [w[2], reasonFor(d), 'text-align:left;vertical-align:top;'],
+                [w[3], interventionFor(d), 'text-align:left;vertical-align:top;']
+              ]);
+            }).join('\n');
+            const blank = tr(w.map(x => [x, '', 'height:34pt;']));
+            const pad = Math.max(0, 8 - list.length);
+            content = `${logos}${headerHtml}${headBlock(
+              `Annex 3. School Consolidated List of Least Mastered Competencies for the ${term} Term, SY: ${meta.schoolYear}`,
+              `${term} Term Item Analysis Report (SY: ${meta.schoolYear})`,
+              `Learning Area: ${meta.subject}`
+            )}
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+${headRow}
+${dataRows}
+${pad ? blank.repeat(pad) : ''}
+</table>
+${signTable([
+              { label: 'Prepared by', name: si.teacherName, title: si.teacherTitle },
+              { label: 'Reviewed by', name: si.checkedBy, title: si.checkedByPosition },
+              { label: 'Approved', name: si.approvedBy, title: si.approvedByPosition }
+            ])}`;
+          }
+
+          // One wrapper so every annex text — title, tables, signatures —
+          // renders in Bookman Old Style; only headerHtml overrides it.
+          return `<div style="font-family:'Bookman Old Style',Arial,sans-serif;">${content}</div>`;
+        };
+
+        const buildAnnexHtml = (kind, opts) => {
+          const forDoc = !!(opts && opts.forDoc);
+          const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const content = buildAnnexContent(kind);
+          const pageCss = forDoc
+            ? '<style>@page WordSection1 {size:8.5in 11in; margin:0.6in;} div.WordSection1 {page:WordSection1;}</style>'
+            : '';
+          const body = forDoc ? `<div class="WordSection1">${content}</div>` : content;
+          return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">${pageCss}<title>${esc(kind === 'annex1' ? 'Annex 1 — MPS per Learning Area' : 'Annex 3 — Least Mastered Competencies')}</title></head><body style="font-family:'Bookman Old Style',Arial,sans-serif;font-size:11pt;">${body}</body></html>`;
+        };
+
+        const annexFileName = (kind, ext) => {
+          const base = kind === 'annex1'
+            ? 'Annex1_MPS-per-Learning-Area_'
+            : 'Annex3_Least-Mastered-Competencies_';
+          const tail = `${iaTermLabel()}_${meta.schoolYear || 'SY'}`.replace(/[^\w.-]+/g, '-');
+          return base + tail + ext;
+        };
+
+        const downloadAnnex = async (kind) => {
+          if (window.htmlDocx && window.saveAs) {
+            try {
+              const blob = window.htmlDocx.asBlob(buildAnnexHtml(kind, {}), {
+                orientation: 'portrait',
+                margins: { top: 864, bottom: 864, left: 864, right: 864 }
+              });
+              return saveWordBlob(blob, annexFileName(kind, '.docx'));
+            } catch (e) {
+              console.error(e);
+              if (window.SilidToast) window.SilidToast.warning('Could not build the DOCX — exporting .doc instead.');
+            }
+          }
+          const blob = new Blob(['\ufeff', buildAnnexHtml(kind, { forDoc: true })], { type: 'application/msword' });
+          saveWordBlob(blob, annexFileName(kind, '.doc'));
+        };
+
+        const renderHome = () => (
+          <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-6">
+            <div className="p-6 rounded-full bg-iris-500/10 border border-iris-500/20 shadow-[0_0_50px_-10px_rgba(91,70,232,0.2)]">
+              <LucideIcon name="BarChart3" className="w-16 h-16 text-iris-500" />
+            </div>
+            <div className="max-w-2xl space-y-4">
+              <h1 className="font-display text-5xl font-light tracking-tight text-ink">Welcome to <span className="text-iris-600 font-semibold">Item Analyzer</span></h1>
+              <p className="text-lg text-ink/60 leading-relaxed">
+                Upload your Table of Specifications (TOS) and enter item scores to get mastery levels, identify least-mastered competencies, and export reports.
+              </p>
+            </div>
+            <button
+              onClick={() => setStep(1)}
+              className="inline-flex items-center justify-center px-8 py-4 font-semibold text-white bg-iris-600 rounded-xl hover:bg-iris-700 transition-all shadow-[0_0_40px_-10px_rgba(91,70,232,0.3)]"
+            >
+              <LucideIcon name="Play" className="w-6 h-6 mr-2" /> Get Started
+            </button>
+          </div>
+        );
+
+        const renderUpload = () => (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="font-display text-3xl font-light tracking-tight text-ink">Item Analysis Setup</h2>
+              <p className="text-ink/55">Choose how to map competencies to test items.</p>
+            </div>
+
+            {errorMsg && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-center gap-3">
+                <LucideIcon name="AlertTriangle" className="w-5 h-5 flex-shrink-0" />
+                <p className="font-medium text-sm">{errorMsg}</p>
+              </div>
+            )}
+
+            {/* Mode selector */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <button
+                onClick={() => { setUseManualCompetencies(false); setTosFile(null); }}
+                className={`p-6 rounded-2xl border-2 transition-all ${!useManualCompetencies && tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
+              >
+                <LucideIcon name="Upload" className={"w-8 h-8 " + (!useManualCompetencies && tosFile ? 'text-iris-500' : 'text-ink/40')} />
+                <span className="font-semibold text-ink">{!useManualCompetencies && tosFile ? tosFile.name : 'Upload TOS Document'}</span>
+                <span className="text-xs text-ink/40">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</span>
+              </button>
+              <button
+                onClick={handleCompetencyToggle}
+                className={`p-6 rounded-2xl border-2 transition-all ${useManualCompetencies ? 'border-iris-500 bg-iris-500 text-white' : 'border-ink/20 bg-ink/5 hover:border-iris-300 text-ink'} flex flex-col items-center gap-3 cursor-pointer`}
+              >
+                <LucideIcon name="Edit3" className={`w-8 h-8 ${useManualCompetencies ? 'text-white' : 'text-ink/40'}`} />
+                <span className="font-semibold">Manual Entry</span>
+                <span className={`text-xs ${useManualCompetencies ? 'opacity-80' : 'text-ink/40'}`}>Type competencies yourself</span>
+              </button>
+            </div>
+
+            {!useManualCompetencies && (
+              <div
+                className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {tosFile ? (
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="p-3 bg-iris-500/20 rounded-full text-iris-500"><LucideIcon name="FileText" className="w-8 h-8" /></div>
+                    <p className="font-semibold text-ink text-center">{tosFile.name}</p>
+                    <button onClick={() => setTosFile(null)} className="text-xs text-rose-500 hover:text-rose-600 hover:underline">Remove file</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-4 bg-ink/20 rounded-full text-ink/30 mb-4"><LucideIcon name="UploadCloud" className="w-8 h-8" /></div>
+                    <p className="font-medium text-ink/60">1. Upload TOS Document</p>
+                    <label className="mt-4 px-4 py-2 bg-white border border-ink/20 rounded-lg text-sm font-medium text-ink hover:bg-iris-50 hover:border-iris-300 cursor-pointer transition-colors">
+                      Browse Files
+                      <input type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
+
+            {useManualCompetencies && (
+              <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <LucideIcon name="Edit3" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">2. Enter Competencies Manually</h3>
+                </div>
+                <p className="text-sm text-ink/50 mb-4">
+                  Type one competency per line for each test item — no API key needed.
+                  Numbered lists ("1. Identifies main idea", "Item 2: Uses context clues") and ranges ("1-5. Solves linear equations") are both understood.
+                </p>
+                <textarea
+                  value={manualCompetencies}
+                  onChange={(e) => setManualCompetencies(e.target.value)}
+                  rows={10}
+                  className="w-full rounded-xl bg-ink/5 ring-1 ring-ink/10 px-4 py-3 text-sm focus:ring-2 focus:ring-iris-500 focus:border-iris-500 outline-none font-mono"
+                  placeholder="1. Identifies the main idea&#10;2. Uses context clues&#10;3-5. Solves linear equations..."
+                />
+              </div>
+            )}
+
+            {/* Scores section */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 pb-4 mb-4 border-b border-ink/10">
+                <LucideIcon name="ClipboardList" className="w-4 h-4 text-iris-600" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40 mr-1">Sections</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {sections.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveIdx(i)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${i === activeIdx ? 'bg-iris-600 border-iris-600 text-white' : 'bg-ink/5 border-ink/10 text-ink/60 hover:bg-ink/10'}`}
+                    >
+                      {s.name.trim() || `Section ${i + 1}`}
+                    </button>
+                  ))}
+                  <button onClick={addSection} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-iris-300 text-iris-600 hover:bg-iris-50 transition-colors">
+                    + Add Section
+                  </button>
+                  {sections.length > 1 && (
+                    <button
+                      onClick={() => removeSection(activeIdx)}
+                      title="Remove this section"
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
+                    >
+                      <LucideIcon name="Trash2" className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3 border-b border-ink/10 pb-4">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name="ListOrdered" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">3. Enter Scores</h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-ink/40">Number of Items:</span>
+                    <input
+                      type="number" value={itemCount} onChange={handleItemCountChange}
+                      className="w-16 rounded-lg border border-ink/20 bg-ink/5 px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-iris-500 outline-none"
+                      min="1" max="200"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-ink/40">Fill score for all items (every section):</span>
+                    <input
+                      id="fill-all-score"
+                      type="number" value={fillScore}
+                      onChange={(e) => setFillScore(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') applyFillScore(); }}
+                      placeholder="e.g. 4"
+                      className="w-20 rounded-lg border border-ink/20 bg-white px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-iris-500 outline-none"
+                      min="0"
+                    />
+                    <button
+                      onClick={applyFillScore}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-iris-600 text-white hover:bg-iris-700 transition-colors"
+                    >
+                      Fill All
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
+                {manualScores.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-ink/5 p-2.5 rounded-lg border border-ink/10 hover:border-ink/20 transition-colors">
+                    <span className="text-sm font-medium text-ink/60 w-24">Item {item.itemNo}</span>
+                    <div className="flex items-center gap-2 flex-1 max-w-xs">
+                      <input
+                        id={`score-input-${idx}`}
+                        type="number"
+                        placeholder="Correct"
+                        value={item.score}
+                        onChange={(e) => handleScoreChange(idx, 'score', e.target.value)}
+                        className="w-24 rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-center"
+                        min="0" max={sectionTakers || ''}
+                      />
+                      {!useManualCompetencies ? (
+                        <span className="text-xs text-ink/40">/ {sectionTakers}</span>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="Competency (optional)"
+                          value={item.competency}
+                          onChange={(e) => handleScoreChange(idx, 'competency', e.target.value)}
+                          className="w-full rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-ink/10 p-4 rounded-xl border border-ink/10 flex flex-col md:flex-row items-center justify-between gap-3 mt-4">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name="Info" className="w-5 h-5 text-iris-500" />
+                  <span className="text-sm text-ink/50">Section name &amp; Total No. of Takers (this row)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text" value={currentSection.name}
+                    onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
+                    placeholder="e.g. BABBAGE"
+                    className="w-44 px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-sm text-ink"
+                  />
+                  <input
+                    type="number" value={currentSection.takers}
+                    onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
+                    className="w-32 px-4 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-center text-lg font-semibold text-ink"
+                    min="1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Report details — header rows of the Excel-style table */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <LucideIcon name="FileText" className="w-5 h-5 text-iris-600" />
+                <h3 className="font-semibold text-lg text-ink">4. Report Details</h3>
+              </div>
+              <p className="text-sm text-ink/50 mb-4">
+                These fill the header rows of the SIMPLIFIED ITEM ANALYSIS table (preview and Word export).
+                School name, district and signatories are read from{' '}
+                <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
+                so they are never typed twice.
+              </p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  ['School Year', 'schoolYear', 'e.g. 2025-2026'],
+                  ['Grading Period', 'gradingPeriod', 'e.g. SECOND'],
+                  ['Subject (full title)', 'subject', 'e.g. MEDIA AND INFORMATION LITERACY'],
+                  ['Subject code (table)', 'subjectCode', 'e.g. MIL'],
+                  ['Grade Level', 'gradeLevel', 'e.g. 12'],
+                  ['Assessment Conducted', 'assessment', 'e.g. November Exam']
+                ].map(([label, key, ph]) => (
+                  <label key={key} className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">{label}</span>
+                    <input
+                      type="text" value={meta[key]} placeholder={ph}
+                      onChange={(e) => setMetaField(key, e.target.value)}
+                      className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
+                    />
+                  </label>
+                ))}
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Assessment Type (annex checkbox)</span>
+                  <select
+                    value={meta.assessmentType || ''}
+                    onChange={(e) => setMetaField('assessmentType', e.target.value)}
+                    className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
+                  >
+                    <option value="">Select the assessment…</option>
+                    <option value="ST-1">ST-1</option>
+                    <option value="ST-2">ST-2</option>
+                    <option value="TE">TE</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center pt-4 gap-2">
+              <button
+                onClick={analyzeData}
+                disabled={!useManualCompetencies && !tosFile}
+                className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-lg transition-all shadow-md ${!useManualCompetencies && !tosFile ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed' : 'bg-iris-600 text-white hover:bg-iris-700 hover:shadow-[0_0_30px_rgba(91,70,232,0.3)]'}`}
+              >
+                <LucideIcon name="Table" className="w-6 h-6" />
+                <span>Generate Item Analysis</span>
+              </button>
+              {(!useManualCompetencies && !tosFile) && (
+                <div className="text-xs text-ink/40 text-center">
+                  Upload a TOS file, or switch to manual competency entry above
+                </div>
+              )}
+              {useManualCompetencies && !apiKey.trim() && (
+                <div className="text-xs text-ink/40 text-center">
+                  No API key needed — your list is read right on this device.
+                </div>
+              )}
+              {!useManualCompetencies && tosFile && !apiKey.trim() && (
+                <div className="text-xs text-ink/40 text-center">
+                  Works without a key for common TOS layouts —{' '}
+                  <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">add one</button>{' '}
+                  to let the AI fill in any competencies the file does not list.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+        const renderAnalyzing = () => (
+          <div className="max-w-5xl mx-auto flex flex-col items-center justify-center py-20">
+            <div className="relative">
+              <div className="absolute inset-0 bg-iris-500/20 rounded-full animate-ping opacity-60"></div>
+              <div className="relative bg-iris-500/10 p-6 rounded-full text-iris-500">
+                <LucideIcon name="Loader2" className="w-12 h-12 animate-spin" />
+              </div>
+            </div>
+            <h3 className="mt-8 text-2xl font-light tracking-tight text-ink">Reading Competencies</h3>
+            <p className="mt-2 text-iris-600 font-medium">{loadingStatus}</p>
+            <p className="mt-2 text-ink/40 max-w-md text-center text-sm">
+              Every test item is matched to its learning competency before the report is built.
+            </p>
+          </div>
+        );
+
+        /* The heart of an item analysis: the item → competency list, shown for
+           review so nothing reaches the report unread or half-mapped. */
+        const renderReview = () => {
+          const matched = reviewComps.filter(c => c && c !== 'Unspecified Competency').length;
+          const toCheck = reviewComps.length - matched;
+          return (
+            <div className="max-w-5xl mx-auto space-y-6">
+              {errorMsg && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-center gap-3">
+                  <LucideIcon name="AlertTriangle" className="w-5 h-5 flex-shrink-0" />
+                  <p className="font-medium text-sm">{errorMsg}</p>
+                </div>
+              )}
+
+              <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-2xl font-light tracking-tight text-ink">Review Competencies</h2>
+                  <p className="text-sm text-ink/50 mt-1">
+                    {matched} of {itemCount} items matched · these competencies will be listed in your report.
+                  </p>
+                </div>
+                <div className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${toCheck ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                  {toCheck ? `${toCheck} still need a competency` : 'Every item has a competency'}
+                </div>
+              </div>
+              {reviewNote && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm font-medium">{reviewNote}</div>
+              )}
+
+              <div className="bg-white rounded-2xl ring-1 ring-ink/10 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-ink/10 flex items-center gap-2">
+                  <LucideIcon name="ListOrdered" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">Learning Competency per Item</h3>
+                </div>
+                <div className="max-h-[460px] overflow-y-auto divide-y divide-ink/10">
+                  {reviewComps.map((comp, i) => {
+                    const missing = !comp || comp === 'Unspecified Competency';
+                    return (
+                      <div key={i} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-2.5 hover:bg-ink/5">
+                        <span className="w-14 text-sm font-medium text-ink/50">Item {i + 1}</span>
+                        <input
+                          id={`review-comp-${i}`}
+                          value={comp}
+                          placeholder="Learning competency"
+                          onChange={(e) => setReviewComps(prev => prev.map((c, j) => (j === i ? e.target.value : c)))}
+                          className={`flex-1 min-w-0 rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-iris-500 ${missing ? 'border-amber-300 bg-amber-50' : 'border-ink/20 bg-white'}`}
+                        />
+                        {missing && <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 whitespace-nowrap">needs review</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-center gap-3 pb-6">
+                <button
+                  onClick={() => setStep(1)}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium transition-colors"
+                >
+                  <LucideIcon name="ChevronRight" className="w-5 h-5 rotate-180" /> Back to scores
+                </button>
+                <button
+                  onClick={finishAnalysis}
+                  className="flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-iris-600 text-white hover:bg-iris-700 font-semibold shadow-md transition-all"
+                >
+                  <LucideIcon name="Table" className="w-5 h-5" /> Generate Report
+                </button>
+              </div>
+            </div>
+          );
+        };
+
+        const renderResults = () => {
+          const compPerf = Object.values(results.reduce((acc, r) => {
+            const k = r.competency;
+            if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
+            acc[k].total += parseFloat(r.percentage);
+            acc[k].n += 1;
+            return acc;
+          }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) })).sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
+          // Data + column maths for the Excel-style preview.
+          const xl = iaBuildModel(meta, sections, itemCount);
+          const xlCols = 5 + xl.items + 3;
+          const xlRight = Math.max(4, Math.round(xlCols * 0.25));
+          const xlLeft = xlCols - 2 - xlRight;
+          // Uniform columns, mirroring the Word export fix: a fixed layout with
+          // explicit widths stops one item column (item 8) outgrowing the rest.
+          const xItemW = 34;
+          const xFixedW = [150, 90, 100, 130, 120];
+          const xRightW = [110, 60, 100];
+          const xCols = Array.from({ length: xlCols },
+            (_, i) => (i < 5 ? xFixedW[i] : i < 5 + xl.items ? xItemW : xRightW[i - 5 - xl.items]));
+          const xTableW = xCols.reduce((a, b) => a + b, 0);
+          const xHead = 'border border-ink/30 px-1.5 py-1 text-[10px] font-semibold text-center bg-ink/10 whitespace-nowrap';
+          const xCell = 'border border-ink/30 px-1.5 py-1 text-[10px] text-center whitespace-nowrap';
+          const xlHeaders = [
+            'Subject', 'Grade Level', 'Section', 'Total No. of Takers', 'Total No. of Items',
+            ...Array.from({ length: xl.items }, (_, i) => i + 1),
+            'Total Raw Score', 'MPS', 'Mastery Level'
+          ];
+
+          return (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="font-display text-2xl font-light tracking-tight text-ink">Analysis Report</h2>
+                <p className="text-sm text-ink/50 mt-1">{sections.length} section{sections.length === 1 ? '' : 's'} · {totalLearners} learners evaluated across {itemCount} items</p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
+                <button
+                  onClick={resetAnalyzer}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-sm transition-colors"
+                >
+                  <LucideIcon name="RotateCcw" className="w-5 h-5" /> New Analysis
+                </button>
+                <button onClick={downloadCSV} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-sm transition-colors">
+                  <LucideIcon name="Download" className="w-5 h-5" /> Export CSV
+                </button>
+                <button onClick={downloadDocx} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-iris-600 text-white hover:bg-iris-700 border border-iris-600 font-medium text-sm transition-colors">
+                  <LucideIcon name="FileText" className="w-5 h-5" /> Export DOCX
+                </button>
+                <button onClick={downloadDoc} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-sm transition-colors">
+                  <LucideIcon name="FileText" className="w-5 h-5" /> Export DOC
+                </button>
+                <span className="hidden sm:block w-px self-stretch bg-ink/10" aria-hidden="true" />
+                <button onClick={() => downloadAnnex('annex1')} title="MPS per Learning Area (DepEd Annex 1 / ST-2)"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-iris-50 text-iris-700 hover:bg-iris-100 border border-iris-200 font-medium text-sm transition-colors">
+                  <LucideIcon name="Table" className="w-5 h-5" /> Annex 1 · MPS
+                </button>
+                <button onClick={() => downloadAnnex('annex3')} title="Least Mastered Competencies (DepEd Annex 3 / SS-10)"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-iris-50 text-iris-700 hover:bg-iris-100 border border-iris-200 font-medium text-sm transition-colors">
+                  <LucideIcon name="ClipboardList" className="w-5 h-5" /> Annex 3 · LMC
+                </button>
+              </div>
+            </div>
+
+            {/* Excel-style preview — replicates Item-Analysis-*.xlsx */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-ink/10 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name="Table" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">Excel Preview — {IA_TITLE}</h3>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-ink/40">
+                  <span>{xl.rows.length} section{xl.rows.length === 1 ? '' : 's'}</span>
+                  <span>·</span>
+                  <span>{xl.items} items</span>
+                </div>
+              </div>
+              <div className="p-4 overflow-x-auto">
+                <div className="w-max">
+                  {iaHeaderJsx()}
+                  <table className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xTableW }}>
+                    <colgroup>
+                      {xCols.map((w, i) => <col key={i} style={{ width: w }} />)}
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className={`${xCell} font-semibold bg-ink/5 text-left`}>School:</td>
+                        <td colSpan={xlLeft} className={`${xCell} text-left`}>{schoolInfo.schoolName}</td>
+                        {/* labels span a few columns so they don't sit inside a
+                            single 34px item column and overflow */}
+                        <td colSpan={3} className={`${xCell} font-semibold bg-ink/5`}>School Year:</td>
+                        <td colSpan={xlRight - 2} className={xCell}>{meta.schoolYear}</td>
+                      </tr>
+                      <tr>
+                        <td className={`${xCell} font-semibold bg-ink/5 text-left`}>Subject</td>
+                        <td colSpan={xlLeft} className={`${xCell} text-left`}>{meta.subject}</td>
+                        <td colSpan={3} className={`${xCell} font-semibold bg-ink/5`}>Grading Period</td>
+                        <td colSpan={xlRight - 2} className={xCell}>{meta.gradingPeriod}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={xlCols} className={`${xCell} py-2 text-xs font-bold`}>{IA_TITLE}</td>
+                      </tr>
+                      <tr>
+                        {xlHeaders.map((h, i) => (
+                          <th key={i} className={xHead}>{h}</th>
+                        ))}
+                      </tr>
+                      {xl.rows.map((r, i) => (
+                        <tr key={i} className="hover:bg-iris-50/60">
+                          <td className={xCell}>{meta.subjectCode || meta.subject}</td>
+                          <td className={xCell}>{meta.gradeLevel}</td>
+                          <td className={xCell}>{r.name || `Section ${i + 1}`}</td>
+                          <td className={xCell}>{r.takers}</td>
+                          <td className={xCell}>{xl.items}</td>
+                          {r.scores.map((v, j) => <td key={j} className={xCell}>{v}</td>)}
+                          <td className={`${xCell} font-semibold`}>{r.raw}</td>
+                          <td className={xCell}>{Math.round(r.mps)}</td>
+                          <td className={xCell}>{iaFixed(r.mastery, 2)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-ink/5 font-semibold">
+                        <td className={xCell}></td>
+                        <td colSpan={2} className={`${xCell} text-left`}>Total</td>
+                        <td className={xCell}>{xl.totalTakers}</td>
+                        <td className={xCell}>{xl.items}</td>
+                        {xl.perItem.map((v, j) => <td key={j} className={xCell}>{v}</td>)}
+                        <td className={xCell}>{xl.totalRaw}</td>
+                        <td className={xCell}>{Math.round(xl.mps)}</td>
+                        <td className={xCell}>{iaFixed(xl.mastery, 2)}</td>
+                      </tr>
+                      <tr className="bg-ink/5 font-semibold">
+                        <td className={xCell}></td>
+                        <td colSpan={3} className={`${xCell} text-left`}>MPS per Item</td>
+                        <td className={xCell}></td>
+                        {xl.mpsPerItem.map((v, j) => <td key={j} className={xCell}>{iaTrim(v)}</td>)}
+                        <td className={xCell}></td>
+                        <td className={xCell}></td>
+                        <td className={xCell}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="flex flex-wrap gap-x-16 gap-y-6 mt-8 px-4 text-[11px]">
+                    {iaSignatories().map((b, i) => (
+                      <div key={i} className="min-w-40">
+                        <p className="text-ink/50">{b.label}:</p>
+                        <p className="h-8" />
+                        <p className="font-semibold text-ink">{b.name}</p>
+                        <p className="text-ink/50">{b.title}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* DepEd annex previews — the exact HTML the Word exports carry */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-ink/10 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name="FileText" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">DepEd Annexes</h3>
+                </div>
+                <p className="text-[10px] uppercase tracking-wider text-ink/40">Preview — downloads match exactly</p>
+              </div>
+              <div className="p-4 grid gap-6 items-start">
+                {[['annex1', 'Annex 1 · MPS per Learning Area'], ['annex3', 'Annex 3 · Least Mastered Competencies']].map(([kind, label]) => (
+                  <div key={kind} className="border border-ink/10 rounded-xl overflow-hidden">
+                    <div className="px-4 py-2.5 bg-ink/5 border-b border-ink/10 flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-ink">{label}</span>
+                      <button
+                        onClick={() => downloadAnnex(kind)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-iris-600 text-white hover:bg-iris-700 font-medium text-xs transition-colors"
+                      >
+                        <LucideIcon name="Download" className="w-3.5 h-3.5" /> Download
+                      </button>
+                    </div>
+                    <div className="p-3 bg-ink/5">
+                      <div
+                        data-annex-preview={kind}
+                        className="bg-white border border-ink/10 shadow-sm p-6 overflow-x-auto text-[#111]"
+                        style={{ fontFamily: "'Bookman Old Style', Arial, sans-serif", fontSize: '11pt' }}
+                        dangerouslySetInnerHTML={{ __html: buildAnnexContent(kind) }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Metrics */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-iris-50 border border-iris-100 p-6 rounded-2xl flex flex-col items-center text-center">
+                <span className="text-ink/40 text-xs font-semibold uppercase tracking-wider mb-1">Mean Score</span>
+                <span className="text-4xl font-bold text-iris-600">{overallScores.mean}</span>
+              </div>
+              <div className="bg-iris-50 border border-iris-100 p-6 rounded-2xl flex flex-col items-center text-center">
+                <span className="text-ink/40 text-xs font-semibold uppercase tracking-wider mb-1">Mean Percentage Score (MPS)</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-bold text-iris-600">{overallScores.mps}</span>
+                  <span className="text-xl font-bold text-iris-600">%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Insight */}
+            <div className="bg-gradient-to-br from-iris-500/10 to-blue-500/10 border border-iris-200 p-6 rounded-2xl">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-iris-500 text-white rounded-lg"><LucideIcon name="BrainCircuit" className="w-5 h-5" /></div>
+                <div>
+                  <h3 className="font-semibold text-lg text-ink mb-1">AI Interpretation</h3>
+                  <p className="text-ink/60 text-sm leading-relaxed">{aiInsight}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance by Competency */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-ink/10 flex items-center gap-2">
+                <LucideIcon name="ClipboardList" className="w-5 h-5 text-iris-600" />
+                <h3 className="font-semibold text-lg text-ink">Performance by Competency</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-ink/5 border-b border-ink/10">
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Competency</th>
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center">Items</th>
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center">Avg %</th>
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Mastery</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {compPerf.map((c, i) => (
+                      <tr key={i} className="hover:bg-ink/5 transition-colors">
+                        <td className="py-3 px-6 text-sm text-ink/70 max-w-sm">{c.competency}</td>
+                        <td className="py-3 px-6 text-sm text-center text-ink">{c.n}</td>
+                        <td className="py-3 px-6 text-sm font-bold text-center text-ink">{c.average}%</td>
+                        <td className="py-3 px-6 text-sm">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getMasteryBadge(getMasteryLevel(parseFloat(c.average)))}`}>
+                            {getMasteryLevel(parseFloat(c.average))}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mastery summary */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: 'High', key: 'High Mastery', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200' },
+                { label: 'Mod. Avg', key: 'Moderately Average Mastery', color: 'bg-blue-500/10 text-blue-600 border-blue-200' },
+                { label: 'Average', key: 'Average Mastery', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-200' },
+                { label: 'Low', key: 'Low Mastery', color: 'bg-orange-500/10 text-orange-600 border-orange-200' },
+                { label: 'None', key: 'No Mastery', color: 'bg-rose-500/10 text-rose-600 border-rose-200' },
+              ].map((s, i) => (
+                <div key={i} className={`p-4 rounded-xl border flex flex-col items-center text-center ${s.color}`}>
+                  <span className="text-3xl font-bold text-ink">{summaryStats[s.key] || 0}</span>
+                  <span className="text-[10px] uppercase tracking-wider font-medium text-ink/50 mt-1">{s.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Bar chart */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-ink mb-6 flex items-center gap-2">
+                <LucideIcon name="BarChart3" className="w-5 h-5 text-iris-500" />
+                Item Performance Chart
+              </h3>
+              <div className="h-64 w-full flex items-end gap-1.5 md:gap-2 overflow-x-auto pb-4 px-2">
+                {results.map(row => (
+                  <div key={row.itemNo} className="relative group flex-1 flex flex-col justify-end min-w-[20px] md:min-w-[30px] cursor-pointer">
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-20 w-48 pointer-events-none">
+                      <div className="bg-ink text-white text-[10px] rounded-lg py-2 px-3 shadow-xl border border-ink/20 text-center whitespace-normal">
+                        <p className="font-bold text-sm">Item {row.itemNo}</p>
+                        <p className="text-[10px] text-ink/40 mt-1 line-clamp-2">{row.competency}</p>
+                        <p className="font-black text-lg mt-1">{row.percentage}%</p>
+                        <p className="text-[10px] uppercase tracking-wider mt-1 text-ink/40">{row.masteryLevel}</p>
+                      </div>
+                      <div className="w-3 h-3 bg-ink border-b border-r transform rotate-45 translate-y-[-50%]"></div>
+                    </div>
+                    <div className={`w-full rounded-t-sm transition-all ${getBarColor(parseFloat(row.percentage))}`} style={{ height: `${Math.max(parseFloat(row.percentage), 5)}%` }}></div>
+                    <span className="text-[10px] md:text-xs text-ink/40 text-center mt-2 w-full truncate">{row.itemNo}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap justify-center gap-3 mt-4 text-[10px] text-ink/40">
+                {[
+                  ['bg-emerald-500', 'High'],
+                  ['bg-blue-500', 'Mod. Avg'],
+                  ['bg-yellow-500', 'Average'],
+                  ['bg-orange-500', 'Low'],
+                  ['bg-rose-500', 'None'],
+                ].map(([color, label], i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <div className={`w-3 h-3 rounded-sm ${color}`}></div>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Least mastered */}
+            {leastMastered.length > 0 && (
+              <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl">
+                <h3 className="text-lg font-semibold text-rose-700 mb-4 flex items-center gap-2">
+                  <LucideIcon name="AlertTriangle" className="w-5 h-5 text-rose-500" />
+                  Least Mastered Competencies (Focus Areas)
+                </h3>
+                <div className="grid md:grid-cols-3 gap-3">
+                  {leastMastered.map((c, i) => (
+                    <div key={i} className="p-4 rounded-xl border border-rose-100 bg-white">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-rose-600 font-bold">#{i + 1}</span>
+                        <span className="text-rose-600 font-bold text-sm">{c.average}%</span>
+                      </div>
+                      <p className="text-sm text-ink/60 font-medium">{c.competency}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Detail table */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-ink/5 border-b border-ink/10">
+                      <th className="py-4 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Item #</th>
+                      <th className="py-4 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Competency</th>
+                      <th className="py-4 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center">Correct</th>
+                      <th className="py-4 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center">%</th>
+                      <th className="py-4 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Mastery</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {results.map(row => (
+                      <tr key={row.itemNo} className="hover:bg-ink/5 transition-colors">
+                        <td className="py-4 px-6 text-sm font-bold text-ink">{row.itemNo}</td>
+                        <td className="py-4 px-6 text-sm text-ink/60 max-w-xs">{row.competency}</td>
+                        <td className="py-4 px-6 text-sm text-center text-ink">{row.correctResponses} / {totalLearners}</td>
+                        <td className="py-4 px-6 text-sm font-bold text-center text-ink">{row.percentage}%</td>
+                        <td className="py-4 px-6 text-sm">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getMasteryBadge(row.masteryLevel)}`}>
+                            {row.masteryLevel}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          );
+        };
+
+        return (
+          <div className="min-h-screen bg-ink/5 font-sans text-ink pb-12">
+            {step === 0 && renderHome()}
+            {step === 1 && renderUpload()}
+            {step === 2 && renderAnalyzing()}
+            {step === 3 && renderReview()}
+            {step === 4 && renderResults()}
+          </div>
+        );
+      };
+
+      /* ============================================================
          RENDER
          ============================================================ */
       return (
@@ -1259,9 +2941,7 @@
           <header className="fixed top-4 md:top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
             <nav className="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-full md:w-max md:max-w-[95vw] justify-between md:justify-center">
               <div className="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0" onClick={() => setCurrentView('home')}>
-                <span className="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
-                  <span className="text-[15px] font-extrabold leading-none">S</span>
-                </span>
+                <img src="silidpinoy_logo.png" alt="SilidPinoy Logo" className="w-8 h-8 rounded-full object-contain" />
                 <span className="font-semibold tracking-tight text-base">Silid<span className="text-iris-600">Pinoy</span></span><span className="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
               </div>
               <div className="hidden md:flex items-center gap-1">
@@ -1270,6 +2950,7 @@
               <a href="lesson.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
               <a href="powerpoint.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
               <a href="activity.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+              <button onClick={() => setCurrentView('item-analysis')} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='item-analysis'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Item Analysis</button>
               </div>
               <span data-silid-docs-slot className="ml-1 hidden sm:flex items-center"></span>
               <span className="flex items-center gap-1 shrink-0">
@@ -1289,6 +2970,7 @@
                 <a href="lesson.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Lesson Plan</a>
                 <a href="powerpoint.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">PPT Maker</a>
                 <a href="activity.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Activity Sheet</a>
+                <button onClick={() => { setCurrentView('item-analysis'); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Item Analysis</button>
               </div>
             )}
             {showKeyInput && (
@@ -1385,22 +3067,40 @@
                   <h2 className="font-display text-4xl md:text-5xl font-light tracking-tight mt-3">Everything a teacher needs</h2>
                 </div>
                 <div className="grid md:grid-cols-3 gap-6">
-                  <div className="reveal md:col-span-2 md:row-span-2 rounded-[2rem] p-2 bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)]">
-                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-white/5 backdrop-blur-sm p-10 text-white flex flex-col justify-between min-h-[340px]">
-                      <span className="grid place-items-center w-12 h-12 rounded-2xl bg-white/10"><LucideIcon name="BrainCircuit" className="w-6 h-6"/></span>
-                      <div><h3 className="font-display text-3xl font-light mb-3">Context-aware generation</h3><p className="text-white/75 leading-relaxed max-w-md">Ingests your PDFs, Word docs, or competency lists and produces strictly relevant items aligned to your Table of Specifications.</p></div>
+                  <div className="reveal rounded-[2rem] p-2 bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-white/5 backdrop-blur-sm p-10 text-white flex flex-col justify-between min-h-[260px]">
+                      <span className="grid place-items-center w-12 h-12 rounded-2xl bg-white/10"><LucideIcon name="Clock" className="w-6 h-6"/></span>
+                      <div><h3 className="font-display text-2xl font-light mb-3">Save hours weekly</h3><p className="text-white/75 leading-relaxed max-w-md">Generate tests, lesson plans, TOS, activity sheets, and slides in minutes instead of hours.</p></div>
                     </div>
                   </div>
                   <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
-                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[200px]">
-                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-mist text-iris-600"><LucideIcon name="LayoutTemplate" className="w-5 h-5"/></span>
-                      <div><h3 className="font-semibold text-lg">15+ question types</h3><p className="text-ink/55 text-sm mt-1">From MCQ to analogies and problem solving.</p></div>
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[260px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-mist text-iris-600"><LucideIcon name="Download" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">Export ready files</h3><p className="text-ink/55 text-sm mt-1">Save your work as print-ready Word documents or one-item-per-slide PowerPoint decks.</p></div>
                     </div>
                   </div>
                   <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
-                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[200px]">
-                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-rose-50 text-rose-500"><LucideIcon name="Presentation" className="w-5 h-5"/></span>
-                      <div><h3 className="font-semibold text-lg">Word and PPT export</h3><p className="text-ink/55 text-sm mt-1">Print-ready docs or one-item-per-slide decks.</p></div>
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[260px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-rose-50 text-rose-500"><LucideIcon name="ShieldCheck" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">DepEd-aligned</h3><p className="text-ink/55 text-sm mt-1">Materials mapped to competencies and cognitive levels, built for Filipino classrooms.</p></div>
+                    </div>
+                  </div>
+                  <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[260px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-iris-50 text-iris-500"><LucideIcon name="Save" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">Save &amp; organize</h3><p className="text-ink/55 text-sm mt-1">Store generated documents in your browser and reuse them across classes and school years.</p></div>
+                    </div>
+                  </div>
+                  <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[260px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-amber-50 text-amber-500"><LucideIcon name="FileText" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">15+ question types</h3><p className="text-ink/55 text-sm mt-1">From multiple choice to analogies and problem solving — all in one place.</p></div>
+                    </div>
+                  </div>
+                  <div className="reveal rounded-[2rem] p-2 bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-30px_rgba(11,10,18,0.25)]">
+                    <div className="rounded-[calc(2rem-0.5rem)] h-full bg-canvas p-7 flex flex-col gap-4 min-h-[260px]">
+                      <span className="grid place-items-center w-11 h-11 rounded-2xl bg-slate-50 text-slate-500"><LucideIcon name="LayoutGrid" className="w-5 h-5"/></span>
+                      <div><h3 className="font-semibold text-lg">All-in-one studio</h3><p className="text-ink/55 text-sm mt-1">Tests, TOS, lesson plans, activity sheets, and presentations — no more jumping between apps.</p></div>
                     </div>
                   </div>
                 </div>
@@ -1433,6 +3133,9 @@
                         className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
                     <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Schools Division Office of</label>
                       <input type="text" name="division" value={schoolInfo.division} onChange={handleSchoolInfoChange} placeholder="e.g. DAVAO DEL SUR"
+                        className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
+                    <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">District</label>
+                      <input type="text" name="district" value={schoolInfo.district || ''} onChange={handleSchoolInfoChange} placeholder="e.g. Imelda"
                         className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
                   </div>
                 </div>
@@ -1517,6 +3220,7 @@
                     {(schoolInfo.schoolLogo1||schoolInfo.schoolLogo2)&&(<div className="flex items-center justify-center gap-4 mb-4">{schoolInfo.schoolLogo1&&<img src={schoolInfo.schoolLogo1} alt="Logo 1" className="h-16 object-contain"/>}{schoolInfo.schoolLogo2&&<img src={schoolInfo.schoolLogo2} alt="Logo 2" className="h-16 object-contain"/>}</div>)}
                     {(schoolInfo.regionNo||schoolInfo.regionName)&&<p className="text-[11px] font-bold uppercase tracking-wide">REGION {schoolInfo.regionNo}{schoolInfo.regionNo&&schoolInfo.regionName?' – ':''}{schoolInfo.regionName} REGION</p>}
                     {schoolInfo.division&&<p className="text-[11px] font-bold uppercase tracking-wide">SCHOOLS DIVISION OFFICE OF {schoolInfo.division}</p>}
+                    {schoolInfo.district&&<p className="text-[11px] font-bold uppercase tracking-wide">{/district/i.test(schoolInfo.district)?schoolInfo.district:`${schoolInfo.district} District`}</p>}
                     {schoolInfo.schoolName&&<p className="font-bold text-sm uppercase tracking-wide">{schoolInfo.schoolName}</p>}
                     {schoolInfo.schoolAddress&&<p className="text-[11px] text-ink/50">{schoolInfo.schoolAddress}</p>}
                     {schoolInfo.department&&<p className="text-[11px] text-ink/50 font-medium mt-1">{schoolInfo.department}</p>}
@@ -1528,8 +3232,13 @@
               </div></div>
             </main>
 
-          /* ========== CREATOR ========== */
+          /* ========== ITEM ANALYZER ========== */
+          ):currentView==='item-analysis'?(
+            <main className="px-4 sm:px-6 lg:px-8 pt-28 pb-12">
+              <ItemAnalyzer />
+            </main>
           ):(
+          /* ========== CREATOR ========== */
             <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12 print-full">
               <div className="flex items-end justify-between mb-10">
                 <div><span className="text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600">Studio</span><h2 className="font-display text-4xl md:text-5xl font-light tracking-tight mt-2">Build your test</h2></div>
@@ -1692,7 +3401,7 @@
                       ):generatedTest?(
                         <>
                         {validationWarnings.length>0&&(
-                          <div className="bg-amber-50 ring-1 ring-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 mb-4 space-y-0.5">
+                          <div data-testid="validation-warnings" className="bg-amber-50 ring-1 ring-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 mb-4 space-y-0.5">
                             {validationWarnings.map((w,i)=><p key={i} className="flex items-start gap-2"><LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0"/> {w}</p>)}
                           </div>
                         )}
