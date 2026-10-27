@@ -38,6 +38,9 @@ for (const file of PAYLOAD) {
     continue;
   }
 
+  // Payload entries can live in sub-directories (assets/…), so make sure the
+  // destination folder exists before writing.
+  fs.mkdirSync(path.dirname(to), { recursive: true });
   fs.writeFileSync(to, next);
   written.push(file);
 }

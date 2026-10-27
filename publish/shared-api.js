@@ -210,12 +210,79 @@
   }
 
   /* ---------------------------------------------------------------
+     Image generation — PowerPoint slide art only
+
+     Lives on its own endpoint and model so the text model every other
+     tool depends on is never touched by an image request.
+     --------------------------------------------------------------- */
+
+  var IMAGE_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+  var IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
+
+  /** Pull the first generated image out of an interactions response. */
+  function extractImage(data) {
+    var inter = data && (data.interaction || data);
+    var img = inter && (inter.outputImage || inter.output_image);
+    if (!img && inter && Array.isArray(inter.output)) {
+      for (var i = 0; i < inter.output.length; i++) {
+        var step = inter.output[i] || {};
+        var cand = step.image || step.inlineData || step.inline_data;
+        if (cand && cand.data) { img = cand; break; }
+      }
+    }
+    var b64 = img && img.data;
+    if (!b64) throw new Error('The image model returned no image. Please try again.');
+    var mime = img.mimeType || img.mime_type || 'image/png';
+    return { dataUri: 'data:' + mime + ';base64,' + b64, mimeType: mime };
+  }
+
+  /**
+   * Generate one image and return it as a data URI.
+   *
+   * opts: { prompt, signal?, apiKey?, backupKey? }
+   * Returns: Promise<{ dataUri: string, mimeType: string }>
+   *
+   * Fails with a friendly error; callers are expected to fall back to
+   * text-only content rather than block what they were doing.
+   */
+  function generateImage(opts) {
+    if (typeof opts === 'string') opts = { prompt: opts };
+    opts = opts || {};
+    var keys = getKeys();
+    var key = opts.apiKey || keys.primary;
+    var backupKey = opts.backupKey || keys.backup;
+    var prompt = String(opts.prompt || '').trim();
+
+    if (!key) {
+      return Promise.reject(new Error('Please set your Gemini API key first — click the gear icon in the header.'));
+    }
+    if (!prompt) {
+      return Promise.reject(new Error('No image prompt was given.'));
+    }
+
+    var payload = { model: IMAGE_MODEL, input: [{ type: 'text', text: prompt }] };
+    var ropts = { signal: opts.signal || null, retries: 2, apiKey: key };
+
+    return fetchWithRetry(IMAGE_BASE, payload, ropts).then(extractImage).catch(function (err) {
+      var msg = (err && err.message) || '';
+      // same quota-or-busy test the text path uses before switching keys
+      var isQuotaOrBusy = /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable|429/i.test(msg);
+      if (backupKey && backupKey !== key && isQuotaOrBusy) {
+        return fetchWithRetry(IMAGE_BASE, payload,
+          { signal: ropts.signal, retries: 2, apiKey: backupKey }).then(extractImage);
+      }
+      throw err;
+    });
+  }
+
+  /* ---------------------------------------------------------------
      Expose
      --------------------------------------------------------------- */
 
   window.SilidAPI = {
     callGemini: callGemini,
     callGeminiJSON: callGeminiJSON,
-    pingKey: pingKey
+    pingKey: pingKey,
+    generateImage: generateImage
   };
 })();

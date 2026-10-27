@@ -6,7 +6,7 @@ const STATIC_ASSETS = [
   '/powerpoint.html',
   '/activity.html',
   '/tos.html',
-  '/favicon.svg',
+  '/silid pinoy logo.jpg',
   '/apple-touch-icon.png',
   '/shared-api.js',
   '/shared-keys.js',

@@ -1338,7 +1338,19 @@
         return out;
       };
 
-      const iaParseCompetencies = (text, itemCount) => {
+      /* A subject name is NEVER a competency. A ToS row repeats the subject
+         cell, and when it is the longest text in the row the table parser
+         below used to return it instead of the competency. Compare loosely
+         (case, punctuation, spacing). */
+      const iaIsSubject = (comp, meta) => {
+        const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const v = norm(comp);
+        if (v.length < 3) return false;
+        return [meta && meta.subject, meta && meta.subjectCode]
+          .map(norm).filter(Boolean).some(k => v === k);
+      };
+
+      const iaParseCompetencies = (text, itemCount, meta) => {
         const map = Array.from({ length: itemCount }, () => '');
         // First mapping wins, so a repeated item never overwrites a good entry.
         const assign = (nums, comp) => {
@@ -1348,6 +1360,26 @@
             if (n >= 1 && n <= itemCount && !map[n - 1]) map[n - 1] = clean;
           }
         };
+        /* Cells naming the SUBJECT or a column header. They sit in every ToS
+           row, and the "longest text wins" rule could hand them back as if
+           they were the competency — which is how the subject name ended up
+           in the list of competencies. */
+        const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const subjKeys = [meta && meta.subject, meta && meta.subjectCode]
+          .map(norm).filter(k => k.length >= 3);
+        const HEADER_KEYS = ['subject', 'gradelevel', 'grade', 'section', 'learningarea',
+          'learningcompetency', 'learningcompetencies', 'competency', 'content', 'topic',
+          'testitemno', 'testitemnumber', 'itemno', 'noofitems', 'weight', 'desiredoutcome',
+          'percentage', 'total'];
+        const isSubjectish = (cell) => {
+          const k = norm(cell);
+          if (!k) return true;                      // blank / dash-only cells
+          if (HEADER_KEYS.includes(k)) return true;
+          if (subjKeys.some(s => k === s)) return true;
+          // the subject spelled out with decoration:
+          // "MIL - Media Information Literacy"
+          return subjKeys.some(s => s.length >= 8 && k.includes(s));
+        };
         const lines = String(text || '').replace(/\r/g, '').split('\n');
         for (const raw of lines) {
           const line = raw.trim();
@@ -1356,9 +1388,12 @@
             const cells = line.split('|').map(c => c.trim()).filter(Boolean);
             const numCells = cells.filter(c => IA_NUM_CELL.test(c));
             if (!numCells.length) continue;
-            // The longest text cell is the competency; in a wide row the last
-            // pure-number cell is the "Total" column, not an item number.
-            const texts = cells.filter(c => !IA_NUM_CELL.test(c));
+            // The longest text cell is the competency — but only among
+            // cells that are not the subject or a column header; in a wide
+            // row the last pure-number cell is the "Total" column, not an
+            // item number.
+            const texts = cells.filter(c => !IA_NUM_CELL.test(c) && !isSubjectish(c));
+            if (!texts.length) continue;
             const comp = texts.reduce((a, b) => (b.length > a.length ? b : a), '');
             let used = numCells;
             if (numCells.length > 1) used = numCells.slice(0, -1);
@@ -1644,11 +1679,13 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
             let note = '';
             if (useManualCompetencies) {
               setLoadingStatus('Reading your competency list...');
-              mapped = iaParseCompetencies(manualCompetencies, itemCount);
+              mapped = iaParseCompetencies(manualCompetencies, itemCount, meta);
               // per-item boxes from the score grid still count
               sections[0].scores.forEach((s, i) => {
                 if (!mapped[i] && s.competency) mapped[i] = s.competency;
               });
+              // safety net: the subject must never survive as a competency
+              mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
               if (mapped.every(c => !c)) {
                 throw new Error('No competencies were read from your list. Type one per line, e.g. "1. Identifies the main idea" — no API key is needed.');
               }
@@ -1657,13 +1694,17 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
               const tosText = await extractTosText(tosFile);
               if (!tosText.trim()) throw new Error('The TOS document appears empty or unreadable.');
               setLoadingStatus('Matching competencies to items...');
-              mapped = iaParseCompetencies(tosText, itemCount);
+              mapped = iaParseCompetencies(tosText, itemCount, meta);
+              // safety net: the subject must never survive as a competency
+              mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
               const missing = mapped.reduce((a, c, i) => { if (!c) a.push(i + 1); return a; }, []);
               if (missing.length && apiKey.trim()) {
                 setLoadingStatus(`AI is filling in ${missing.length} remaining item${missing.length === 1 ? '' : 's'}...`);
                 try {
                   const filled = await aiFillCompetencies(tosText, mapped, missing);
                   mapped = mapped.map((c, i) => c || filled[i] || '');
+                  // the AI reads the TOS header too — keep the subject out
+                  mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
                 } catch (err) {
                   note = `The AI could not fill in the remaining items (${err.message}). You can type them below.`;
                 }

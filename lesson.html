@@ -154,9 +154,7 @@
     <header class="fixed top-4 md:top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
         <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-full md:w-max md:max-w-[95vw] justify-between md:justify-center">
             <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0">
-                <span class="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
-                    <span class="text-[15px] font-extrabold leading-none">S</span>
-                </span>
+                <img src="silidpinoy_logo.png" alt="SilidPinoy Logo" class="w-8 h-8 rounded-full object-contain" />
                 <span class="font-semibold tracking-tight text-base">Silid<span class="text-iris-600">Pinoy</span></span><span class="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
             </a>
             <div class="hidden md:flex items-center gap-1">
@@ -165,6 +163,7 @@
             <span class="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">Lesson Plan</span>
             <a href="powerpoint.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
             <a href="activity.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+              <a href="index.html#item-analysis" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Item Analysis</a>
             </div>
             <span data-silid-docs-slot class="ml-1 hidden sm:flex items-center"></span>
             <span class="flex items-center gap-1 shrink-0">
@@ -186,6 +185,7 @@
             <span class="block px-4 py-3 rounded-xl text-sm font-semibold bg-black/5 text-ink">Lesson Plan</span>
             <a href="powerpoint.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">PPT Maker</a>
             <a href="activity.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Activity Sheet</a>
+              <a href="index.html#item-analysis" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Item Analysis</a>
         </div>
 
         <!-- Inline Settings dropdown (API key) -->
@@ -249,19 +249,20 @@
                         <input type="hidden" name="inputMode" id="inputMode" value="manual">
                     </div></div>
 
-                    <!-- Card: Plan Type (Weekly DLL vs COI Semi-Detailed vs Multigrade) -->
+                    <!-- Card: Plan Type (Ilaw Weekly Plan vs COI Semi-Detailed vs Multigrade) -->
                     <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
                         <div class="section-header">
                             <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg></span>
                             <h3 id="ui-plantype-label">Plan Type <span class="text-red-500">*</span></h3>
                         </div>
                         <div class="pill-group" id="plan-pill">
-                            <button type="button" data-value="weekly" class="active" id="ui-plan-weekly">Weekly DLL</button>
+                            <button type="button" data-value="weekly" class="active" id="ui-plan-weekly">Ilaw Weekly Plan</button>
                             <button type="button" data-value="coi" id="ui-plan-coi">COI Semi-Detailed</button>
                             <button type="button" data-value="multigrade" id="ui-plan-multigrade">Elementary Multigrade</button>
+                            <button type="button" data-value="aj" id="ui-plan-aj">A-J Plan</button>
                         </div>
                         <input type="hidden" name="planType" id="planType" value="weekly">
-                        <p id="ui-plantype-hint" class="text-[11px] text-ink/45 mt-1.5">Weekly DLL builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations. Multigrade builds a TGIA rotation plan for combined grade levels.</p>
+                        <p id="ui-plantype-hint" class="text-[11px] text-ink/45 mt-1.5">Ilaw Weekly Plan builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations. Multigrade builds a TGIA rotation plan for combined grade levels.</p>
 
                         <!-- COI-only options -->
                         <div id="coi-panel" class="hidden mt-4 space-y-3.5 border-t border-black/5 pt-4">
@@ -307,7 +308,6 @@
                                         <option value="inquiry">Inquiry-Based Learning Sequence</option>
                                         <option value="collab">Collaborative Learning Sequence</option>
                                         <option value="demo">Demonstration–Return Demonstration Flow</option>
-                                    <option value="custom">Custom / User-Defined Sequence</option>
                                         <option value="custom">Custom Flow</option>
                                     </select>
                                     <button type="button" id="coi-custom-flow-btn" class="hidden w-10 bg-white hover:bg-mist text-ink/70 py-2.5 px-3 rounded-xl ring-1 ring-black/5 transition flex items-center justify-center" title="Build Custom Flow" aria-label="Build Custom Flow">
@@ -349,6 +349,32 @@
                                 <!-- Grade level inputs will be rendered here -->
                             </div>
                             <p class="text-[11px] text-ink/45 italic">School, Teacher, and Checker details are pulled from <a href="#settings" class="text-iris-600 underline">Settings</a>.</p>
+                        </div>
+
+                        <!-- A-J Plan panel -->
+                        <div id="aj-panel" class="hidden mt-4 space-y-4">
+                            <div>
+                                <label id="ui-aj-quarter-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Term / Quarter <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                <input type="text" id="ajQuarter" placeholder="e.g., 1st Quarter, Term 3" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                            </div>
+                            <div>
+                                <label id="ui-aj-time-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Teaching Date &amp; Time <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                <input type="text" id="ajTime" placeholder="e.g., January 5-9, 2026 | 8:30 AM - 9:30 AM" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                            </div>
+                            <div>
+                                <label id="ui-aj-flow-label" class="block text-[11px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Lesson Flow / Daloy ng Lesson <span class="text-slate-400 font-normal">(Optional)</span></label>
+                                <select id="ajSequence" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 premium-select">
+                                    <option value="aj" selected>A-J Standard (A–J Procedures)</option>
+                                    <option value="rmd">Review–Motivation–Discussion</option>
+                                    <option value="4as">4A's Format</option>
+                                    <option value="5es">5E's Format</option>
+                                    <option value="7es">7E's Format</option>
+                                    <option value="matatag">MATATAG Format</option>
+                                    <option value="ilaw">ILAW Format</option>
+                                    <option value="idwdyd">I Do–We Do–You Do</option>
+                                    <option value="custom">Custom Flow</option>
+                                </select>
+                            </div>
                         </div>
                     </div></div>
 
@@ -458,7 +484,6 @@
                                             <option value="inquiry">Inquiry-Based Learning Sequence</option>
                                             <option value="collab">Collaborative Learning Sequence</option>
                                             <option value="demo">Demonstration–Return Demonstration Flow</option>
-                                    <option value="custom">Custom / User-Defined Sequence</option>
                                             <option value="custom">Custom Flow</option>
                                         </select>
                                         <button type="button" id="custom-flow-btn" class="hidden w-10 bg-white hover:bg-mist text-ink/70 py-2.5 px-3 rounded-xl ring-1 ring-black/5 transition flex items-center justify-center" title="Build Custom Flow" aria-label="Build Custom Flow">
@@ -773,9 +798,22 @@
                 contextLabel: "Contextualization <span class='text-slate-400 font-normal'>(Optional)</span>",
                 contextHint: "Add local context, culture, or specific learner situations to tailor the lesson.",
                 planTypeLabel: "Plan Type <span class='text-red-500'>*</span>",
-                planWeekly: "Weekly DLL",
+                planWeekly: "Ilaw Weekly Plan",
                 planCoi: "COI Semi-Detailed",
-                planTypeHint: "Weekly DLL builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations for classroom observation.",
+                planAj: "A-J Plan",
+                planAjHint: "A-J Plan builds a daily lesson log with procedures A–J per session.",
+                genAj: "Generate A-J Lesson Plan",
+                ajFlowLabel: "Lesson Flow / Daloy ng Lesson <span class='text-slate-400 font-normal'>(Optional)</span>",
+                ajFlowStandard: "A-J Standard (A–J Procedures)",
+                ajFlowRmd: "Review–Motivation–Discussion",
+                ajFlowFourAs: "4A's Format",
+                ajFlowFiveEs: "5E's Format",
+                ajFlowSevenEs: "7E's Format",
+                ajFlowMatatag: "MATATAG Format",
+                ajFlowIlaw: "ILAW Format",
+                ajFlowIdwdyd: "I Do–We Do–You Do",
+                ajFlowCustom: "Custom Flow",
+                planTypeHint: "Ilaw Weekly Plan builds a 1–5 day table. COI builds a single-session semi-detailed plan with PPST/COI annotations for classroom observation. A-J Plan builds a daily lesson log with procedures A–J per session.",
                 ppstLabel: "PPST / COI Indicators <span class='text-slate-400 font-normal'>(Optional)</span>",
                 ppstExtraPh: "Select a preset above or type your own e.g., 1.1.2, 1.4.2...",
                 strategyLabel: "Instructional Strategy <span class='text-red-500'>*</span>",
@@ -949,9 +987,22 @@
                 contextLabel: "Kontekstuwalisasyon <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
                 contextHint: "Magdagdag ng lokal na konteksto, kultura, o sitwasyon ng mga mag-aaral.",
                 planTypeLabel: "Uri ng Plano <span class='text-red-500'>*</span>",
-                planWeekly: "Weekly DLL",
+                planWeekly: "Ilaw Weekly Plan",
                 planCoi: "COI Semi-Detailed",
-                planTypeHint: "Ang Weekly DLL ay bumubuo ng 1–5 araw na table. Ang COI ay bumubuo ng isang sesyon na semi-detailed plan na may PPST/COI annotations para sa classroom observation.",
+                planAj: "A-J Plan",
+                planAjHint: "Ang A-J Plan ay nagbubuo ng daily lesson log na may mga hakbang na A–J bawat sesyon.",
+                genAj: "Bumuo ng A-J Lesson Plan",
+                ajFlowLabel: "Daloy ng Aralin / Lesson Flow <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                ajFlowStandard: "A-J Pamantayad (Mga Hakbang A–J)",
+                ajFlowRmd: "Balik-Aral–Pagganyak–Pagtalakay",
+                ajFlowFourAs: "4A's Format",
+                ajFlowFiveEs: "5E's Format",
+                ajFlowSevenEs: "7E's Format",
+                ajFlowMatatag: "MATATAG Format",
+                ajFlowIlaw: "ILAW Format",
+                ajFlowIdwdyd: "I Do–We Do–You Do",
+                ajFlowCustom: "Custom na Daloy",
+                planTypeHint: "Ang Ilaw Weekly Plan ay bumubuo ng 1–5 araw na table. Ang COI ay bumubuo ng isang sesyon na semi-detailed plan na may PPST/COI annotations para sa classroom observation. Ang A-J Plan ay nagbubuo ng daily lesson log na may mga hakbang na A–J bawat sesyon.",
                 ppstLabel: "PPST / COI Indicators <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
                 ppstExtraPh: "Pumili ng preset sa itaas o mag-type ng sarili hal. 1.1.2, 1.4.2...",
                 strategyLabel: "Istratehiya sa Pagtuturo <span class='text-red-500'>*</span>",
@@ -1100,6 +1151,7 @@
         const lessonSequenceSelect = document.getElementById('lessonSequence');
         const planTypeInput = document.getElementById('planType');
         const coiPanel = document.getElementById('coi-panel');
+        const ajPanel = document.getElementById('aj-panel');
         const ppstPreset = document.getElementById('ppstPreset');
         const ppstIndicators = document.getElementById('ppstIndicators');
         const coiStrategy = document.getElementById('coiStrategy');
@@ -1367,7 +1419,17 @@
             document.getElementById('ui-plantype-label').innerHTML = t.planTypeLabel;
             document.getElementById('ui-plan-weekly').textContent = t.planWeekly;
             document.getElementById('ui-plan-coi').textContent = t.planCoi;
+            document.getElementById('ui-plan-aj').textContent = t.planAj;
             document.getElementById('ui-plantype-hint').textContent = t.planTypeHint;
+            document.querySelector('#ajSequence option[value="aj"]').textContent = t.ajFlowStandard;
+            document.querySelector('#ajSequence option[value="rmd"]').textContent = t.ajFlowRmd;
+            document.querySelector('#ajSequence option[value="4as"]').textContent = t.ajFlowFourAs;
+            document.querySelector('#ajSequence option[value="5es"]').textContent = t.ajFlowFiveEs;
+            document.querySelector('#ajSequence option[value="7es"]').textContent = t.ajFlowSevenEs;
+            document.querySelector('#ajSequence option[value="matatag"]').textContent = t.ajFlowMatatag;
+            document.querySelector('#ajSequence option[value="ilaw"]').textContent = t.ajFlowIlaw;
+            document.querySelector('#ajSequence option[value="idwdyd"]').textContent = t.ajFlowIdwdyd;
+            document.querySelector('#ajSequence option[value="custom"]').textContent = t.ajFlowCustom;
             document.getElementById('ui-ppst-label').innerHTML = t.ppstLabel;
             document.getElementById('ppstIndicators').placeholder = t.ppstExtraPh;
             document.getElementById('ui-strategy-label').innerHTML = t.strategyLabel;
@@ -1382,7 +1444,7 @@
             document.querySelector('#coiStrategy option[value="problem"]').textContent = t.strategyOptions.problem;
             document.querySelector('#coiStrategy option[value="project"]').textContent = t.strategyOptions.project;
             document.querySelector('#coiStrategy option[value="idowedoyoudo"]').textContent = t.strategyOptions.idowedoyoudo;
-            document.getElementById('ui-gen-btn').textContent = (typeof planTypeInput !== 'undefined' && planTypeInput.value === 'coi') ? t.genCoiBtn : t.genBtn;
+            document.getElementById('ui-gen-btn').textContent = (typeof planTypeInput !== 'undefined' && planTypeInput.value === 'coi') ? t.genCoiBtn : (planTypeInput.value === 'aj' ? t.genAj : t.genBtn);
             document.getElementById('ui-out-title').innerHTML = t.outTitle;             document.getElementById('ui-dl-btn').textContent = t.dlBtn;
              document.getElementById('ui-print-btn').textContent = t.printBtn;
             document.getElementById('ui-cp-btn').textContent = t.cpBtn;
@@ -1457,13 +1519,16 @@
             const t = i18n[currentLang];
             const isCoi = val === 'coi';
             const isMultigrade = val === 'multigrade';
+            const isAj = val === 'aj';
             coiPanel.classList.toggle('hidden', !isCoi);
             multigradePanel.classList.toggle('hidden', !isMultigrade);
+            ajPanel.classList.toggle('hidden', !isAj);
             syncMultigradePanel();
             /* COI drives Pre-Lesson/Flow through its own sequence dropdown.
                Multigrade keeps the sequence dropdown — its TGIA prompt honours the
-               chosen sequence (including the teacher-built Custom Flow) per grade. */
-            sequenceRow.classList.toggle('hidden', isCoi);
+               chosen sequence (including the teacher-built Custom Flow) per grade.
+               A-J Plan uses a fixed A–J procedure set, so the sequence dropdown is hidden. */
+            sequenceRow.classList.toggle('hidden', isCoi || isAj);
             const coiSequenceBlock = document.getElementById('coi-sequence-block');
             if (coiSequenceBlock) coiSequenceBlock.classList.toggle('hidden', !isCoi);
             sessionsSelect.disabled = isCoi || isMultigrade;
@@ -1476,7 +1541,14 @@
                 // Render multigrade grade inputs on first show
                 renderMultigradeGrades();
             }
-            document.getElementById('ui-gen-btn').textContent = isCoi ? t.genCoiBtn : (isMultigrade ? t.multigrade.genBtn : t.genBtn);
+            if (isAj) {
+                if (ajSequenceSelect.value === 'custom') {
+                    customFlowBtn.classList.remove('hidden');
+                } else {
+                    customFlowBtn.classList.add('hidden');
+                }
+            }
+            document.getElementById('ui-gen-btn').textContent = isCoi ? t.genCoiBtn : (isAj ? t.genAj : (isMultigrade ? t.multigrade.genBtn : t.genBtn));
         });
 
         setupPillGroup('mode-pill', inputModeInput, (mode) => {
@@ -1768,6 +1840,19 @@
                     setTimeout(openCustomFlowModal, 100);
                 } else {
                     coiCustomFlowBtn.classList.add('hidden');
+                }
+            });
+        }
+
+        // A-J Lesson Sequence change listener
+        const ajSequenceSelect = document.getElementById('ajSequence');
+        if (ajSequenceSelect) {
+            ajSequenceSelect.addEventListener('change', () => {
+                if (ajSequenceSelect.value === 'custom') {
+                    customFlowBtn.classList.remove('hidden');
+                    setTimeout(openCustomFlowModal, 100);
+                } else {
+                    customFlowBtn.classList.add('hidden');
                 }
             });
         }
@@ -2227,7 +2312,107 @@ function showError(message) {
 `;
         }
 
-        
+        /* ── A-J Plan HTML Builder ── */
+        function buildAjHtml(lessons, info) {
+            const daysCount = lessons.length;
+            const days = lessons.map((_, i) => 'Session ' + (i + 1));
+            const esc = (s) => String(s === undefined || s === null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const nl = (s) => String(s === undefined || s === null ? '' : s).replace(/\n/g, '<br/>');
+
+            let html = `
+            <div style="text-align:center; font-family:Arial,sans-serif; margin-bottom:14px; line-height:1.3;">
+                <p style="margin:0; font-size:11pt;">Republic of the Philippines</p>
+                <p style="margin:0; font-size:13pt; font-weight:bold; font-family:'Times New Roman',serif;">Department of Education</p>
+                ${info.schoolName ? '<p style="margin:0; font-size:11pt; font-weight:bold;">' + esc(info.schoolName).toUpperCase() + '</p>' : ''}
+                ${info.division ? '<p style="margin:0; font-size:10pt;">SCHOOLS DIVISION OFFICE OF ' + esc(info.division).toUpperCase() + '</p>' : ''}
+                ${info.region ? '<p style="margin:0; font-size:10pt;">' + esc(info.region).toUpperCase() + '</p>' : ''}
+            </div>
+
+            <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:10pt; table-layout:fixed; border:1pt solid #000;">
+                <tbody>
+                    <tr>
+                        <td rowspan="4" style="width:15%; border:1pt solid #000; padding:8px; font-weight:bold; background-color:#f3f4f6; text-align:center;">DAILY LESSON LOG (DLL)</td>
+                        <td style="border:1pt solid #000; padding:4px; font-weight:bold; background-color:#f3f4f6;">School</td>
+                        <td style="border:1pt solid #000; padding:4px;">${esc(info.schoolName || '')}</td>
+                        <td style="border:1pt solid #000; padding:4px; font-weight:bold; background-color:#f3f4f6;">Grade Level</td>
+                        <td style="border:1pt solid #000; padding:4px;">${esc(info.grade || '')}</td>
+                    </tr>
+                    <tr>
+                        <td style="border:1pt solid #000; padding:4px; font-weight:bold; background-color:#f3f4f6;">Teacher</td>
+                        <td style="border:1pt solid #000; padding:4px;">${esc(info.teacher || '')} (${esc(info.teacherRole || '')})</td>
+                        <td style="border:1pt solid #000; padding:4px; font-weight:bold; background-color:#f3f4f6;">Subject</td>
+                        <td style="border:1pt solid #000; padding:4px;">${esc(info.area || '')}</td>
+                    </tr>
+                    <tr>
+                        <td style="border:1pt solid #000; padding:4px; font-weight:bold; background-color:#f3f4f6;">Date &amp; Time</td>
+                        <td style="border:1pt solid #000; padding:4px;">${esc(info.time || '')}</td>
+                        <td style="border:1pt solid #000; padding:4px; font-weight:bold; background-color:#f3f4f6;">Quarter</td>
+                        <td style="border:1pt solid #000; padding:4px;">${esc(info.quarter || '')}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <table class="dll-table" style="border:1pt solid #000; border-collapse:collapse; width:100%; font-size:9pt;">
+                <tbody>
+                    <tr style="background-color:#f3f4f6;">
+                        <th style="width:15%; border:1pt solid #000; padding:4px;">OBJECTIVES</th>
+                        ${days.map(d => '<th style="border:1pt solid #000; padding:4px; text-align:center;">' + esc(d) + '</th>').join('')}
+                    </tr>
+                    ${ajMergedRow('A. Content Standard', 'A_ContentStandard', lessons, daysCount)}
+                    ${ajMergedRow('B. Performance Standard', 'B_PerformanceStandard', lessons, daysCount)}
+                    ${ajMergedRow('C. Learning Competency', 'C_LearningCompetencyCode', lessons, daysCount)}
+                    ${ajRow('D. Objectives', 'D_LearningObjectives', lessons)}
+                    <tr style="background-color:#f3f4f6;"><td colspan="${daysCount + 1}" style="border:1pt solid #000; padding:4px; font-weight:bold;">II. CONTENT</td></tr>
+                    ${ajRow('Topic', 'II_Content', lessons)}
+                    <tr style="background-color:#f3f4f6;"><td colspan="${daysCount + 1}" style="border:1pt solid #000; padding:4px; font-weight:bold;">III. RESOURCES</td></tr>
+                    ${ajRow('References', 'III_LearningResources.References', lessons)}
+                    ${ajRow('Other Resources', 'III_LearningResources.OtherResources', lessons)}
+                    <tr style="background-color:#f3f4f6;"><td colspan="${daysCount + 1}" style="border:1pt solid #000; padding:4px; font-weight:bold;">IV. PROCEDURES</td></tr>
+                    ${ajRow('A. Review', 'III_Procedures.A_Review', lessons)}
+                    ${ajRow('B. Purpose', 'III_Procedures.B_Purpose', lessons)}
+                    ${ajRow('C. Examples', 'III_Procedures.C_Examples', lessons)}
+                    ${ajRow('D. Discussion 1', 'III_Procedures.D_Concepts1', lessons)}
+                    ${ajRow('E. Discussion 2', 'III_Procedures.E_Concepts2', lessons)}
+                    ${ajRow('F. Mastery', 'III_Procedures.F_Mastery', lessons)}
+                    ${ajRow('G. Application', 'III_Procedures.G_Application', lessons)}
+                    ${ajRow('H. Abstraction', 'III_Procedures.H_Generalization', lessons)}
+                    ${ajRow('I. Evaluation', 'III_Procedures.I_Evaluation', lessons)}
+                    ${ajRow('J. Assignment', 'III_Procedures.J_Remediation', lessons)}
+                </tbody>
+            </table>
+
+            <div style="margin-top:30px; display:flex; justify-content:space-between; font-size:10pt;">
+                <div style="width:30%;">
+                    <p style="margin-bottom:40px;">Prepared by:</p>
+                    <p style="margin:0; font-weight:bold; text-decoration:underline; text-transform:uppercase;">${esc(info.teacher || '')}</p>
+                    <p style="margin:0; font-size:9pt;">${esc(info.teacherRole || '')}</p>
+                </div>
+                <div style="width:30%;">
+                    <p style="margin-bottom:40px;">Checked by:</p>
+                    <p style="margin:0; font-weight:bold; text-decoration:underline; text-transform:uppercase;">${esc(info.checkedBy || '')}</p>
+                    <p style="margin:0; font-size:9pt;">${esc(info.checkedByRole || '')}</p>
+                </div>
+            </div>
+            `;
+            return html;
+        }
+
+        function ajMergedRow(title, path, lessons, colSpan) {
+            let parts = path.split('.');
+            let val = parts.reduce((obj, key) => obj && obj[key], lessons[0]);
+            return '<tr><td style="border:1pt solid #000; padding:4px; font-weight:bold;">' + esc(title) + '</td><td colspan="' + colSpan + '" style="border:1pt solid #000; padding:4px;">' + nl(val || '') + '</td></tr>';
+        }
+
+        function ajRow(title, path, lessons) {
+            let cells = lessons.map(lesson => {
+                let parts = path.split('.');
+                let val = parts.reduce((obj, key) => obj && obj[key], lesson);
+                return '<td style="border:1pt solid #000; padding:4px;">' + nl(val || '') + '</td>';
+            }).join('');
+            return '<tr><td style="border:1pt solid #000; padding:4px; font-weight:bold;">' + esc(title) + '</td>' + cells + '</tr>';
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             hideError();
@@ -2297,6 +2482,13 @@ function showError(message) {
                which threw "mgGrades is not defined" and killed every multigrade run. */
             let mgGrades = [];
             let mgLanguage = '';
+            let ajQuarter = '';
+            let ajTime = '';
+            let ajSequence = '';
+            /* Same hoist for the multigrade header fields: the response handler
+               passes them to buildMultigradeHtml, which sits outside this block. */
+            let time = '';
+            let section = '';
 
             /* ── Multigrade mode (TGIA rotation for combined grade levels) ── */
             if (planTypeInput.value === 'multigrade') {
@@ -2310,8 +2502,8 @@ function showError(message) {
                 mgGrades = collectMultigradeData();
                 mgLanguage = multigradeLanguage.value;
                 const isFil = mgLanguage === 'Filipino';
-                const time = document.getElementById('multigradeTime')?.value || document.getElementById('timeInput')?.value || '';
-                const section = document.getElementById('multigradeSection')?.value || document.getElementById('sectionInput')?.value || '';
+                time = document.getElementById('multigradeTime')?.value || document.getElementById('timeInput')?.value || '';
+                section = document.getElementById('multigradeSection')?.value || document.getElementById('sectionInput')?.value || '';
                 const si = JSON.parse(localStorage.getItem('school_info') || '{}');
 
                 const gradesPrompt = mgGrades.map(g => `
@@ -2634,6 +2826,58 @@ Return ONLY valid HTML. Do not use Markdown tables. Do not include code fences. 
     </tr>
 </table>
 `;
+            } else if (planTypeInput.value === 'aj') {
+                ajQuarter = document.getElementById('ajQuarter')?.value || '';
+                ajTime = document.getElementById('ajTime')?.value || '';
+                ajSequence = document.getElementById('ajSequence')?.value || 'aj';
+                let ajFlowInstruction = '';
+                if (ajSequence === 'custom') {
+                    const ajFlow = loadCustomFlow() || getDefaultCustomFlow();
+                    const ajPreList = ajFlow.preLesson.map((s, i) => `${i + 1}. ${s.label}${s.instruction ? ' — ' + s.instruction : ''}`).join('; ');
+                    const ajFlowList = ajFlow.flow.map((s, i) => `${i + 1}. ${s.label}${s.instruction ? ' — ' + s.instruction : ''}`).join('; ');
+                    ajFlowInstruction = `\nLESSON PLAN SEQUENCE (Custom Flow / Custom na Daloy): Teacher-built custom flow.\nPre-Lesson steps, in order: ${ajPreList}.\nFlow steps, in order: ${ajFlowList}.\nOrganize Procedures A–J around these exact step labels and instructions. Keep all ten procedure cells A–J present.`;
+                }
+                const isFil = currentLang === 'ph';
+                systemPrompt = `You are an expert Master Teacher in the Philippines (DepEd). Create a Daily Lesson Log (DLL) using the DepEd A–J lesson plan format (Objectives A–D, Content, Resources, Procedures A–J). OUTPUT FORMAT: Return ONLY a valid JSON object with this exact structure — no markdown code fences, no conversational text:
+
+{
+  "DailyLessons": [
+    {
+      "Day": "Session 1",
+      "A_ContentStandard": "string",
+      "B_PerformanceStandard": "string",
+      "C_LearningCompetencyCode": "string",
+      "D_LearningObjectives": "string",
+      "II_Content": "string",
+      "III_LearningResources": { "References": "string", "OtherResources": "string" },
+      "III_Procedures": {
+        "A_Review": "string",
+        "B_Purpose": "string",
+        "C_Examples": "string",
+        "D_Concepts1": "string",
+        "E_Concepts2": "string",
+        "F_Mastery": "string",
+        "G_Application": "string",
+        "H_Generalization": "string",
+        "I_Evaluation": "string",
+        "J_Remediation": "string"
+      }
+    }
+    // exactly ${sessionsValue} entries labeled Session 1 through Session ${sessionsValue}
+  ]
+}
+
+CRITICAL INSTRUCTIONS:
+1. Generate EXACTLY ${sessionsValue} daily lesson entries, labeled "Session 1" through "Session ${sessionsValue}".
+2. Fill EVERY field with complete, detailed DepEd DLL content — no placeholders or blank cells.
+3. Use \\n for newlines inside JSON strings.
+4. Write all lesson content in ${isFil ? 'Filipino (Tagalog)' : 'English'}. JSON keys stay in English.
+5. School: ${si?.schoolName || ''}, Division: ${si?.division || ''}, Region: ${si?.regionName || ''}. Teacher: ${teacher} (${teacherRole}). Checked by: ${checkerName} (${checkerRole}).
+6. Quarter: ${ajQuarter || ''}. Teaching Date & Time: ${ajTime || ''}. Session duration: ${sessionDuration} minutes each.
+7. Lesson Flow / Daloy ng Lesson: ${ajSequence}. Organize the Procedures A–J cells so the lesson follows this chosen flow (e.g., Review→Motivation→Discussion maps to A/B/C; 4A's→Activity/Analysis/Abstraction/Application; etc.). Keep all ten procedure cells A–J present.${ajFlowInstruction}
+8. Learning Area: ${area}. Grade & Section: ${grade}. Competency/ies: ${competencyPromptText}. Objectives: ${objectives || 'Generate 3 specific objectives per session'}. Contextualization: ${contextualization || 'None provided.'}`;
+
+                userQuery = `Generate the DepEd Daily Lesson Log (A–J Plan) JSON now. Use the details above and fill all ${sessionsValue} session entries completely.`;
             } else if (currentLang === 'ph') {
                 systemPrompt = `Ikaw ay isang dalubhasang Master Teacher sa Pilipinas. Ang iyong gawain ay bumuo ng napakadetalye at nakaka-engganyong Pang-araw-araw na Tala sa Pagtuturo (Lesson Plan) base sa bagong DepEd Guidelines, sa 8 Learning Design Principles, at sa MATATAG Instructional Design Frameworks (4Is, 4Cs, 4Es). ILABAS LAMANG ang hinihinging pormat. HUWAG magdagdag ng anumang paliwanag o konbersasyonal na text sa labas ng hiniling na output. IMPORTANT: YOU MUST RESPOND ENTIRELY IN FILIPINO/TAGALOG. ALL CONTENT, DESCRIPTIONS, ASSESSMENTS, AND ACTIVITIES MUST BE WRITTEN IN TAGALOG.`;
                 
@@ -3272,13 +3516,43 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                         checkedBy: si.checkedBy || '',
                         checkedByRole: si.checkedByPosition || ''
                     });
+                } else if (planTypeInput.value === 'aj') {
+                    generatedText = generatedText.replace(/^```json\s*/i, '').replace(/```$/i, '').replace(/^```html\s*/i, '').replace(/```$/i, '');
+                    let parsedAj;
+                    try {
+                        parsedAj = JSON.parse(generatedText);
+                    } catch (e) {
+                        console.error("Failed to parse A-J JSON:", generatedText);
+                        throw new Error("AI returned invalid JSON for A-J plan. Please try again.");
+                    }
+                    if (!parsedAj.DailyLessons || !Array.isArray(parsedAj.DailyLessons)) {
+                        throw new Error("Invalid A-J response structure.");
+                    }
+                    const si = JSON.parse(localStorage.getItem('school_info') || '{}');
+                    generatedText = buildAjHtml(parsedAj.DailyLessons, {
+                        teacher: si.teacherName || teacher,
+                        teacherRole: si.teacherTitle || teacherRole,
+                        checkerName: si.checkedBy || checkerName,
+                        checkerRole: si.checkedByPosition || checkerRole,
+                        area: area,
+                        grade: grade,
+                        time: ajTime,
+                        schoolName: si.schoolName || '',
+                        district: si.district || '',
+                        division: si.division || '',
+                        region: si.regionName || '',
+                        checkedBy: si.checkedBy || '',
+                        checkedByRole: si.checkedByPosition || '',
+                        quarter: ajQuarter,
+                        sessionDuration: sessionDuration
+                    });
                 } else {
                     // Strip markdown codeblocks if AI accidentally adds them
                     generatedText = generatedText.replace(/^```html\s*/i, '').replace(/```$/i, '');
                 }
 
-                // Validate output (skip for multigrade since we generate our own HTML)
-                if (planTypeInput.value !== 'multigrade') {
+                // Validate output (skip for multigrade and A-J since we generate our own HTML)
+                if (planTypeInput.value !== 'multigrade' && planTypeInput.value !== 'aj') {
                     const v = window.SilidValidate.validateLessonHtml(generatedText);
                     if (v.warnings.length > 0) {
                         validationWarning.innerHTML = v.warnings.map(w => '<p>' + w + '</p>').join('');
@@ -3324,7 +3598,8 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 showError("Failed to generate the lesson plan. Please ensure your connection is stable and try again. (API Error: " + error.message + ")");
             } finally {
                 generateBtn.disabled = false;
-                generateBtn.innerHTML = '<span id="ui-gen-btn">' + i18n[currentLang].genBtn + '</span>';
+                const genLabel = planTypeInput.value === 'coi' ? i18n[currentLang].genCoiBtn : (planTypeInput.value === 'aj' ? i18n[currentLang].genAj : i18n[currentLang].genBtn);
+                generateBtn.innerHTML = '<span id="ui-gen-btn">' + genLabel + '</span>';
                 generateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
             }
         });

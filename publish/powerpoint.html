@@ -106,9 +106,7 @@
     <header class="fixed top-4 md:top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
         <nav class="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-full md:w-max md:max-w-[95vw] justify-between md:justify-center">
             <a href="index.html" class="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0">
-                <span class="grid place-items-center w-8 h-8 rounded-full bg-iris-600 text-white shadow-sm">
-                    <span class="text-[15px] font-extrabold leading-none">S</span>
-                </span>
+                <img src="silidpinoy_logo.png" alt="SilidPinoy Logo" class="w-8 h-8 rounded-full object-contain" />
                 <span class="font-semibold tracking-tight text-base">Silid<span class="text-iris-600">Pinoy</span></span><span class="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
             </a>
             <div class="hidden md:flex items-center gap-1">
@@ -117,6 +115,7 @@
             <a href="lesson.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
             <span class="nav-link text-sm font-medium px-4 py-2 rounded-full bg-black/5 text-ink font-semibold">PPT Maker</span>
             <a href="activity.html" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
+              <a href="index.html#item-analysis" class="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Item Analysis</a>
             </div>
             <span data-silid-docs-slot class="ml-1 hidden sm:flex items-center"></span>
             <span class="flex items-center gap-1 shrink-0">
@@ -138,6 +137,7 @@
             <a href="lesson.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Lesson Plan</a>
             <span class="block px-4 py-3 rounded-xl text-sm font-semibold bg-black/5 text-ink">PPT Maker</span>
             <a href="activity.html" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Activity Sheet</a>
+              <a href="index.html#item-analysis" class="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Item Analysis</a>
         </div>
 
         <!-- Inline Settings dropdown (API key) -->
@@ -593,6 +593,7 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                                     </button>
                                     <span class="text-xs font-bold text-ink/45 bg-white ring-1 ring-black/5 px-3 py-2 rounded-lg">Slide <span id="slide-num">1</span> / <span id="slide-total">1</span></span>
+                                    <span id="ai-img-status" class="hidden text-[10px] font-bold uppercase tracking-wider px-2.5 py-2 rounded-lg bg-iris-50 text-iris-600 ring-1 ring-iris-200"></span>
                                     <button id="btn-next" class="p-2.5 rounded-xl ring-1 ring-black/5 bg-white text-ink/50 hover:text-ink transition disabled:opacity-30 disabled:pointer-events-none">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                                     </button>
@@ -918,9 +919,10 @@
                 '- Content must be accurate, organized, and classroom-appropriate.',
                 '- Aim for ' + slideRangeText() + ' slides: a title slide, organized content slides, and a short summary at the end.',
                 '- Provide a short \'visualIdea\' for most slides: a one-line description of an illustration that fits the slide (e.g. "a bright sun heating a body of water"). For the title slide and a summary slide, use "None".',
+                '- Tag every slide with a \'section\' name: Title, Objectives, Review, Discussion, Activities, Wrap-up or Other. Every slide in the deep-discussion part must say "Discussion".',
                 '',
                 'OUTPUT FORMAT: Return ONLY a JSON array of slide objects:',
-                '[{"title":"Slide title","content":["bullet 1","bullet 2"],"notes":"speaker notes","visualIdea":"short illustration description"}]',
+                '[{"title":"Slide title","section":"Discussion","content":["bullet 1","bullet 2"],"notes":"speaker notes","visualIdea":"short illustration description"}]',
                 'No markdown fences, no commentary.',
                 '',
                 'Topic: ' + ($('topic-input').value.trim() || '(not provided)'),
@@ -945,6 +947,7 @@
                         type: 'OBJECT',
                         properties: {
                             layout: { type: 'STRING', enum: ['title', 'content_bullets', 'content_image_right', 'content_image_left', 'big_statement', 'infographic_cards', 'assessment'] },
+                            section: { type: 'STRING' },
                             title: { type: 'STRING' },
                             content: { type: 'ARRAY', items: { type: 'STRING' } },
                             speakerNotes: { type: 'STRING' },
@@ -980,8 +983,8 @@
                     '- Difficulty level: ' + state.assessmentDifficulty,
                     '- Numbering: YOU MUST NUMBER EVERY QUESTION SEQUENTIALLY starting from 1 to ' + state.assessmentItems + '.',
                     '- Formatting Rules:',
-                    '  ' + rules,
-                    "- Use the 'assessment' layout for all assessment slides. DO NOT suggest any visuals for these slides. Pure text only.",
+                    '  ' + rules,                        "- Use the 'assessment' layout for all assessment slides. DO NOT suggest any visuals for these slides. Pure text only.",
+                        "5. Tag every slide with a 'section': Title, Objectives, Review, Discussion, Activities, Wrap-up, Assessment or Other. Every slide in the Deep Discussion & Concept Breakdown part must be 'Discussion'.",
                     "- VERY IMPORTANT: Always provide the correct Answer Key in the 'speakerNotes' field of each assessment slide for the teacher!",
                     ''
                 ].join('\n');
@@ -1064,7 +1067,7 @@
         function savePptState() {
             if (!state.slides.length) return;
             var payload = {
-                slides: state.slides,
+                slides: slidesForStorage(state.slides),
                 current: state.current,
                 mode: state.mode,
                 qtype: state.qtype,
@@ -1133,7 +1136,7 @@ visuals: state.visuals,
             window.SilidDocsUI.save({
                 name: title,
                 content: JSON.stringify({
-                    slides: state.slides,
+                    slides: slidesForStorage(state.slides),
                     presentationTitle: state.presentationTitle,
                     mode: state.mode,
                     selectedTheme: state.selectedTheme,
@@ -1234,6 +1237,7 @@ visuals: state.visuals,
                 state.slides = parsed.map(function (s) {
                     return {
                         layout: 'content_bullets',
+                        section: String(s.section || ''),
                         title: String(s.title || ''),
                         content: Array.isArray(s.content) ? s.content.map(String) : (s.content ? [String(s.content)] : []),
                         notes: String(s.notes || ''),
@@ -1242,6 +1246,7 @@ visuals: state.visuals,
                 });
                 state.current = 0;
                 renderPreview();
+                generateSlideImages();
             }).catch(function (err) {
                 console.error(err);
                 setPhase('empty');
@@ -1293,6 +1298,7 @@ visuals: state.visuals,
                 state.slides = slides.map(function (s) {
                     return {
                         layout: String(s.layout || 'content_bullets'),
+                        section: String(s.section || ''),
                         title: String(s.title || ''),
                         content: Array.isArray(s.content) ? s.content.map(String) : (s.content ? [String(s.content)] : []),
                         notes: String(s.speakerNotes || ''),
@@ -1303,10 +1309,127 @@ visuals: state.visuals,
                 renderPreview();
                 savePptState();
                 pptSaveToLibrary();
+                generateSlideImages();
             }).catch(function (err) {
                 console.error(err);
                 setPhase('empty');
                 setError('Generation failed: ' + (err.message || 'unknown error') + ' — please try again.');
+            });
+        }
+
+        /* ---------- AI slide images — title + discussion slides ONLY ----------
+           Uses its own image model through SilidAPI.generateImage. The deck is
+           always rendered first; images stream in afterwards and any failure
+           leaves that slide text-only. Exam/quiz decks and the "none"
+           visuals setting never call the image model. ---------- */
+        var AI_IMG_MAX = 6;          // hard cap: keeps decks light
+        var aiImgRun = 0;            // newer deck generation cancels an older run
+
+        function setAiImgStatus(text) {
+            var el = $('ai-img-status');
+            if (!el) return;
+            el.textContent = text || '';
+            el.classList.toggle('hidden', !text);
+        }
+
+        /* Images only have somewhere to live on layouts with a visual slot
+           (or the title card); infographic discussion slides get a corner
+           thumbnail instead. Other layouts are skipped rather than generating
+           art that could never be placed. */
+        function aiImageHostable(s, i) {
+            if (isTitleSlideForImages(s, i)) return true;
+            var l = s.layout || 'content_bullets';
+            return l === 'content_bullets' || l === 'content_image_left' ||
+                l === 'content_image_right' || l === 'infographic_cards';
+        }
+
+        function isTitleSlideForImages(s, i) {
+            return (s.layout || '') === 'title' || i === 0;
+        }
+
+        function isDiscussionSlide(s, i) {
+            if (isTitleSlideForImages(s, i)) return false;
+            var sec = String(s.section || '').trim().toLowerCase();
+            if (sec) return /discussion|talakayan|concept/.test(sec);
+            var t = ((s.title || '') + ' ' + (s.content || []).join(' ')).toLowerCase();
+            return /deep discussion|discussion|concept breakdown|talakayan/.test(t);
+        }
+
+        /* Exactly the two places the teacher asked for: the lesson title and
+           the discussion part. Never exam/quiz decks, never "none". */
+        function aiImageTargets() {
+            if (state.mode === 'exam') return [];
+            if (state.visuals === 'none') return [];
+            if (!state.slides.length) return [];
+            var out = [];
+            state.slides.forEach(function (s, i) {
+                if ((isTitleSlideForImages(s, i) || isDiscussionSlide(s, i)) && aiImageHostable(s, i)) out.push(i);
+            });
+            return out.slice(0, AI_IMG_MAX);
+        }
+
+        function aiImagePrompt(s, i) {
+            var topic = state.presentationTitle || s.title || 'the lesson';
+            var idea = String(s.suggestedVisual || '').trim();
+            if (!idea || idea.toLowerCase() === 'none') {
+                idea = isTitleSlideForImages(s, i)
+                    ? 'an inviting classroom scene introducing ' + topic
+                    : (s.title || topic);
+            }
+            return 'Flat modern vector illustration for a teacher\u2019s classroom slide. ' +
+                'Lesson: ' + topic + '. Show: ' + idea + '. ' +
+                'Clean simple shapes, soft colors, plain light background, centered composition. ' +
+                'No text, no words, no letters, no numbers, no watermark, no logos.';
+        }
+
+        function generateSlideImages() {
+            var targets = aiImageTargets();
+            if (!targets.length) return;
+            if (!window.SilidAPI || !window.SilidAPI.generateImage) return;
+            var run = ++aiImgRun;
+            var total = targets.length;
+            var done = 0;
+            setAiImgStatus('Adding images 0/' + total);
+            targets.reduce(function (chain, idx) {
+                return chain.then(function () {
+                    if (run !== aiImgRun) return;
+                    var s = state.slides[idx];
+                    if (!s || s.aiImage) {
+                        done++;
+                        setAiImgStatus('Adding images ' + done + '/' + total);
+                        return;
+                    }
+                    return window.SilidAPI.generateImage({ prompt: aiImagePrompt(s, idx) })
+                        .then(function (img) {
+                            if (run !== aiImgRun) return;
+                            s.aiImage = img.dataUri;
+                            if (state.current === idx) renderPreview();
+                        })
+                        .catch(function () {
+                            // quota / model access / network — the slide stays
+                            // text-only; the deck itself is never blocked
+                        })
+                        .then(function () {
+                            done++;
+                            setAiImgStatus('Adding images ' + done + '/' + total);
+                        });
+                });
+            }, Promise.resolve()).then(function () {
+                if (run !== aiImgRun) return;
+                setAiImgStatus('');
+                renderPreview();
+            });
+        }
+
+        /* Generated images are session-only: they must never reach localStorage
+           or the documents library, where base64 blobs would blow the quota. */
+        function slidesForStorage(slides) {
+            return (slides || []).map(function (s) {
+                var copy = {};
+                for (var k in s) {
+                    if (Object.prototype.hasOwnProperty.call(s, k) && k !== 'aiImage') copy[k] = s[k];
+                }
+                return copy;
             });
         }
 
@@ -1487,6 +1610,8 @@ return fallback[i % fallback.length];
             var theme = THEMES[state.selectedTheme] || THEMES.modern;
             var layout = s.layout || 'content_bullets';
             var isDll = state.mode === 'dll';
+            // a generated image gives a plain bullet slide its visual column
+            if (isDll && s.aiImage && layout === 'content_bullets') layout = 'content_image_right';
             var bullets = s.question ? [s.question].concat(s.content) : s.content;
             var body = $('slide-body');
             var html = '';
@@ -1499,6 +1624,11 @@ return fallback[i % fallback.length];
             }
 
             function visualSide() {
+                if (s.aiImage) {
+                    return '<div class="rounded-xl overflow-hidden flex items-center justify-center" style="width:42%;min-height:180px;background:' + theme.accent + '">' +
+                        '<img src="' + s.aiImage + '" alt="" class="w-full h-full object-cover" style="min-height:180px" />' +
+                    '</div>';
+                }
                 var visual = s.suggestedVisual || '';
                 var hasIdea = visual.length > 5 && visual.toLowerCase() !== 'none';
                 if (state.visuals === 'emoji' || (state.visuals === 'both' && !hasIdea)) {
@@ -1521,6 +1651,7 @@ return fallback[i % fallback.length];
                     '<div class="absolute top-0 right-0 w-1/2 h-full -skew-x-12 translate-x-1/4" style="background:' + theme.secondary + '"></div>' +
                     (isPlayfulTitle ? '<img src="' + SVG_ICONS.book + '" class="absolute top-3 left-3 w-10 h-10 opacity-25" /><img src="' + SVG_ICONS.pencil + '" class="absolute top-3 right-3 w-10 h-10 opacity-25" /><img src="' + SVG_ICONS.star + '" class="absolute bottom-3 left-3 w-8 h-8 opacity-20" /><img src="' + SVG_ICONS.trophy + '" class="absolute bottom-3 right-3 w-8 h-8 opacity-20" />' : '') +
                     '<div class="relative z-10 bg-white rounded-2xl shadow-xl px-8 py-10 w-4/5 max-w-lg">' +
+                        (s.aiImage ? '<img src="' + s.aiImage + '" alt="" class="mb-4 rounded-xl w-full max-h-40 object-cover" />' : '') +
                         (state.visuals === 'emoji' || state.visuals === 'both' ? '<div class="text-5xl leading-none mb-4 select-none">' + emojiForSlide(s, state.current) + '</div>' : '') +
                         '<h3 class="font-display text-3xl font-medium leading-tight" style="color:' + theme.primary + '">' + escapeHtml(state.presentationTitle || s.title) + '</h3>' +
                         '<div class="inline-block mt-4 px-4 py-1.5 rounded-full text-xs font-bold" style="background:' + theme.accent + ';color:' + theme.text + '">Target Lesson: ' + escapeHtml(state.selectedDay) + '</div>' +
@@ -1536,7 +1667,7 @@ return fallback[i % fallback.length];
                 '</div>';
             } else if (isDll && layout === 'infographic_cards') {
                 var cards = (s.content || []).slice(0, 3);
-                html = '<div class="h-full flex flex-col" style="background:' + theme.bg + '">' +
+                html = '<div class="h-full flex flex-col relative" style="background:' + theme.bg + '">' +
                     '<div class="px-6 py-4 flex items-center gap-3 shrink-0" style="background:' + theme.primary + '">' +
                         (state.visuals === 'emoji' || state.visuals === 'both' ? '<span class="text-2xl leading-none select-none">' + emojiForSlide(s, state.current) + '</span>' : '<svg class="opacity-60" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>') +
                         '<h3 class="text-lg font-bold text-white">' + escapeHtml(s.title) + '</h3>' +
@@ -1550,6 +1681,7 @@ return fallback[i % fallback.length];
                             '</div>';
                         }).join('') +
                     '</div>' +
+                    (s.aiImage ? '<img src="' + s.aiImage + '" alt="" style="position:absolute;right:12px;bottom:10px;width:112px;height:76px;object-fit:cover;border-radius:10px;border:2px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,.3);z-index:10;" />' : '') +
                 '</div>';
             } else if (isDll && layout === 'assessment') {
                 html = '<div class="h-full flex flex-col" style="background:' + theme.bg + '">' +
@@ -1672,6 +1804,7 @@ function escapeHtml(str) {
                             '<span style="font:700 16px Georgia,serif;">' + escapeHtml(s.title || ('Slide ' + (i + 1))) + '</span>' +
                         '</div>' +
                         '<div style="height:4px;background:#' + theme.secondary + ';"></div>' +
+                        (s.aiImage ? '<div style="padding:12px 16px 0;"><img src="' + s.aiImage + '" alt="" style="width:100%;max-width:420px;display:block;border-radius:8px;" /></div>' : '') +
                         '<div style="padding:12px 16px 14px;">' +
                             (bullets.length
                                 ? '<ul style="margin:0 0 0 18px;padding:0;font:14px Georgia,serif;color:#2A2438;line-height:1.55;">' +
@@ -1735,6 +1868,8 @@ function escapeHtml(str) {
                     var slide = pptx.addSlide();
                     var layout = s.layout || 'content_bullets';
                     var isFirst = i === 0;
+                    // a generated image gives a plain bullet slide its visual column
+                    if (isDll && s.aiImage && layout === 'content_bullets') layout = 'content_image_right';
                     var contentLines = s.question ? [s.question].concat(s.content) : s.content;
                     // NOTE: PptxGenJS addText only accepts a single string OR an array of
                     // {text, options} objects — plain string arrays crash with
@@ -1771,6 +1906,10 @@ function escapeHtml(str) {
                         });
                         slide.addShape('rect', { x: 3.5, y: 4.2, w: 3, h: 0.6, fill: { color: theme.accent }, rectRadius: 0.3 });
                         slide.addText('Target Lesson: ' + state.selectedDay, { x: 3.5, y: 4.2, w: 3, h: 0.6, fontSize: 18, align: 'center', color: theme.text, bold: true });
+                        // generated title art — sits under the card, clear of the pill
+                        if (s.aiImage) {
+                            slide.addImage({ data: s.aiImage, x: 6.6, y: 3.85, w: 2.6, h: 1.5, sizing: { type: 'contain', w: 2.6, h: 1.5 } });
+                        }
                     } else if (isDll && layout === 'big_statement') {
                         slide.background = { color: theme.secondary };
                         if (isPlayful) {
@@ -1834,6 +1973,15 @@ function escapeHtml(str) {
                             }
                             startX += cardWidth + spacing;
                         });
+                        // generated discussion art — corner thumbnail, clear of
+                        // the three cards (they end at x=9.7) and the slide number
+                        if (s.aiImage) {
+                            var cIw = 1.5, cIh = 1.0, cIx = 10.1, cIy = 3.95;
+                            slide.addShape('rect', { x: cIx, y: cIy, w: cIw, h: cIh, fill: { color: 'FFFFFF' }, rectRadius: 0.06,
+                                shadow: { type: 'outer', color: '000000', opacity: 0.25, blur: 6, offset: 2, angle: 45 } });
+                            slide.addImage({ data: s.aiImage, x: cIx + 0.05, y: cIy + 0.05, w: cIw - 0.1, h: cIh - 0.1,
+                                sizing: { type: 'contain', w: cIw - 0.1, h: cIh - 0.1 } });
+                        }
                     } else if (isDll && (layout === 'content_image_left' || layout === 'content_image_right' || layout === 'content_bullets')) {
                         slide.background = { color: theme.bg };
                         slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: theme.primary } });
@@ -1852,10 +2000,23 @@ function escapeHtml(str) {
                             slide.addText(emojiForSlide(s, i), { x: bx, y: by + 0.4, w: bw, h: bh - 1.1, fontSize: 90, align: 'center', valign: 'middle' });
                             slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: bx + 0.2, y: by + bh - 0.75, w: bw - 0.4, h: 0.6, fontSize: 11, align: 'center', color: theme.text, italic: true });
                         };
-                        var useImageLeft = isImageLayout && emojiMode && layout === 'content_image_left';
-                        var useImageRight = isImageLayout && emojiMode && layout === 'content_image_right';
+                        var aiImg = s.aiImage || '';
+                        var useImageLeft = aiImg
+                            ? layout === 'content_image_left'
+                            : (isImageLayout && emojiMode && layout === 'content_image_left');
+                        var useImageRight = aiImg
+                            ? (layout === 'content_image_right' || !isImageLayout)
+                            : (isImageLayout && emojiMode && layout === 'content_image_right');
+                        // generated art fills the visual slot; the emoji box is the fallback
+                        var slot = function (data, bx, by, bw, bh) {
+                            if (data) {
+                                slide.addImage({ data: data, x: bx, y: by, w: bw, h: bh, sizing: { type: 'contain', w: bw, h: bh } });
+                            } else {
+                                emojiBox(bx, by, bw, bh);
+                            }
+                        };
                         if (useImageLeft) {
-                            emojiBox(0.4, 1.5, 3.8, 3.8);
+                            slot(aiImg, 0.4, 1.5, 3.8, 3.8);
                             slide.addShape('rect', { x: 4.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
                             slide.addShape('rect', { x: 4.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
                             slide.addText(bbullets, { x: 4.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
@@ -1863,7 +2024,7 @@ function escapeHtml(str) {
                             slide.addShape('rect', { x: 0.4, y: 1.5, w: 5.2, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
                             slide.addShape('rect', { x: 0.4, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
                             slide.addText(bbullets, { x: 0.7, y: 1.7, w: 4.7, h: 3.4, fontSize: 15, color: theme.text, valign: 'top', lineSpacing: 24 });
-                            emojiBox(5.8, 1.5, 3.8, 3.8);
+                            slot(aiImg, 5.8, 1.5, 3.8, 3.8);
                         } else {
                             slide.addShape('rect', { x: 0.5, y: 1.5, w: 9, h: 3.8, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 1.5 } });
                             slide.addShape('rect', { x: 0.5, y: 1.5, w: 0.1, h: 3.8, fill: { color: theme.secondary } });
@@ -1888,7 +2049,14 @@ function escapeHtml(str) {
                             align: 'center', fontFace: isPlayful ? 'Arial' : 'Georgia'
                         });
                         var cbullets = textObjects(contentLines, { bullet: { code: '2022', color: isPlayful ? theme.secondary : undefined } });
-                        if (state.visuals === 'emoji') {
+                        if (s.aiImage) {
+                            slide.addText(cbullets, {
+                                x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
+                                valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
+                            });
+                            slide.addShape('rect', { x: 6.5, y: 1.6, w: 4.2, h: 3.6, fill: { color: isPlayful ? theme.accent : 'EDEBF8' }, rectRadius: 0.1 });
+                            slide.addImage({ data: s.aiImage, x: 6.5, y: 1.6, w: 4.2, h: 3.6, sizing: { type: 'contain', w: 4.2, h: 3.6 } });
+                        } else if (state.visuals === 'emoji') {
                             slide.addText(cbullets, {
                                 x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
                                 valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true

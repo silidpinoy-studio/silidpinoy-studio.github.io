@@ -12,6 +12,8 @@ function reply(status, body) {
 
 const ok = (text) => reply(200, { candidates: [{ content: { parts: [{ text }] } }] });
 const apiError = (status, message) => reply(status, { error: { message } });
+/** pingKey validates against GET /v1beta/models, which answers with a models array. */
+const modelsList = () => reply(200, { models: [{ name: 'models/gemini-2.0-flash' }] });
 const networkError = () => { throw new TypeError('Failed to fetch'); };
 
 /** Steps are consumed in order; the last one repeats. */
@@ -19,7 +21,11 @@ function fakeFetch(steps) {
   const calls = [];
   const impl = (url, opts) => {
     const index = calls.length;
-    calls.push({ url, body: opts && opts.body ? JSON.parse(opts.body) : null });
+    calls.push({
+      url,
+      headers: (opts && opts.headers) || {},
+      body: opts && opts.body ? JSON.parse(opts.body) : null
+    });
     const step = steps[Math.min(index, steps.length - 1)];
     return Promise.resolve().then(() => (typeof step === 'function' ? step() : step));
   };
@@ -52,7 +58,8 @@ test('callGemini returns the trimmed response text', async () => {
 
   assert.equal(await api.callGemini({ prompt: 'say hi' }), 'Hello there');
   assert.equal(fetchImpl.calls.length, 1);
-  assert.match(fetchImpl.calls[0].url, /key=KEY_A/);
+  // the key rides the request as the x-goog-api-key header, not a ?key= URL param
+  assert.equal(fetchImpl.calls[0].headers['x-goog-api-key'], 'KEY_A');
   assert.equal(fetchImpl.calls[0].body.contents[0].parts[0].text, 'say hi');
 });
 
@@ -144,9 +151,9 @@ test('exhausted quota falls back to the backup key', async () => {
   });
 
   assert.equal(await api.callGemini({ prompt: 'x' }), 'served by backup');
-  const urls = fetchImpl.calls.map((c) => c.url);
-  assert.ok(urls.slice(0, 5).every((u) => u.includes('key=PRIMARY')), 'primary tried first');
-  assert.ok(urls[5].includes('key=BACKUP'), 'last attempt uses the backup key');
+  const keys = fetchImpl.calls.map((c) => c.headers['x-goog-api-key']);
+  assert.ok(keys.slice(0, 5).every((k) => k === 'PRIMARY'), 'primary tried first');
+  assert.equal(keys[5], 'BACKUP', 'last attempt uses the backup key');
 });
 
 test('the backup key is not used for permanent errors', async () => {
@@ -165,7 +172,7 @@ test('explicit apiKey / backupKey options override localStorage', async () => {
   const api = loadApi({ fetchImpl, storedKeys: { gemini_api_key: 'STORED' } });
 
   await api.callGemini({ prompt: 'x', apiKey: 'EXPLICIT', backupKey: 'EXPLICIT_2' });
-  assert.match(fetchImpl.calls[0].url, /key=EXPLICIT/);
+  assert.equal(fetchImpl.calls[0].headers['x-goog-api-key'], 'EXPLICIT');
 });
 
 /* ---------------------------------------------------------------
@@ -199,7 +206,7 @@ test('callGeminiJSON rejects invalid JSON with a friendly error', async () => {
    --------------------------------------------------------------- */
 
 test('pingKey reports ok for a working key', async () => {
-  const api = loadApi({ fetchImpl: fakeFetch([ok('OK')]) });
+  const api = loadApi({ fetchImpl: fakeFetch([modelsList()]) });
   assert.deepEqual(plain(await api.pingKey('KEY')), { ok: true });
 });
 
@@ -229,4 +236,79 @@ test('pingKey does not retry', async () => {
   const api = loadApi({ fetchImpl });
   await api.pingKey('KEY');
   assert.equal(fetchImpl.calls.length, 1);
+});
+
+/* ---------------------------------------------------------------
+   generateImage (PowerPoint slide art)
+   --------------------------------------------------------------- */
+
+const imageReply = (b64 = 'QUJD', mime = 'image/png') =>
+  reply(200, { interaction: { outputImage: { mimeType: mime, data: b64 } } });
+
+test('generateImage hits the interactions endpoint and returns a data URI', async () => {
+  const fetchImpl = fakeFetch([imageReply('AAAA')]);
+  const api = loadApi({ fetchImpl, storedKeys: { gemini_api_key: 'K' } });
+
+  const img = await api.generateImage({ prompt: 'a bright classroom' });
+  assert.equal(img.dataUri, 'data:image/png;base64,AAAA');
+  assert.equal(img.mimeType, 'image/png');
+  assert.match(fetchImpl.calls[0].url, /\/v1beta\/interactions$/);
+  assert.equal(fetchImpl.calls[0].headers['x-goog-api-key'], 'K');
+  assert.equal(fetchImpl.calls[0].body.model, 'gemini-3.1-flash-lite-image');
+  assert.deepEqual(fetchImpl.calls[0].body.input, [{ type: 'text', text: 'a bright classroom' }]);
+});
+
+test('generateImage never touches the text model endpoint', async () => {
+  const fetchImpl = fakeFetch([imageReply()]);
+  const api = loadApi({ fetchImpl, storedKeys: { gemini_api_key: 'K' } });
+
+  await api.generateImage({ prompt: 'x' });
+  assert.ok(fetchImpl.calls.every((c) => !/generateContent/.test(c.url)),
+    'image calls must keep their own endpoint — the text model powers every tool');
+  assert.equal(fetchImpl.calls.length, 1, 'a successful image must not be retried');
+});
+
+test('generateImage requires a key and a prompt', async () => {
+  const noKey = loadApi({ fetchImpl: fakeFetch([imageReply()]) });
+  await assert.rejects(() => noKey.generateImage({ prompt: 'x' }), /set your Gemini API key first/i);
+
+  const api = loadApi({ fetchImpl: fakeFetch([imageReply()]), storedKeys: { gemini_api_key: 'K' } });
+  await assert.rejects(() => api.generateImage({ prompt: '   ' }), /no image prompt/i);
+  assert.equal((api.generateImage ? 1 : 0), 1, 'generateImage must be exported');
+});
+
+test('generateImage falls back to the backup key on quota errors', async () => {
+  const fetchImpl = fakeFetch([
+    apiError(429, 'quota exceeded'),
+    apiError(429, 'quota exceeded'),
+    apiError(429, 'quota exceeded'),
+    imageReply('BACKUP')
+  ]);
+  const api = loadApi({
+    fetchImpl,
+    storedKeys: { gemini_api_key: 'PRIMARY', gemini_api_key_2: 'BACKUP_KEY' }
+  });
+
+  const img = await api.generateImage({ prompt: 'x' });
+  assert.equal(img.dataUri, 'data:image/png;base64,BACKUP');
+  const keys = fetchImpl.calls.map((c) => c.headers['x-goog-api-key']);
+  assert.ok(keys.slice(0, 3).every((k) => k === 'PRIMARY'), 'primary tried first (initial + 2 retries)');
+  assert.equal(keys[3], 'BACKUP_KEY', 'the backup key serves the fallback call');
+});
+
+test('generateImage reports a response that carries no image', async () => {
+  const api = loadApi({
+    fetchImpl: fakeFetch([reply(200, { interaction: {} })]),
+    storedKeys: { gemini_api_key: 'K' }
+  });
+  await assert.rejects(() => api.generateImage({ prompt: 'x' }), /returned no image/i);
+});
+
+test('generateImage reads snake_case responses too', async () => {
+  const api = loadApi({
+    fetchImpl: fakeFetch([reply(200, { interaction: { output_image: { mime_type: 'image/jpeg', data: 'Zm9v' } } })]),
+    storedKeys: { gemini_api_key: 'K' }
+  });
+  const img = await api.generateImage({ prompt: 'x' });
+  assert.equal(img.dataUri, 'data:image/jpeg;base64,Zm9v');
 });

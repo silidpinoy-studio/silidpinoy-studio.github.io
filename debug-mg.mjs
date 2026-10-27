@@ -11,7 +11,8 @@ try { browser = await pw.chromium.launch({ channel: 'chrome', headless: true });
 catch { browser = await pw.chromium.launch({ headless: true }); }
 
 const page = await browser.newPage();
-page.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE-ERR:', m.text().slice(0, 200)); });
+page.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE-ERR:', m.text().slice(0, 300)); });
+page.on('pageerror', (e) => console.log('PAGE-ERROR:', String(e).slice(0, 400)));
 await page.goto(server.url + 'lesson.html', { waitUntil: 'load', timeout: 45000 });
 await page.waitForTimeout(3200);
 
@@ -38,8 +39,6 @@ await page.fill('#learningArea', 'Math');
 await page.selectOption('#gradeLevelSel', 'Grade 1');
 await page.fill('#sectionInput', 'Mabini');
 await page.locator('.competency-input').first().fill('Count objects one to ten.');
-await page.fill('#multigradeTeacherName', 'Juan Dela Cruz');
-await page.fill('#multigradeSection', 'SAMPAGUITA');
 await page.fill('#multigradeTime', 'MONDAY-TUESDAY 8:00 AM - 10:00 AM');
 await page.locator('.mg-level').nth(0).fill('Kindergarten');
 await page.locator('.mg-competency').nth(0).fill('Count objects one to ten.');

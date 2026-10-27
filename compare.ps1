@@ -1,6 +1,6 @@
 $root = 'C:\Users\Administrator\Desktop\SilidPinoy_Studio'
 $pub = 'C:\Users\Administrator\Desktop\SilidPinoy_Studio\publish'
-$files = @('index.html','lesson.html','activity.html','powerpoint.html','tos.html','shared-api.js','shared-keys.js','shared-backup.js','shared-validate.js','shared-docs.js','shared-docs-ui.js','shared-file-utils.js','shared-toast.js','deped-options.js','favicon.svg','apple-touch-icon.png')
+$files = @('index.html','lesson.html','activity.html','powerpoint.html','tos.html','shared-api.js','shared-keys.js','shared-backup.js','shared-validate.js','shared-docs.js','shared-docs-ui.js','shared-file-utils.js','shared-toast.js','deped-options.js','silid pinoy logo.jpg','apple-touch-icon.png')
 foreach ($f in $files) {
     $r = Join-Path $root $f
     $p = Join-Path $pub $f

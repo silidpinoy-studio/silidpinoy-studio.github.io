@@ -3071,3 +3071,307 @@ test('the Item Analysis bands a wide report into readable grids', { timeout: LON
     await context.close();
   }
 });
+
+/* ===============================================================
+   27. the Item Analysis never reads the subject as a competency
+   =============================================================== */
+
+test('the Item Analysis never reads the subject as a competency', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-subject-tos.txt');
+  try {
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    const start = page.getByRole('button', { name: 'Get Started' });
+    if (!(await start.count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+    await start.click();
+
+    // A ToS table row that repeats the SUBJECT cell — longer than the
+    // competency text, which used to make "longest text wins" hand back the
+    // subject name as if it were the competency.
+    fs.writeFileSync(tosPath, [
+      'Subject | Grade | Learning Area / Competency | Test Item No. | Weight',
+      'MEDIA INFORMATION LITERACY | 12 | Cites sources | 1-3 | 15',
+      'MEDIA INFORMATION LITERACY | 12 | Grades sources | 4-6 | 15',
+      ''
+    ].join('\n'));
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.waitForTimeout(300);
+
+    const ITEMS = 6;
+    await page.locator('input[type="number"][max="200"]').fill(String(ITEMS));
+    await page.waitForTimeout(150);
+    await page.locator('#fill-all-score').fill('4');
+    await page.getByRole('button', { name: 'Fill All' }).click();
+    await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
+    await page.locator('input[type="number"][min="1"]:not([max])').fill('50');
+    await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+
+    // every item mapped locally (no API key) and the subject is not among them
+    const review = await page.evaluate(() => Array.from(
+      document.querySelectorAll('input[id^="review-comp-"]')).map(i => i.value));
+    assert.equal(review.length, ITEMS, 'every item must be mapped from the ToS');
+    assert.match(await page.locator('body').innerText(), /6 of 6 items matched/,
+      'the ToS must be fully read without the AI');
+    assert.ok(review.some(v => v === 'Cites sources') && review.some(v => v === 'Grades sources'),
+      'the real competencies must come through — got ' + JSON.stringify(review));
+    assert.ok(!review.some(v => /media information literacy/i.test(v)),
+      'the subject name must never appear as a competency — got ' + JSON.stringify(review));
+
+    await page.getByRole('button', { name: 'Generate Report' }).click();
+    await page.getByRole('heading', { name: 'Analysis Report' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(300);
+
+    // Annex 3: the subject stays in the Learning Area column only — the
+    // Least Mastered Competencies column must hold real competencies.
+    const lmcCells = await page.evaluate(() => {
+      const root = document.querySelector('[data-annex-preview="annex3"]');
+      const table = root && Array.from(root.querySelectorAll('table'))
+        .find(t => /Least Mastered Competencies/.test(t.textContent));
+      if (!table) return [];
+      const rows = Array.from(table.querySelectorAll('tr'));
+      let col = -1;
+      for (const r of rows) {
+        const cells = Array.from(r.children);
+        const i = cells.findIndex(c => /Least Mastered Competencies/.test(c.textContent));
+        if (i >= 0) { col = i; break; }
+      }
+      if (col < 0) return [];
+      return rows.map(r => ((r.children[col] || {}).textContent || '').trim()).filter(Boolean);
+    });
+    assert.ok(lmcCells.length > 1, 'Annex 3 must list the low competencies');
+    assert.ok(lmcCells.some(v => /Cites sources|Grades sources/.test(v)),
+      'Annex 3 must list the real low competencies — got ' + JSON.stringify(lmcCells));
+    assert.ok(!lmcCells.some(v => /media information literacy/i.test(v)),
+      'the subject must never print in the Least Mastered Competencies column — got ' +
+      JSON.stringify(lmcCells));
+
+    assert.deepEqual(errors, [], 'the ToS upload must not raise page errors');
+  } finally {
+    await context.close();
+    fs.rmSync(tosPath, { force: true });
+  }
+});
+
+/* ===============================================================
+   28. the PPT Maker images ONLY the title and discussion slides
+   =============================================================== */
+
+test('the PPT Maker images only the title and discussion slides', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('powerpoint.html', {
+    initScript: () => {
+      try { sessionStorage.setItem('gemini_api_key', 'TEST_KEY'); } catch { /* storage unavailable */ }
+      window.print = function () { window.__printed = (window.__printed || 0) + 1; };
+    }
+  });
+  try {
+    if (!(await page.locator('#topic-input').count())) {
+      t.skip('powerpoint.html did not render its input panel (CDN unavailable?)');
+      return;
+    }
+
+    const DECK = JSON.stringify([
+      { title: 'The Water Cycle', section: 'Title', content: ['Water moves around'], notes: 'Welcome', visualIdea: 'None' },
+      { title: 'Objectives', section: 'Objectives', content: ['Identify the stages'], notes: 'n', visualIdea: 'None' },
+      { title: 'Evaporation in depth', section: 'Discussion', content: ['The sun heats water'], notes: 'n', visualIdea: 'a bright sun heating a pond' },
+      { title: 'Condensation in depth', section: 'Discussion', content: ['Vapour cools'], notes: 'n', visualIdea: 'clouds forming over mountains' },
+      { title: 'Wrap up', section: 'Wrap-up', content: ['Recap the cycle'], notes: 'n', visualIdea: 'None' }
+    ]);
+
+    let imageCalls = 0;
+    // routes match in reverse registration order: the specific image endpoint
+    // is registered last so it wins over the generic text-model route
+    await page.route('**/generativelanguage.googleapis.com/**', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ candidates: [{ content: { parts: [{ text: DECK }] } }] })
+    }));
+    await page.route('**/generativelanguage.googleapis.com/v1beta/interactions**', (route) => {
+      imageCalls++;
+      route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ interaction: { outputImage: { mimeType: 'image/png', data: 'QUJDREU=' } } })
+      });
+    });
+
+    await page.locator('#topic-input').fill('The Water Cycle');
+    await page.locator('#topic-paste').fill('Water moves between the sea, the sky and the land in a continuous cycle driven by the sun.');
+    await page.locator('#btn-topic-generate').click();
+    await page.waitForFunction(
+      () => (document.getElementById('slide-total') || {}).textContent === '5',
+      null, { timeout: NAV_TIMEOUT }
+    );
+
+    // the deck renders first; the image pass finishes afterwards
+    await page.waitForFunction(() => {
+      const el = document.getElementById('ai-img-status');
+      return !el || el.classList.contains('hidden');
+    }, null, { timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(200);
+
+    assert.equal(imageCalls, 3,
+      'only the title slide and the two discussion slides may call the image model — got ' + imageCalls);
+
+    const dataImages = () => page.evaluate(
+      () => document.querySelectorAll('#slide-body img[src^="data:image/"]').length);
+    assert.equal(await dataImages(), 1, 'the title slide must show its generated image');
+
+    // slide 2 (Objectives) is neither title nor discussion — no image
+    await page.locator('#btn-next').click();
+    await page.waitForTimeout(200);
+    assert.equal(await dataImages(), 0, 'a non-discussion slide must stay image-free');
+
+    // slide 3 is a discussion slide — image present
+    await page.locator('#btn-next').click();
+    await page.waitForTimeout(200);
+    assert.equal(await dataImages(), 1, 'a discussion slide must show its generated image');
+
+    // the printed handout carries exactly those three images too
+    await page.locator('#btn-print-deck').click();
+    assert.equal(await page.evaluate(() => window.__printed || 0), 1, 'Print must open the dialog');
+    const handoutImgs = await page.evaluate(
+      () => document.querySelectorAll('#print-handout img[src^="data:image/"]').length);
+    assert.equal(handoutImgs, 3, 'the handout must carry exactly the three generated images');
+
+    // the .pptx export builds without throwing
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      page.locator('#btn-download').click()
+    ]);
+    const pptxPath = await dl.path();
+    assert.ok(fs.statSync(pptxPath).size > 1000, 'the .pptx must be a real file');
+
+    // generated images are session-only — localStorage must stay lean
+    const saved = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem('saved_ppt_output')); } catch { return null; }
+    });
+    if (saved && Array.isArray(saved.slides)) {
+      assert.ok(saved.slides.every((s) => !('aiImage' in s)),
+        'base64 images must never be written to localStorage');
+    }
+
+    assert.deepEqual(errors, [], 'the image pass must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
+   29. the lesson (DLL) deck images its title and discussion slides
+   =============================================================== */
+
+test('the lesson deck images its title and discussion slides', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('powerpoint.html', {
+    initScript: () => {
+      try { sessionStorage.setItem('gemini_api_key', 'TEST_KEY'); } catch { /* storage unavailable */ }
+    }
+  });
+  try {
+    if (!(await page.locator('#topic-input').count())) {
+      t.skip('powerpoint.html did not render its input panel (CDN unavailable?)');
+      return;
+    }
+
+    const DECK = JSON.stringify({
+      presentationTitle: 'The Water Cycle',
+      slides: [
+        { layout: 'title', section: 'Title', title: 'The Water Cycle', content: ['Grade 5 Science'], speakerNotes: 'Welcome', suggestedVisual: 'None', youtubeVideo: '' },
+        { layout: 'content_bullets', section: 'Objectives', title: 'Objectives', content: ['Identify the stages'], speakerNotes: 'n', suggestedVisual: 'None', youtubeVideo: '' },
+        { layout: 'content_bullets', section: 'Discussion', title: 'Evaporation in depth', content: ['The sun heats water'], speakerNotes: 'n', suggestedVisual: 'a bright sun heating a pond', youtubeVideo: '' },
+        { layout: 'content_bullets', section: 'Discussion', title: 'Condensation in depth', content: ['Vapour cools'], speakerNotes: 'n', suggestedVisual: 'clouds forming over mountains', youtubeVideo: '' },
+        { layout: 'infographic_cards', section: 'Discussion', title: 'The three stages', content: ['Evaporation', 'Condensation', 'Precipitation'], speakerNotes: 'n', suggestedVisual: 'the three stages of the cycle', youtubeVideo: '' },
+        { layout: 'content_bullets', section: 'Activities', title: 'Guided practice', content: ['Draw the cycle'], speakerNotes: 'n', suggestedVisual: 'None', youtubeVideo: '' }
+      ]
+    });
+
+    let imageCalls = 0;
+    await page.route('**/generativelanguage.googleapis.com/**', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ candidates: [{ content: { parts: [{ text: DECK }] } }] })
+    }));
+    await page.route('**/generativelanguage.googleapis.com/v1beta/interactions**', (route) => {
+      imageCalls++;
+      route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ interaction: { outputImage: { mimeType: 'image/png', data: 'QUJDREU=' } } })
+      });
+    });
+
+    await page.locator('button[data-mode="dll"]').click();
+    await page.locator('[data-dllsrc="manual"]').click();
+    await page.locator('#dll-subject').fill('Science');
+    await page.locator('#dll-grade').fill('Grade 5');
+    await page.locator('#dll-competency').fill('The Water Cycle');
+    await page.locator('#dll-manual-text').fill('Water evaporates, condenses and precipitates in a continuous cycle driven by the sun.');
+    await page.locator('#btn-dll-generate').click();
+    await page.waitForFunction(
+      () => (document.getElementById('slide-total') || {}).textContent === '6',
+      null, { timeout: NAV_TIMEOUT }
+    );
+    await page.waitForFunction(() => {
+      const el = document.getElementById('ai-img-status');
+      return !el || el.classList.contains('hidden');
+    }, null, { timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(200);
+
+    assert.equal(imageCalls, 4,
+      'only the title + 3 discussion slides may call the image model — got ' + imageCalls);
+
+    const dataImages = () => page.evaluate(
+      () => document.querySelectorAll('#slide-body img[src^="data:image/"]').length);
+    assert.equal(await dataImages(), 1, 'the lesson title slide must show its image');
+
+    await page.locator('#btn-next').click();
+    await page.waitForTimeout(200);
+    assert.equal(await dataImages(), 0, 'the Objectives slide must stay image-free');
+
+    await page.locator('#btn-next').click();
+    await page.waitForTimeout(200);
+    assert.equal(await dataImages(), 1,
+      'a discussion slide must show its image (plain bullets gain a visual column)');
+
+    // slide 5: an infographic discussion slide gets a CORNER thumbnail
+    await page.locator('#btn-next').click();   // → Condensation (discussion)
+    await page.locator('#btn-next').click();   // → The three stages (infographic discussion)
+    await page.waitForTimeout(300);
+    const corner = await page.evaluate(() => {
+      const img = document.querySelector('#slide-body img[src^="data:image/"]');
+      if (!img) return null;
+      const st = img.style;
+      return { pos: st.position, right: st.right, bottom: st.bottom, w: st.width };
+    });
+    assert.ok(corner, 'the infographic discussion slide must show its generated image');
+    assert.equal(corner.pos, 'absolute', 'the image must sit in the corner, not in the card flow');
+    assert.ok(corner.right && corner.bottom, 'the image must be anchored to the bottom-right corner');
+
+    // the .pptx must build with the corner art without throwing
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      page.locator('#btn-download').click()
+    ]);
+    assert.ok(fs.statSync(await dl.path()).size > 1000,
+      'the lesson .pptx must export with its corner art');
+
+    // DLL saves its state — base64 images must not ride along
+    const saved = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem('saved_ppt_output')); } catch { return null; }
+    });
+    assert.ok(saved && Array.isArray(saved.slides) && saved.slides.length === 6,
+      'the lesson deck must be saved for restore');
+    assert.ok(saved.slides.every((s) => !('aiImage' in s)),
+      'base64 images must never be written to localStorage');
+
+    assert.deepEqual(errors, [], 'the lesson image pass must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});

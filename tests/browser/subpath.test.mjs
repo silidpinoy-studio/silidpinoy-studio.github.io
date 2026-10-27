@@ -147,10 +147,13 @@ test('the publish folder carries no dev clutter', () => {
   assert.ok(published.includes('.nojekyll'), 'publish/.nojekyll is required for GitHub Pages');
 
   // nothing may be published that the manifest does not account for.
+  // A manifest entry may live in a sub-directory (assets/…), so a top-level
+  // name is accounted for when it is an entry itself or holds entries.
   // `.git` stays: PUBLISH.md tells the teacher to push this very folder to
   // GitHub Pages, so the deployment repo lives here between pushes.
+  const allowed = ['PUBLISH.md', 'README.md', '.nojekyll', '.git'].concat(PAYLOAD);
   const unexpected = published.filter((name) =>
-    !PAYLOAD.includes(name) && !['PUBLISH.md', 'README.md', '.nojekyll', '.git'].includes(name)
+    !allowed.includes(name) && !PAYLOAD.some((file) => file.startsWith(name + '/'))
   );
   assert.deepEqual(unexpected, [], 'publish/ holds files the manifest does not list');
 });
