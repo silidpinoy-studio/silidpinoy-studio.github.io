@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-12 Weekly Lesson Planner & Assessment Generator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc;
+        }
+        .dll-table th, .dll-table td, 
+        .dll-header-info-table th, .dll-header-info-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            vertical-align: top;
+            text-align: left;
+        }
+        .dll-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        .dll-table {
+            width: 100%;
+            table-layout: fixed;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        textarea {
+            resize: vertical;
+        }
+        .test-type-card {
+            transition: all 0.2s ease;
+        }
+        .test-type-card:hover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-2xl p-6 md:p-10">
+        
+        <h1 class="text-3xl font-extrabold text-blue-700 mb-2">K-12 Weekly Lesson Planner & Assessment Generator</h1>
+        <p class="text-gray-600 mb-6">Gumawa ng professional na Daily Lesson Logs at classroom assessments nang mabilisan gamit ang AI.</p>
+
+        <!-- Main Input Form -->
+        <div id="mainContent">
+            <!-- 1. Basic Info & Duration -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div>
+                    <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <input type="text" id="subject" value="English" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="grade" class="block text-sm font-medium text-gray-700 mb-1">Grade Level</label>
+                    <input type="text" id="grade" value="Grade 6" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="duration" class="block text-sm font-medium text-gray-700 mb-1">Plan Duration</label>
+                    <select id="duration" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500">
+                        <option value="3">3 Days (Mon-Wed)</option>
+                        <option value="4">4 Days (Mon-Thu)</option>
+                        <option value="5" selected>5 Days (Mon-Fri)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="quarter" class="block text-sm font-medium text-gray-700 mb-1">Quarter</label>
+                    <input type="text" id="quarter" value="1st Quarter" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500">
+                </div>
+            </div>
+
+            <!-- 2. Detailed Teacher & Admin Info -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                    <label for="school" class="block text-sm font-medium text-gray-700 mb-1">School Name</label>
+                    <input type="text" id="school" value="Sample Central Elementary School" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="teacherName" class="block text-sm font-medium text-gray-700 mb-1">Teacher Name</label>
+                    <input type="text" id="teacherName" value="Reymond P. Samoranos" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="position" class="block text-sm font-medium text-gray-700 mb-1">Teacher Position</label>
+                    <input type="text" id="position" value="Teacher III" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="teachingTime" class="block text-sm font-medium text-gray-700 mb-1">Teaching Date & Time</label>
+                    <input type="text" id="teachingTime" value="January 5-9, 2026 | 8:30 AM - 9:30 AM" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="checkerName" class="block text-sm font-medium text-gray-700 mb-1">Checked By (Name)</label>
+                    <input type="text" id="checkerName" value="Juan D. Cruz" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="checkerPosition" class="block text-sm font-medium text-gray-700 mb-1">Checker Position</label>
+                    <input type="text" id="checkerPosition" value="Master Teacher II" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="noterName" class="block text-sm font-medium text-gray-700 mb-1">Noted By (Name)</label>
+                    <input type="text" id="noterName" value="Maria S. Santos" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="noterPosition" class="block text-sm font-medium text-gray-700 mb-1">Noter Position</label>
+                    <input type="text" id="noterPosition" value="Principal IV" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="topic" class="block text-sm font-medium text-gray-700 mb-1">Unit/Weekly Topic</label>
+                    <input type="text" id="topic" value="Subject-Verb Agreement" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+            </div>
+            
+            <div class="space-y-4 mb-8 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <h3 class="text-lg font-semibold text-gray-800">Learning Standards</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="contentStandard" class="block text-sm font-medium text-gray-700 mb-1">A. Content Standard</label>
+                        <textarea id="contentStandard" rows="2" class="w-full p-2 border border-gray-300 rounded-md text-sm">The learner demonstrates understanding of the various forms and conventions of materials viewed to guide their own compositions.</textarea>
+                    </div>
+                    <div>
+                        <label for="performanceStandard" class="block text-sm font-medium text-gray-700 mb-1">B. Performance Standard</label>
+                        <textarea id="performanceStandard" rows="2" class="w-full p-2 border border-gray-300 rounded-md text-sm">The learner applies knowledge of the various forms and conventions of materials viewed to guide their own compositions.</textarea>
+                    </div>
+                </div>
+                <div>
+                    <label for="learningCompetencyCode" class="block text-sm font-medium text-gray-700 mb-1">C. Learning Competency (Complete Text)</label>
+                    <textarea id="learningCompetencyCode" rows="2" class="w-full p-2 border border-gray-300 rounded-md text-sm">EN6G-Ia-2.3.1: Compose clear and coherent sentences using appropriate grammatical structures: Subject-Verb Agreement</textarea>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-4">
+                <button id="generateBtn" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition flex items-center">
+                    <span id="btnText">Generate Lesson Log</span>
+                    <div id="loadingIndicator" class="spinner ml-3 hidden"></div>
+                </button>
+                <button id="downloadBtn" class="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition hidden" onclick="downloadDoc()">
+                    Download DLL (.doc)
+                </button>
+            </div>
+
+            <div id="messageBox" class="mt-6 p-4 rounded-lg hidden" role="alert"></div>
+            
+            <!-- Outputs -->
+            <div id="lessonPlanOutput" class="mt-10 table-wrapper hidden"></div>
+
+            <!-- Test Generation Feature -->
+            <div id="testConfigSection" class="mt-8 p-6 bg-purple-50 rounded-xl border border-purple-200 hidden">
+                <h2 class="text-2xl font-bold text-purple-800 mb-4">Assessment Generator (Pagsusulit)</h2>
+                <p class="text-gray-600 mb-6">Pumili ng mga uri ng pagsusulit at bilang ng items na nais mong i-generate base sa iyong Lesson Plan.</p>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Multiple Choice">
+                            <span class="text-sm font-medium">Multiple Choice</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Tama o Mali">
+                            <span class="text-sm font-medium">Tama o Mali</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Pagtutugma (Matching Type)">
+                            <span class="text-sm font-medium">Pagtutugma</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Punan ang Patlang">
+                            <span class="text-sm font-medium">Punan ang Patlang</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Pagkilala (Identification)">
+                            <span class="text-sm font-medium">Pagkilala</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Enumerasyon">
+                            <span class="text-sm font-medium">Enumerasyon</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Maikling Sagot">
+                            <span class="text-sm font-medium">Maikling Sagot</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="3" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Sanaysay">
+                            <span class="text-sm font-medium">Sanaysay</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="1" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Pagwawasto ng Pangungusap">
+                            <span class="text-sm font-medium">Pagwawasto ng Pangungusap</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                    <div class="test-type-card bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="test-checkbox w-4 h-4 text-purple-600" data-type="Pag-aayos / Pagkakasunod-sunod">
+                            <span class="text-sm font-medium">Pag-aayos</span>
+                        </label>
+                        <input type="number" class="test-count w-12 p-1 border rounded text-center text-sm" value="5" min="1">
+                    </div>
+                </div>
+
+                <div class="flex gap-4">
+                    <button id="generateTestBtn" class="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 transition flex items-center">
+                        <span id="testBtnText">Generate Test Paper</span>
+                        <div id="testLoadingIndicator" class="spinner ml-3 hidden"></div>
+                    </button>
+                    <button id="downloadTestBtn" class="px-6 py-3 bg-pink-600 text-white font-semibold rounded-lg shadow-md hover:bg-pink-700 transition hidden" onclick="downloadTest()">
+                        Download Test (.doc)
+                    </button>
+                </div>
+
+                <!-- Test Preview -->
+                <div id="testOutput" class="mt-8 p-8 border border-gray-300 rounded-lg bg-white hidden shadow-inner whitespace-pre-wrap font-serif text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const apiKey = "";
+        const modelName = "gemini-2.5-flash-preview-09-2025";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+        let currentLessonLog = "";
+
+        const generateBtn = document.getElementById('generateBtn');
+        const generateTestBtn = document.getElementById('generateTestBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const downloadTestBtn = document.getElementById('downloadTestBtn');
+        const testConfigSection = document.getElementById('testConfigSection');
+        const lessonPlanOutput = document.getElementById('lessonPlanOutput');
+        const testOutput = document.getElementById('testOutput');
+        const messageBox = document.getElementById('messageBox');
+
+        function showMessage(message, type = 'error') {
+            messageBox.textContent = message;
+            messageBox.className = 'mt-6 p-4 rounded-lg ' + (type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+            messageBox.style.display = 'block';
+            setTimeout(() => messageBox.style.display = 'none', 10000);
+        }
+
+        async function callGemini(payload) {
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        return result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    }
+
+                    if (response.status === 429 || response.status >= 500) {
+                        await new Promise(r => setTimeout(r, delay));
+                        delay *= 2;
+                        continue;
+                    }
+
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || "API call failed");
+                } catch (e) {
+                    if (i === 4) throw e;
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        async function generateDLL() {
+            lessonPlanOutput.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            testConfigSection.classList.add('hidden');
+            testOutput.classList.add('hidden');
+            generateBtn.disabled = true;
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('btnText').textContent = "Generating DLL...";
+            
+            const config = {
+                subject: document.getElementById('subject').value,
+                grade: document.getElementById('grade').value,
+                duration: document.getElementById('duration').value,
+                topic: document.getElementById('topic').value,
+                cs: document.getElementById('contentStandard').value,
+                ps: document.getElementById('performanceStandard').value,
+                lc: document.getElementById('learningCompetencyCode').value
+            };
+
+            const systemPrompt = "You are a professional curriculum developer for the Philippine Department of Education. Generate structured Daily Lesson Logs in JSON format based on specific standards.";
+            const userPrompt = `Generate a ${config.duration}-day DepEd DLL for ${config.subject} ${config.grade}. 
+                Weekly Topic: ${config.topic || 'Suggest a comprehensive topic'}.
+                Content Standard: ${config.cs}.
+                Performance Standard: ${config.ps}.
+                Learning Competency: ${config.lc}.
+                IMPORTANT: Ensure the 'C_LearningCompetencyCode' field contains the COMPLETE text provided.`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            DailyLessons: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        Day: { type: "STRING" },
+                                        A_ContentStandard: { type: "STRING" },
+                                        B_PerformanceStandard: { type: "STRING" },
+                                        C_LearningCompetencyCode: { type: "STRING" },
+                                        D_LearningObjectives: { type: "STRING" },
+                                        II_Content: { type: "STRING" },
+                                        III_LearningResources: { type: "OBJECT", properties: { References: { type: "STRING" }, OtherResources: { type: "STRING" } } },
+                                        III_Procedures: { type: "OBJECT", properties: { A_Review: { type: "STRING" }, B_Purpose: { type: "STRING" }, C_Examples: { type: "STRING" }, D_Concepts1: { type: "STRING" }, E_Concepts2: { type: "STRING" }, F_Mastery: { type: "STRING" }, G_Application: { type: "STRING" }, H_Generalization: { type: "STRING" }, I_Evaluation: { type: "STRING" }, J_Remediation: { type: "STRING" } } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            try {
+                const text = await callGemini(payload);
+                const data = JSON.parse(text);
+                currentLessonLog = text;
+                
+                renderDLLTable(data);
+                downloadBtn.classList.remove('hidden');
+                testConfigSection.classList.remove('hidden');
+                showMessage("Lesson Log generated! Assessment options available below.", "success");
+            } catch (err) {
+                showMessage(err.message);
+            } finally {
+                generateBtn.disabled = false;
+                document.getElementById('loadingIndicator').classList.add('hidden');
+                document.getElementById('btnText').textContent = "Generate Lesson Log";
+            }
+        }
+
+        async function generateTest() {
+            const selectedTypes = Array.from(document.querySelectorAll('.test-checkbox:checked')).map(cb => {
+                const count = cb.closest('.test-type-card').querySelector('.test-count').value;
+                return { type: cb.dataset.type, count: count };
+            });
+
+            if (selectedTypes.length === 0) {
+                showMessage("Pumili ng kahit isang uri ng pagsusulit.");
+                return;
+            }
+
+            testOutput.classList.add('hidden');
+            downloadTestBtn.classList.add('hidden');
+            generateTestBtn.disabled = true;
+            document.getElementById('testLoadingIndicator').classList.remove('hidden');
+            document.getElementById('testBtnText').textContent = "Bumubuo ng Pagsusulit...";
+
+            const userPrompt = `Base sa sumusunod na Lesson Log content:
+                "${currentLessonLog}"
+                
+                Gumawa ng isang pagsusulit (Test Paper) na may mga sumusunod na bahagi:
+                ${selectedTypes.map(t => `- ${t.count} items para sa ${t.type}`).join('\n')}
+                
+                Format ng output:
+                1. Pangalan ng Paaralan: ${document.getElementById('school').value}
+                2. Subject: ${document.getElementById('subject').value}
+                3. Grade: ${document.getElementById('grade').value}
+                4. Quarter: ${document.getElementById('quarter').value}
+                5. Malinaw na panuto (instructions) para sa bawat bahagi.
+                6. Lagyan ng "Answer Key" sa pinakahuling bahagi ng papel.
+                
+                Output ONLY the plain text content of the test paper.`;
+
+            try {
+                const text = await callGemini({ contents: [{ parts: [{ text: userPrompt }] }] });
+                testOutput.textContent = text;
+                testOutput.classList.remove('hidden');
+                downloadTestBtn.classList.remove('hidden');
+                showMessage("Pagsusulit nabuo na!", "success");
+            } catch (err) {
+                showMessage(err.message);
+            } finally {
+                generateTestBtn.disabled = false;
+                document.getElementById('testLoadingIndicator').classList.add('hidden');
+                document.getElementById('testBtnText').textContent = "Generate Test Paper";
+            }
+        }
+
+        function renderDLLTable(data) {
+            const lessons = data.DailyLessons;
+            const daysCount = lessons.length;
+            const days = lessons.map(l => l.Day);
+
+            const info = {
+                school: document.getElementById('school').value,
+                teacher: document.getElementById('teacherName').value,
+                pos: document.getElementById('position').value,
+                grade: document.getElementById('grade').value,
+                subject: document.getElementById('subject').value,
+                time: document.getElementById('teachingTime').value,
+                quarter: document.getElementById('quarter').value,
+                checker: document.getElementById('checkerName').value,
+                checkerPos: document.getElementById('checkerPosition').value,
+                noter: document.getElementById('noterName').value,
+                noterPos: document.getElementById('noterPosition').value
+            };
+
+            let html = `
+                <table class="dll-header-info-table" style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10pt; table-layout: fixed; border: 1pt solid #000;">
+                    <tbody>
+                        <tr>
+                            <td rowspan="4" style="width: 15%; border: 1pt solid #000; padding: 8px; font-weight: bold; background-color: #f3f4f6; text-align: center;">
+                                DAILY LESSON LOG (DLL)
+                            </td>
+                            <td style="width: 15%; border: 1pt solid #000; padding: 4px; font-weight: bold; background-color: #f3f4f6;">School</td>
+                            <td style="width: 35%; border: 1pt solid #000; padding: 4px;">${info.school}</td>
+                            <td style="width: 15%; border: 1pt solid #000; padding: 4px; font-weight: bold; background-color: #f3f4f6;">Grade Level</td>
+                            <td style="width: 20%; border: 1pt solid #000; padding: 4px;">${info.grade}</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1pt solid #000; padding: 4px; font-weight: bold; background-color: #f3f4f6;">Teacher</td>
+                            <td style="border: 1pt solid #000; padding: 4px;">${info.teacher} (${info.pos})</td>
+                            <td style="border: 1pt solid #000; padding: 4px; font-weight: bold; background-color: #f3f4f6;">Subject</td>
+                            <td style="border: 1pt solid #000; padding: 4px;">${info.subject}</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1pt solid #000; padding: 4px; font-weight: bold; background-color: #f3f4f6;">Date & Time</td>
+                            <td style="border: 1pt solid #000; padding: 4px;">${info.time}</td>
+                            <td style="border: 1pt solid #000; padding: 4px; font-weight: bold; background-color: #f3f4f6;">Quarter</td>
+                            <td style="border: 1pt solid #000; padding: 4px;">${info.quarter}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table class="dll-table" style="border: 1pt solid #000; border-collapse: collapse; width: 100%; font-size: 9pt;">
+                    <tbody>
+                        <tr style="background-color: #f3f4f6;">
+                            <th style="width: 15%; border: 1pt solid #000; padding: 4px;">OBJECTIVES</th>
+                            ${days.map(d => `<th style="border: 1pt solid #000; padding: 4px; text-align: center;">${d}</th>`).join('')}
+                        </tr>
+                        ${renderMergedRow("A. Content Standard", "A_ContentStandard", lessons, daysCount)}
+                        ${renderMergedRow("B. Performance Standard", "B_PerformanceStandard", lessons, daysCount)}
+                        ${renderMergedRow("C. Learning Competency", "C_LearningCompetencyCode", lessons, daysCount)}
+                        ${renderDLLRow("D. Objectives", "D_LearningObjectives", lessons)}
+                        <tr style="background-color: #f3f4f6;"><td colspan="${daysCount + 1}" style="border: 1pt solid #000; padding: 4px; font-weight: bold;">II. CONTENT</td></tr>
+                        ${renderDLLRow("Topic", "II_Content", lessons)}
+                        <tr style="background-color: #f3f4f6;"><td colspan="${daysCount + 1}" style="border: 1pt solid #000; padding: 4px; font-weight: bold;">III. RESOURCES</td></tr>
+                        ${renderDLLRow("References", "III_LearningResources.References", lessons)}
+                        ${renderDLLRow("Other Resources", "III_LearningResources.OtherResources", lessons)}
+                        <tr style="background-color: #f3f4f6;"><td colspan="${daysCount + 1}" style="border: 1pt solid #000; padding: 4px; font-weight: bold;">IV. PROCEDURES</td></tr>
+                        ${renderDLLRow("A. Review", "III_Procedures.A_Review", lessons)}
+                        ${renderDLLRow("B. Purpose", "III_Procedures.B_Purpose", lessons)}
+                        ${renderDLLRow("C. Examples", "III_Procedures.C_Examples", lessons)}
+                        ${renderDLLRow("D. Discussion 1", "III_Procedures.D_Concepts1", lessons)}
+                        ${renderDLLRow("E. Discussion 2", "III_Procedures.E_Concepts2", lessons)}
+                        ${renderDLLRow("F. Mastery", "III_Procedures.F_Mastery", lessons)}
+                        ${renderDLLRow("G. Application", "III_Procedures.G_Application", lessons)}
+                        ${renderDLLRow("H. Abstraction", "III_Procedures.H_Generalization", lessons)}
+                        ${renderDLLRow("I. Evaluation", "III_Procedures.I_Evaluation", lessons)}
+                        ${renderDLLRow("J. Assignment", "III_Procedures.J_Remediation", lessons)}
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 30px; display: flex; justify-content: space-between; font-size: 10pt;">
+                    <div style="width: 30%;">
+                        <p>Prepared by:</p><br><p><strong>${info.teacher.toUpperCase()}</strong></p><p>${info.pos}</p>
+                    </div>
+                    <div style="width: 30%;">
+                        <p>Checked by:</p><br><p><strong>${info.checker.toUpperCase()}</strong></p><p>${info.checkerPos}</p>
+                    </div>
+                    <div style="width: 30%;">
+                        <p>Noted by:</p><br><p><strong>${info.noter.toUpperCase()}</strong></p><p>${info.noterPos}</p>
+                    </div>
+                </div>
+            `;
+            lessonPlanOutput.innerHTML = html;
+            lessonPlanOutput.classList.remove('hidden');
+        }
+
+        function renderMergedRow(title, path, lessons, colSpan) {
+            let parts = path.split('.');
+            let val = parts.reduce((obj, key) => obj && obj[key], lessons[0]);
+            return `<tr>
+                <td style="border: 1pt solid #000; padding: 4px; font-weight: bold;">${title}</td>
+                <td colspan="${colSpan}" style="border: 1pt solid #000; padding: 4px;">${val || ''}</td>
+            </tr>`;
+        }
+
+        function renderDLLRow(title, path, lessons) {
+            let cells = lessons.map(lesson => {
+                let parts = path.split('.');
+                let val = parts.reduce((obj, key) => obj && obj[key], lesson);
+                return `<td style="border: 1pt solid #000; padding: 4px;">${val || ''}</td>`;
+            }).join('');
+            return `<tr><td style="border: 1pt solid #000; padding: 4px; font-weight: bold;">${title}</td>${cells}</tr>`;
+        }
+
+        window.downloadDoc = function() {
+            const html = lessonPlanOutput.innerHTML;
+            const blob = new Blob([`
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><style>
+                    @page Section1 { size: 297mm 210mm; mso-page-orientation: landscape; margin: 1cm; }
+                    div.Section1 { page: Section1; }
+                    table { border-collapse: collapse; width: 100%; font-family: Arial; font-size: 9pt; }
+                    td, th { border: 1pt solid black; padding: 4px; vertical-align: top; }
+                </style></head>
+                <body><div class='Section1'>${html}</div></body></html>
+            `], { type: 'application/msword' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `DLL_${document.getElementById('subject').value}_${new Date().toISOString().slice(0,10)}.doc`;
+            link.click();
+        };
+
+        window.downloadTest = function() {
+            const text = testOutput.textContent;
+            const blob = new Blob([`
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><style>
+                    body { font-family: 'Times New Roman', serif; line-height: 1.5; padding: 2cm; }
+                    h1, h2, h3 { text-align: center; }
+                    .whitespace-pre { white-space: pre-wrap; font-size: 11pt; }
+                </style></head>
+                <body><div class="whitespace-pre">${text}</div></body></html>
+            `], { type: 'application/msword' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Test_${document.getElementById('subject').value}_${new Date().toISOString().slice(0,10)}.doc`;
+            link.click();
+        };
+
+        generateBtn.addEventListener('click', generateDLL);
+        generateTestBtn.addEventListener('click', generateTest);
+    </script>
+</body>
+</html>

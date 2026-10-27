@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Daily Lesson Log (DLL) Planner</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- NEW: KaTeX for rendering Mathematics Formulas properly -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension@5.0.2/lib/index.umd.js"></script>
+
+    <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        /* Custom styles for the generated markdown tables to match DepEd format */
+        #output-content table:not(.signature-table) {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0;
+            background-color: white;
+            color: black;
+            border: 2px solid black;
+        }
+        #output-content table.signature-table {
+            width: 100%;
+            border: none;
+            margin-top: 2rem;
+        }
+        #output-content thead {
+            display: none;
+        }
+        #output-content table:not(.signature-table) th, #output-content table:not(.signature-table) td {
+            border: 1px solid black;
+            padding: 15px;
+            text-align: left;
+            vertical-align: top;
+        }
+        #output-content table.signature-table td {
+            border: none;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        #output-content table:not(.signature-table) td:first-child {
+            width: 32%;
+        }
+        #output-content h1, #output-content h2, #output-content h3 {
+            font-weight: bold;
+            margin-bottom: 0.75rem;
+        }
+        #output-content h1 { font-size: 1.5rem; }
+        #output-content h2 { font-size: 1.25rem; }
+        #output-content blockquote {
+            font-style: italic;
+            color: #4b5563;
+            margin-bottom: 1rem;
+            font-size: 0.9em;
+        }
+        /* Page break styling for multiple DLLs */
+        .page-break {
+            page-break-before: always;
+            clear: both;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 2px dashed #cbd5e1;
+        }
+        /* Loader animation */
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- New Homepage Animations --- */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+        @keyframes fade-in-up {
+            0% { opacity: 0; transform: translateY(30px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes gradient-bg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .bg-gradient-animated {
+            background: linear-gradient(-45deg, #e0f2fe, #f8fafc, #dbeafe, #eff6ff);
+            background-size: 400% 400%;
+            animation: gradient-bg 15s ease infinite;
+        }
+        .animate-float {
+            animation: float 4s ease-in-out infinite;
+        }
+        .animate-fade-in-up {
+            animation: fade-in-up 0.8s ease-out forwards;
+            opacity: 0;
+        }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800 flex flex-col">
+
+    <header class="bg-blue-800 text-white shadow-md py-4 px-6 md:px-12 flex items-center justify-between cursor-pointer hover:bg-blue-900 transition-colors z-20 relative" id="home-link" title="Go to Homepage">
+        <div class="flex items-center gap-4">
+            <i class="fas fa-chalkboard-teacher text-3xl"></i>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold">AI Daily Lesson Log (DLL) Planner</h1>
+                <p class="text-sm text-blue-200">for New Trimester S.Y. 2026- 2027</p>
+            </div>
+        </div>
+        <div class="hidden md:block text-right text-xs text-blue-300">
+            Created by Reymond P. Samoranos
+        </div>
+    </header>
+
+    <div id="home-view" class="flex flex-col items-center justify-center flex-grow text-center px-4 py-12 bg-gradient-animated relative overflow-hidden">
+        
+        <!-- Decorative background circles -->
+        <div class="absolute top-10 left-10 w-64 h-64 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float" style="animation-delay: 1s;"></div>
+        <div class="absolute bottom-10 right-10 w-72 h-72 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float" style="animation-delay: 2s;"></div>
+
+        <div class="bg-white/90 backdrop-blur-sm p-10 md:p-14 rounded-3xl shadow-2xl max-w-4xl w-full border border-blue-50 relative z-10 animate-fade-in-up">
+            
+            <div class="mb-8 relative inline-block">
+                <div class="absolute inset-0 bg-blue-400 blur-2xl opacity-20 rounded-full"></div>
+                <i class="fas fa-robot text-7xl text-blue-600 animate-float relative z-10 drop-shadow-md"></i>
+            </div>
+
+            <h2 class="text-4xl md:text-5xl font-extrabold text-slate-800 mb-4 tracking-tight animate-fade-in-up delay-100">
+                AI Daily Lesson Log Planner
+            </h2>
+            <h3 class="text-xl md:text-2xl text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 font-bold mb-8 animate-fade-in-up delay-200">
+                S.Y. 2026 - 2027 (New Trimester)
+            </h3>
+            
+            <p id="ui-home-desc" class="text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed text-lg animate-fade-in-up delay-300">
+                Empowering educators with an intelligent, streamlined tool to construct comprehensive lesson plans. Fully compliant with the newest DepEd Guidelines and the 8 evidence-based Learning Design Principles.
+            </p>
+            
+            <button id="start-btn" class="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-blue-600 font-pj rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 hover:bg-blue-700 animate-fade-in-up delay-300 shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] hover:-translate-y-1">
+                <i class="fas fa-magic mr-3 transition-transform group-hover:rotate-12"></i> 
+                <span id="ui-home-btn" class="text-lg tracking-wide">Open Lesson Planner</span>
+            </button>
+
+            <!-- Metadata Pill -->
+            <div class="mt-12 pt-6 border-t border-slate-100 text-sm text-slate-500 flex justify-center animate-fade-in-up delay-300">
+                <span class="inline-flex items-center bg-slate-100/80 px-4 py-2 rounded-full border border-slate-200 shadow-sm">
+                    <i class="fas fa-clock text-blue-500 mr-2"></i> 
+                    Last updated April 24, 2026.
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div id="planner-view" class="hidden flex-grow w-full bg-slate-100">
+        <main class="container mx-auto p-4 md:p-6 lg:flex lg:gap-6">
+            
+            <!-- Input Form Section -->
+            <section class="bg-white rounded-xl shadow-lg p-6 mb-6 lg:mb-0 lg:w-1/3 h-fit flex-shrink-0">
+                <h2 id="ui-lesson-details" class="text-lg font-bold mb-4 border-b pb-2"><i class="fas fa-edit mr-2 text-blue-600"></i>Lesson Details</h2>
+                
+                <form id="lesson-form" class="space-y-4">
+
+                    <!-- NEW: Language Selection -->
+                    <div class="mb-2">
+                        <label id="ui-lang-label" class="block text-sm font-semibold mb-2">Language / Wika <span class="text-red-500">*</span></label>
+                        <div class="flex flex-col sm:flex-row gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="languageMode" value="en" class="form-radio text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                <span class="text-sm font-medium">English</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="languageMode" value="ph" checked class="form-radio text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                <span class="text-sm font-medium">Filipino</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Input Mode Selection -->
+                    <div class="mb-2">
+                        <label id="ui-mode-label" class="block text-sm font-semibold mb-2">Input Mode <span class="text-red-500">*</span></label>
+                        <div class="flex flex-col sm:flex-row gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="inputMode" value="manual" checked class="form-radio text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                <span id="ui-mode-manual" class="text-sm font-medium">A. Manual Input</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="inputMode" value="exemplar" class="form-radio text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                <span id="ui-mode-exemplar" class="text-sm font-medium">B. Upload Exemplar</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="inputMode" value="others" class="form-radio text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                <span id="ui-mode-others" class="text-sm font-medium">C. Upload Other Sources</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Upload Section (Hidden by default, shown for Exemplar/Others) -->
+                    <div id="upload-section" class="hidden bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm mb-4">
+                        <h3 id="upload-title" class="text-sm font-bold text-blue-800 mb-2"><i class="fas fa-file-upload mr-2"></i>Upload File</h3>
+                        <p id="upload-desc" class="text-xs text-slate-600 mb-3">Upload a PDF or TXT.</p>
+                        <input type="file" id="reference-upload" accept=".pdf,.txt" class="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer">
+                        <div id="upload-status" class="hidden mt-3 text-sm font-semibold transition-all"></div>
+                    </div>
+
+                    <div>
+                        <label id="ui-area-label" class="block text-sm font-semibold mb-1">Learning Area/s <span class="text-red-500">*</span></label>
+                        <input type="text" id="learningArea" required placeholder="e.g. Science 7" value="Matematika" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label id="ui-teacher-label" class="block text-sm font-semibold mb-1">Designed by Teacher/s <span class="text-red-500">*</span></label>
+                            <input type="text" id="teacherName" required placeholder="Your Name" value="Reymond P. Samoranos" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label id="ui-t-role-label" class="block text-sm font-semibold mb-1">Teacher Role</label>
+                            <input type="text" id="teacherRole" required value="Teacher III" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label id="ui-checker-label" class="block text-sm font-semibold mb-1">Checked by <span class="text-red-500">*</span></label>
+                            <input type="text" id="checkerName" required value="Juan A. Dela Cruz" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label id="ui-c-role-label" class="block text-sm font-semibold mb-1">Checker Role</label>
+                            <input type="text" id="checkerRole" required value="Master Teacher II" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label id="ui-grade-label" class="block text-sm font-semibold mb-1">Grade Level and Section <span class="text-red-500">*</span></label>
+                            <input type="text" id="gradeSection" required placeholder="e.g. Grade 7 - Archimedes" value="Baitang 9 - Newton" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label id="ui-term-label" class="block text-sm font-semibold mb-1">Term <span class="text-red-500">*</span></label>
+                            <input type="text" id="term" required placeholder="e.g. Term 1" value="Ikalawang Termino" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label id="ui-date-label" class="block text-sm font-semibold mb-1">Date <span class="text-red-500">*</span></label>
+                            <input type="text" id="teachingDate" required placeholder="e.g. Oct 12, 2023" value="Nobyembre 15, 2026" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Number of Sessions and Learner Level -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label id="ui-level-label" class="block text-sm font-semibold mb-1">Learner Level <span class="text-red-500">*</span></label>
+                            <select id="learnerLevel" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                                <!-- Options populated via JS -->
+                            </select>
+                        </div>
+                        <div>
+                            <label id="ui-session-label" class="block text-sm font-semibold mb-1">No. of DLLs to Generate <span class="text-red-500">*</span></label>
+                            <select id="sessions" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                                <!-- Options populated via JS -->
+                            </select>
+                            <p id="ui-session-hint" class="text-xs text-slate-500 mt-1"><i class="fas fa-info-circle"></i> Bubuo ang AI ng hiwa-hiwalay na table para sa bawat araw.</p>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Content & Performance Standards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label id="ui-cs-label" class="block text-sm font-semibold mb-1">Content Standard <span class="text-red-500">*</span></label>
+                            <textarea id="contentStandard" required rows="2" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                        </div>
+                        <div>
+                            <label id="ui-ps-label" class="block text-sm font-semibold mb-1">Performance Standard <span class="text-red-500">*</span></label>
+                            <textarea id="performanceStandard" required rows="2" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Competencies Wrapper -->
+                    <div id="competency-wrapper" class="bg-slate-50 p-3 rounded border border-slate-200">
+                        <label id="ui-comp-label" class="block text-sm font-semibold mb-2">Learning Competency/ies <span class="text-red-500">*</span></label>
+                        <div id="competencies-list" class="space-y-2">
+                            <div class="flex gap-2 items-start competency-row">
+                                <textarea required rows="2" placeholder="Tukuyin ang mga bahagi ng mikroskopyo..." class="competency-input w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">Napapasimple ang mga radical expressions gamit ang mga batas ng radicals. (M9AL-IIg-1)</textarea>
+                            </div>
+                        </div>
+                        <button type="button" id="add-competency-btn" class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-semibold transition-colors flex items-center">
+                            <i class="fas fa-plus-circle mr-1"></i> <span id="ui-add-comp">Magdagdag ng panibagong kasanayan</span>
+                        </button>
+                    </div>
+
+                    <div id="objectives-container">
+                        <label id="ui-obj-label" class="block text-sm font-semibold mb-1">Learning Objectives <span class="text-slate-400 font-normal">(Opsyonal)</span></label>
+                        <textarea id="objectives" rows="3" placeholder="Iwang blangko at ang AI Master Teacher ang bubuo..." class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">1. Natutukoy ang mga batas ng radicals.
+2. Napapasimple ang mga radical expressions gamit ang mga batas ng radicals.
+3. Nasosolusyunan ang mga problemang may kinalaman sa radicals.</textarea>
+                    </div>
+
+                    <!-- NEW: Contextualization Field -->
+                    <div id="context-container" class="mt-4">
+                        <label id="ui-context-label" class="block text-sm font-semibold mb-1">Contextualization <span class="text-slate-400 font-normal">(Optional)</span></label>
+                        <textarea id="contextualization" rows="2" placeholder="" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                    </div>
+
+                    <!-- Error Message Container -->
+                    <div id="error-message" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-3 mb-4 rounded text-sm"></div>
+
+                    <button type="submit" id="generate-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-colors flex justify-center items-center gap-2 shadow-md">
+                        <i class="fas fa-magic"></i> <span id="ui-gen-btn">Bumuo ng Lesson Plan</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Output Section -->
+            <section class="bg-white rounded-xl shadow-lg p-6 lg:w-2/3 flex flex-col min-h-[600px]">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 id="ui-out-title" class="text-lg font-bold"><i class="fas fa-file-alt mr-2 text-blue-600"></i>Binuong Lesson Plan</h2>
+                    <div class="flex gap-2">
+                        <button id="download-btn" class="hidden text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-3 rounded border border-blue-300 transition-colors">
+                            <i class="fas fa-download mr-1"></i> <span id="ui-dl-btn">I-download ang DOCX</span>
+                        </button>
+                        <button id="copy-btn" class="hidden text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-1 px-3 rounded border transition-colors">
+                            <i class="fas fa-copy mr-1"></i> <span id="ui-cp-btn">Kopyahin</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="output-container" class="flex-grow flex flex-col relative overflow-y-auto pr-2">
+                    
+                    <!-- Initial State -->
+                    <div id="empty-state" class="m-auto text-center text-slate-400">
+                        <i class="fas fa-robot text-5xl mb-3 text-slate-300"></i>
+                        <p id="ui-empty-title">Ilagay ang detalye o mag-upload ng exemplar.</p>
+                        <p id="ui-empty-desc" class="text-sm mt-1">Gagawa ng isa-isang buong DLL bawat araw ayon sa DepEd Guidelines.</p>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="loading-state" class="hidden m-auto flex flex-col items-center justify-center">
+                        <div class="loader border-4 border-slate-200 rounded-full w-12 h-12 mb-4"></div>
+                        <p id="ui-load-title" class="text-blue-600 font-semibold animate-pulse">Binubuo ng AI Master Teacher ang iyong aralin...</p>
+                        <p id="ui-load-desc" class="text-sm text-slate-500 mt-2 text-center max-w-sm">Bumubuo ng magkakahiwalay na tables para sa bawat araw gamit ang iyong mga detalye at references.</p>
+                    </div>
+
+                    <!-- Result State -->
+                    <div id="output-content" class="hidden text-sm md:text-base pb-8">
+                        <!-- Markdown will be injected here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-300 py-6 text-center text-sm mt-auto w-full">
+        <p class="mb-1">Created by <span class="font-bold text-white">Reymond P. Samoranos</span></p>
+        <p>Developer of <span class="text-blue-400 font-semibold hover:underline cursor-pointer">reysimplifai</span></p>
+    </footer>
+
+    <script>
+        // API Configuration setup required by guidelines
+        const apiKey = ""; 
+
+        // Upload Variables
+        let referenceFileData = null;
+        let referenceMimeType = null;
+        let currentLang = 'ph'; // default language
+
+        // Translations Object
+        const i18n = {
+            en: {
+                homeDesc: "Empowering educators with an intelligent, streamlined tool to construct comprehensive lesson plans. Fully compliant with the newest DepEd Guidelines and the 8 evidence-based Learning Design Principles.",
+                homeBtn: "Open Lesson Planner",
+                lessonDetails: "<i class='fas fa-edit mr-2 text-blue-600'></i>Lesson Details",
+                langLabel: "Language / Wika <span class='text-red-500'>*</span>",
+                modeLabel: "Input Mode <span class='text-red-500'>*</span>",
+                modeManual: "A. Manual Input",
+                modeExemplar: "B. Upload Exemplar",
+                modeOthers: "C. Upload Other Sources",
+                uploadTitleExemplar: "<i class='fas fa-file-upload mr-2'></i>Upload Lesson Exemplar",
+                uploadDescExemplar: "Upload a PDF or TXT. The AI will automatically extract details and use it as the main reference guide.",
+                uploadTitleOthers: "<i class='fas fa-file-upload mr-2'></i>Upload Other Sources",
+                uploadDescOthers: "Upload reading materials, modules, or activity sheets. The AI will use this as a content reference.",
+                areaLabel: "Learning Area/s <span class='text-red-500'>*</span>",
+                teacherLabel: "Designed by Teacher/s <span class='text-red-500'>*</span>",
+                tRoleLabel: "Teacher Role",
+                checkerLabel: "Checked by <span class='text-red-500'>*</span>",
+                cRoleLabel: "Checker Role",
+                gradeLabel: "Grade Level and Section <span class='text-red-500'>*</span>",
+                termLabel: "Term <span class='text-red-500'>*</span>",
+                dateLabel: "Date <span class='text-red-500'>*</span>",
+                levelLabel: "Learner Level <span class='text-red-500'>*</span>",
+                sessionLabel: "No. of DLLs to Generate <span class='text-red-500'>*</span>",
+                sessionHint: "<i class='fas fa-info-circle'></i> AI will generate separate tables for each day.",
+                csLabel: "Content Standard <span class='text-red-500'>*</span>",
+                psLabel: "Performance Standard <span class='text-red-500'>*</span>",
+                compLabel: "Learning Competency/ies <span class='text-red-500'>*</span>",
+                addComp: "Add another competency",
+                objLabel: "Learning Objectives <span class='text-slate-400 font-normal'>(Optional)</span>",
+                contextLabel: "Contextualization <span class='text-slate-400 font-normal'>(Optional)</span>",
+                genBtn: "Generate Lesson Plan",
+                outTitle: "<i class='fas fa-file-alt mr-2 text-blue-600'></i>Generated Lesson Plan(s)",
+                dlBtn: "Download DOCX",
+                cpBtn: "Copy",
+                emptyTitle: "Enter details or upload an exemplar.",
+                emptyDesc: "Generates separate complete DLLs per day based on DepEd Guidelines.",
+                loadTitle: "Master Teacher is writing your lesson plans...",
+                loadDesc: "Building separate tables for each day using your details and references.",
+                placeholders: {
+                    learningArea: "e.g. Science 7",
+                    gradeSection: "e.g. Grade 7 - Archimedes",
+                    term: "e.g. Term 1",
+                    date: "e.g. Oct 12, 2023",
+                    contentStandard: "Enter the Content Standard here...",
+                    performanceStandard: "Enter the Performance Standard here...",
+                    competency: "Paste the exact curriculum competency here",
+                    objectives: "Leave blank and the AI Master Teacher will generate these for you...",
+                    context: "e.g., Coastal town setting, local farming practices, native dialect terms..."
+                },
+                sessions: [
+                    "1 Day (1 Separate DLL)", "2 Days (2 Separate DLLs)", "3 Days (3 Separate DLLs)", 
+                    "4 Days (4 Separate DLLs)", "5 Days (5 Separate DLLs)", "6 Days (6 Separate DLLs)"
+                ],
+                levels: ["Advanced", "Proficient", "Approaching Proficiency", "Developing", "Beginning"],
+                defaults: {
+                    learningArea: "Mathematics",
+                    gradeSection: "Grade 9 - Newton",
+                    term: "Term 2",
+                    date: "November 15, 2026",
+                    contentStandard: "The learner demonstrates understanding of key concepts of radicals.",
+                    performanceStandard: "The learner is able to formulate and solve accurately problems involving radicals.",
+                    competency: "Simplifies radical expressions using the laws of radicals. (M9AL-IIg-1)",
+                    objectives: "1. Identify the laws of radicals.\n2. Simplify radical expressions using the laws of radicals.\n3. Solve real-life problems involving radicals."
+                },
+                statusExtracting: "<i class='fas fa-spinner fa-spin mr-1'></i> Reading file and extracting data...",
+                statusSuccess: "<i class='fas fa-check-circle mr-1'></i> Data extracted successfully! Ready to generate.",
+                statusReady: "<i class='fas fa-info-circle mr-1'></i> File ready as reference (No forms extracted).",
+                statusError: "<i class='fas fa-exclamation-triangle mr-1'></i> Cannot read file, please input manually."
+            },
+            ph: {
+                homeDesc: "Nagbibigay kapangyarihan sa mga guro gamit ang matalinong tool upang makabuo ng komprehensibong lesson plans. Sumusunod sa pinakabagong DepEd Guidelines at sa 8 Learning Design Principles.",
+                homeBtn: "Buksan ang Lesson Planner",
+                lessonDetails: "<i class='fas fa-edit mr-2 text-blue-600'></i>Detalye ng Aralin",
+                langLabel: "Language / Wika <span class='text-red-500'>*</span>",
+                modeLabel: "Paraan ng Pag-input <span class='text-red-500'>*</span>",
+                modeManual: "A. Manwal na Pag-input",
+                modeExemplar: "B. Mag-upload ng Exemplar",
+                modeOthers: "C. Ibang Sanggunian",
+                uploadTitleExemplar: "<i class='fas fa-file-upload mr-2'></i>Mag-upload ng Exemplar",
+                uploadDescExemplar: "Mag-upload ng PDF o TXT. Awtomatikong kukunin ang detalye at gagamitin ng AI bilang pangunahing reference.",
+                uploadTitleOthers: "<i class='fas fa-file-upload mr-2'></i>Ibang Sanggunian",
+                uploadDescOthers: "Mag-upload ng reading materials, modules, o activity sheets. Gagamitin ito ng AI bilang reference sa nilalaman.",
+                areaLabel: "Asignatura <span class='text-red-500'>*</span>",
+                teacherLabel: "Pangalan ng Guro <span class='text-red-500'>*</span>",
+                tRoleLabel: "Katungkulan ng Guro",
+                checkerLabel: "Sinuri ni <span class='text-red-500'>*</span>",
+                cRoleLabel: "Katungkulan ng Sumuri",
+                gradeLabel: "Baitang at Pangkat <span class='text-red-500'>*</span>",
+                termLabel: "Termino <span class='text-red-500'>*</span>",
+                dateLabel: "Petsa <span class='text-red-500'>*</span>",
+                levelLabel: "Antas ng Mag-aaral <span class='text-red-500'>*</span>",
+                sessionLabel: "Bilang ng DLL na Bubuin <span class='text-red-500'>*</span>",
+                sessionHint: "<i class='fas fa-info-circle'></i> Bubuo ang AI ng hiwa-hiwalay na table para sa bawat araw.",
+                csLabel: "Pamantayang Pangnilalaman <span class='text-red-500'>*</span>",
+                psLabel: "Pamantayan sa Pagganap <span class='text-red-500'>*</span>",
+                compLabel: "Kasanayang Pampagkatuto <span class='text-red-500'>*</span>",
+                addComp: "Magdagdag ng panibagong kasanayan",
+                objLabel: "Mga Layunin <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                contextLabel: "Kontekstwalisasyon <span class='text-slate-400 font-normal'>(Opsyonal)</span>",
+                genBtn: "Bumuo ng Lesson Plan",
+                outTitle: "<i class='fas fa-file-alt mr-2 text-blue-600'></i>Binuong Lesson Plan",
+                dlBtn: "I-download ang DOCX",
+                cpBtn: "Kopyahin",
+                emptyTitle: "Ilagay ang detalye o mag-upload ng exemplar.",
+                emptyDesc: "Gagawa ng isa-isang buong DLL bawat araw ayon sa DepEd Guidelines.",
+                loadTitle: "Binubuo ng AI Master Teacher ang iyong aralin...",
+                loadDesc: "Bumubuo ng magkakahiwalay na tables para sa bawat araw gamit ang iyong mga detalye at references.",
+                placeholders: {
+                    learningArea: "hal. Agham 7",
+                    gradeSection: "hal. Baitang 7 - Archimedes",
+                    term: "hal. Unang Termino",
+                    date: "hal. Oktubre 12, 2023",
+                    contentStandard: "Ilagay ang Pamantayang Pangnilalaman dito...",
+                    performanceStandard: "Ilagay ang Pamantayan sa Pagganap dito...",
+                    competency: "I-paste ang eksaktong kasanayan mula sa curriculum dito",
+                    objectives: "Iwang blangko at ang AI na ang bubuo nito para sa iyo...",
+                    context: "hal., Pamumuhay malapit sa dagat, lokal na agrikultura, mga sikat na piyesta..."
+                },
+                sessions: [
+                    "1 Araw (1 Hiwalay na DLL)", "2 Araw (2 Hiwalay na DLL)", "3 Araw (3 Hiwalay na DLL)", 
+                    "4 Araw (4 Hiwalay na DLL)", "5 Araw (5 Hiwalay na DLL)", "6 Araw (6 Hiwalay na DLL)"
+                ],
+                levels: ["Advanced (Napakahusay)", "Proficient (Mahusay)", "Approaching Proficiency (Patungo sa Kahusayan)", "Developing (Umuunlad)", "Beginning (Nagsisimula)"],
+                defaults: {
+                    learningArea: "Matematika",
+                    gradeSection: "Baitang 9 - Newton",
+                    term: "Ikalawang Termino",
+                    date: "Nobyembre 15, 2026",
+                    contentStandard: "Naipamamalas ng mag-aaral ang pag-unawa sa mga pangunahing konsepto ng radicals.",
+                    performanceStandard: "Ang mag-aaral ay nakabubuo at nakalulutas nang tumpak ng mga problemang may kinalaman sa radicals.",
+                    competency: "Napapasimple ang mga radical expressions gamit ang mga batas ng radicals. (M9AL-IIg-1)",
+                    objectives: "1. Natutukoy ang mga batas ng radicals.\n2. Napapasimple ang mga radical expressions gamit ang mga batas ng radicals.\n3. Nasosolusyunan ang mga problemang may kinalaman sa radicals."
+                },
+                statusExtracting: "<i class='fas fa-spinner fa-spin mr-1'></i> Binabasa ang file at nag-e-extract ng data...",
+                statusSuccess: "<i class='fas fa-check-circle mr-1'></i> Data extracted successfully! Pwede mo nang i-generate.",
+                statusReady: "<i class='fas fa-info-circle mr-1'></i> File ready bilang reference (Walang na-extract na forms).",
+                statusError: "<i class='fas fa-exclamation-triangle mr-1'></i> Hindi mabasa ang file, paki-type na lamang nang manual."
+            }
+        };
+
+        // DOM Elements
+        const homeView = document.getElementById('home-view');
+        const plannerView = document.getElementById('planner-view');
+        const startBtn = document.getElementById('start-btn');
+        const homeLink = document.getElementById('home-link');
+
+        const addCompetencyBtn = document.getElementById('add-competency-btn');
+        const competenciesList = document.getElementById('competencies-list');
+        const form = document.getElementById('lesson-form');
+        const generateBtn = document.getElementById('generate-btn');
+        const emptyState = document.getElementById('empty-state');
+        const loadingState = document.getElementById('loading-state');
+        const outputContent = document.getElementById('output-content');
+        const copyBtn = document.getElementById('copy-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const errorMessage = document.getElementById('error-message');
+        const referenceUploadBtn = document.getElementById('reference-upload');
+        const uploadStatusDiv = document.getElementById('upload-status');
+        const uploadSection = document.getElementById('upload-section');
+        const uploadTitle = document.getElementById('upload-title');
+        const uploadDesc = document.getElementById('upload-desc');
+        const objectivesContainer = document.getElementById('objectives-container');
+        
+        const inputModeRadios = document.querySelectorAll('input[name="inputMode"]');
+        const langModeRadios = document.querySelectorAll('input[name="languageMode"]');
+        const sessionsSelect = document.getElementById('sessions');
+
+        // Initialize KaTeX extension for Marked.js to support Math Formulas
+        if (window.markedKatex) {
+            marked.use(window.markedKatex({ throwOnError: false }));
+        }
+
+        // Language Translation Logic
+        function updateUIText() {
+            const t = i18n[currentLang];
+            
+            document.getElementById('ui-home-desc').textContent = t.homeDesc;
+            document.getElementById('ui-home-btn').textContent = t.homeBtn;
+            document.getElementById('ui-lesson-details').innerHTML = t.lessonDetails;
+            document.getElementById('ui-lang-label').innerHTML = t.langLabel;
+            document.getElementById('ui-mode-label').innerHTML = t.modeLabel;
+            document.getElementById('ui-mode-manual').textContent = t.modeManual;
+            document.getElementById('ui-mode-exemplar').textContent = t.modeExemplar;
+            document.getElementById('ui-mode-others').textContent = t.modeOthers;
+            
+            // Adjust upload title if visible
+            const currentMode = document.querySelector('input[name="inputMode"]:checked').value;
+            if(currentMode === 'exemplar') {
+                uploadTitle.innerHTML = t.uploadTitleExemplar;
+                uploadDesc.textContent = t.uploadDescExemplar;
+            } else if (currentMode === 'others') {
+                uploadTitle.innerHTML = t.uploadTitleOthers;
+                uploadDesc.textContent = t.uploadDescOthers;
+            }
+
+            document.getElementById('ui-area-label').innerHTML = t.areaLabel;
+            document.getElementById('ui-teacher-label').innerHTML = t.teacherLabel;
+            document.getElementById('ui-t-role-label').textContent = t.tRoleLabel;
+            document.getElementById('ui-checker-label').innerHTML = t.checkerLabel;
+            document.getElementById('ui-c-role-label').textContent = t.cRoleLabel;
+            document.getElementById('ui-grade-label').innerHTML = t.gradeLabel;
+            document.getElementById('ui-term-label').innerHTML = t.termLabel;
+            document.getElementById('ui-date-label').innerHTML = t.dateLabel;
+            document.getElementById('ui-level-label').innerHTML = t.levelLabel;
+            document.getElementById('ui-session-label').innerHTML = t.sessionLabel;
+            document.getElementById('ui-session-hint').innerHTML = t.sessionHint;
+            document.getElementById('ui-cs-label').innerHTML = t.csLabel;
+            document.getElementById('ui-ps-label').innerHTML = t.psLabel;
+            document.getElementById('ui-comp-label').innerHTML = t.compLabel;
+            document.getElementById('ui-add-comp').textContent = t.addComp;
+            document.getElementById('ui-obj-label').innerHTML = t.objLabel;
+            document.getElementById('ui-context-label').innerHTML = t.contextLabel;
+            document.getElementById('ui-gen-btn').textContent = t.genBtn;
+            document.getElementById('ui-out-title').innerHTML = t.outTitle;
+            document.getElementById('ui-dl-btn').textContent = t.dlBtn;
+            document.getElementById('ui-cp-btn').textContent = t.cpBtn;
+            document.getElementById('ui-empty-title').textContent = t.emptyTitle;
+            document.getElementById('ui-empty-desc').textContent = t.emptyDesc;
+            document.getElementById('ui-load-title').textContent = t.loadTitle;
+            document.getElementById('ui-load-desc').textContent = t.loadDesc;
+
+            // Placeholders
+            document.getElementById('learningArea').placeholder = t.placeholders.learningArea;
+            document.getElementById('gradeSection').placeholder = t.placeholders.gradeSection;
+            document.getElementById('term').placeholder = t.placeholders.term;
+            document.getElementById('teachingDate').placeholder = t.placeholders.date;
+            document.getElementById('contentStandard').placeholder = t.placeholders.contentStandard;
+            document.getElementById('performanceStandard').placeholder = t.placeholders.performanceStandard;
+            document.getElementById('objectives').placeholder = t.placeholders.objectives;
+            document.getElementById('contextualization').placeholder = t.placeholders.context;
+            document.querySelectorAll('.competency-input').forEach(el => el.placeholder = t.placeholders.competency);
+
+            // Update Default Input Values
+            document.getElementById('learningArea').value = t.defaults.learningArea;
+            document.getElementById('gradeSection').value = t.defaults.gradeSection;
+            document.getElementById('term').value = t.defaults.term;
+            document.getElementById('teachingDate').value = t.defaults.date;
+            document.getElementById('contentStandard').value = t.defaults.contentStandard;
+            document.getElementById('performanceStandard').value = t.defaults.performanceStandard;
+            const firstComp = document.querySelector('.competency-input');
+            if(firstComp) firstComp.value = t.defaults.competency;
+            document.getElementById('objectives').value = t.defaults.objectives;
+
+            // Update Sessions Dropdown Options
+            const selectedSession = sessionsSelect.value || "4";
+            sessionsSelect.innerHTML = '';
+            t.sessions.forEach((txt, idx) => {
+                const opt = document.createElement('option');
+                opt.value = (idx + 1).toString();
+                opt.textContent = txt;
+                if(opt.value === selectedSession) opt.selected = true;
+                sessionsSelect.appendChild(opt);
+            });
+
+            // Update Learner Levels Dropdown Options
+            const learnerLevelSelect = document.getElementById('learnerLevel');
+            const selectedLevel = learnerLevelSelect.value || "Proficient";
+            learnerLevelSelect.innerHTML = '';
+            const englishLevels = ["Advanced", "Proficient", "Approaching Proficiency", "Developing", "Beginning"];
+            t.levels.forEach((txt, idx) => {
+                const opt = document.createElement('option');
+                opt.value = englishLevels[idx]; // Always save value in English for consistent AI prompting
+                opt.textContent = txt;
+                if(opt.value === selectedLevel) opt.selected = true;
+                learnerLevelSelect.appendChild(opt);
+            });
+        }
+
+        langModeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentLang = e.target.value;
+                updateUIText();
+            });
+        });
+
+        // Initialize UI Text
+        updateUIText();
+
+        // Toggle Input Mode Logic
+        inputModeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const mode = e.target.value;
+                const t = i18n[currentLang];
+                if (mode === 'manual') {
+                    uploadSection.classList.add('hidden');
+                    objectivesContainer.classList.remove('hidden');
+                    referenceFileData = null;
+                    referenceUploadBtn.value = '';
+                    uploadStatusDiv.classList.add('hidden');
+                } else if (mode === 'exemplar') {
+                    uploadSection.classList.remove('hidden');
+                    objectivesContainer.classList.add('hidden');
+                    uploadTitle.innerHTML = t.uploadTitleExemplar;
+                    uploadDesc.textContent = t.uploadDescExemplar;
+                } else if (mode === 'others') {
+                    uploadSection.classList.remove('hidden');
+                    objectivesContainer.classList.add('hidden');
+                    uploadTitle.innerHTML = t.uploadTitleOthers;
+                    uploadDesc.textContent = t.uploadDescOthers;
+                }
+            });
+        });
+
+        // Add Competency Logic
+        addCompetencyBtn.addEventListener('click', () => {
+            const row = document.createElement('div');
+            row.className = 'flex gap-2 items-start competency-row';
+            row.innerHTML = `
+                <textarea required rows="2" placeholder="${i18n[currentLang].placeholders.competency}" class="competency-input w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                <button type="button" class="text-red-500 hover:text-red-700 mt-1 p-2 transition-colors rounded-full hover:bg-red-50" onclick="this.parentElement.remove()" title="Remove Competency">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            competenciesList.appendChild(row);
+        });
+
+        // Handle File Upload & AI Extraction
+        referenceUploadBtn.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const validTypes = ['application/pdf', 'text/plain'];
+            if (!validTypes.includes(file.type)) {
+                showError("Please upload a valid PDF or TXT file.");
+                referenceUploadBtn.value = '';
+                return;
+            }
+
+            hideError();
+            referenceMimeType = file.type;
+            const t = i18n[currentLang];
+            
+            uploadStatusDiv.classList.remove('hidden');
+            uploadStatusDiv.classList.add('text-blue-600');
+            uploadStatusDiv.classList.remove('text-green-600', 'text-red-600', 'text-amber-600');
+            uploadStatusDiv.innerHTML = t.statusExtracting;
+            generateBtn.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                referenceFileData = event.target.result.split(',')[1];
+                
+                try {
+                    const extractPrompt = `Analyze the attached document. Extract the following information if available, and return IT ONLY as a strictly valid JSON format. If no information is found (e.g. it is a generic reading material), leave it as a blank string or empty array:
+                    {
+                        "learningArea": "string (e.g. Science 7, English 8)",
+                        "gradeLevel": "string (e.g. Grade 7, Grade 8 - Section Name)",
+                        "noOfSessions": number (From 1 to 6)",
+                        "competencies": ["string", "string"]
+                    }
+                    Do not add any markdown formats (like \`\`\`json) or explanations, only the pure JSON object.`;
+
+                    const payload = {
+                        contents: [{
+                            parts: [
+                                { text: extractPrompt },
+                                { inlineData: { mimeType: referenceMimeType, data: referenceFileData } }
+                            ]
+                        }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    };
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                    
+                    const result = await fetchWithRetry(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const jsonText = result.candidates[0].content.parts[0].text;
+                    const extractedData = JSON.parse(jsonText);
+
+                    if(extractedData.learningArea) document.getElementById('learningArea').value = extractedData.learningArea;
+                    if(extractedData.gradeLevel) document.getElementById('gradeSection').value = extractedData.gradeLevel;
+                    if(extractedData.noOfSessions) {
+                        const sessInput = document.getElementById('sessions');
+                        let val = Math.min(Math.max(extractedData.noOfSessions, 1), 6);
+                        sessInput.value = val;
+                    }
+                    if(extractedData.competencies && extractedData.competencies.length > 0) {
+                        competenciesList.innerHTML = '';
+                        extractedData.competencies.forEach(comp => {
+                            if (!comp) return;
+                            const row = document.createElement('div');
+                            row.className = 'flex gap-2 items-start competency-row';
+                            row.innerHTML = `
+                                <textarea required rows="2" class="competency-input w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">${comp}</textarea>
+                                <button type="button" class="text-red-500 hover:text-red-700 mt-1 p-2 transition-colors rounded-full hover:bg-red-50" onclick="this.parentElement.remove()" title="Remove Competency">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            `;
+                            competenciesList.appendChild(row);
+                        });
+                        if (competenciesList.children.length === 0) addCompetencyBtn.click();
+                    }
+
+                    uploadStatusDiv.classList.replace('text-blue-600', 'text-green-600');
+                    uploadStatusDiv.innerHTML = i18n[currentLang].statusSuccess;
+                } catch (error) {
+                    console.error("Extraction error:", error);
+                    uploadStatusDiv.classList.replace('text-blue-600', 'text-amber-600');
+                    uploadStatusDiv.innerHTML = i18n[currentLang].statusReady;
+                } finally {
+                    generateBtn.disabled = false;
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        startBtn.addEventListener('click', () => {
+            homeView.classList.add('hidden');
+            plannerView.classList.remove('hidden');
+        });
+
+        homeLink.addEventListener('click', () => {
+            plannerView.classList.add('hidden');
+            homeView.classList.remove('hidden');
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            
+            const area = document.getElementById('learningArea').value.trim();
+            const teacher = document.getElementById('teacherName').value.trim();
+            const teacherRole = document.getElementById('teacherRole').value.trim();
+            const checkerName = document.getElementById('checkerName').value.trim();
+            const checkerRole = document.getElementById('checkerRole').value.trim();
+            const grade = document.getElementById('gradeSection').value.trim();
+            const term = document.getElementById('term').value.trim();
+            const teachingDate = document.getElementById('teachingDate').value.trim();
+            const contentStandard = document.getElementById('contentStandard').value.trim();
+            const performanceStandard = document.getElementById('performanceStandard').value.trim();
+            const learnerLevel = document.getElementById('learnerLevel').value;
+            const sessionsValue = parseInt(document.getElementById('sessions').value);
+            const objectives = document.getElementById('objectives').value.trim();
+            const contextualization = document.getElementById('contextualization').value.trim();
+
+            const competencyInputs = document.querySelectorAll('.competency-input');
+            const competenciesArray = Array.from(competencyInputs).map(el => el.value.trim()).filter(val => val !== '');
+            
+            if (competenciesArray.length === 0) {
+                showError("Please enter at least one learning competency.");
+                return;
+            }
+
+            const competencyPromptText = competenciesArray.map(c => `- ${c}`).join('\n');
+            const competencyHtmlText = competenciesArray.length > 1 
+                ? competenciesArray.map(c => `• ${c}`).join('<br><br>') 
+                : competenciesArray[0];
+
+            const combinedStandardsCompetenciesPH = `<strong>Pamantayang Pangnilalaman:</strong><br>${contentStandard}<br><br><strong>Pamantayan sa Pagganap:</strong><br>${performanceStandard}<br><br><strong>Kasanayang Pampagkatuto:</strong><br>${competencyHtmlText}`;
+            const combinedStandardsCompetenciesEN = `<strong>Content Standard:</strong><br>${contentStandard}<br><br><strong>Performance Standard:</strong><br>${performanceStandard}<br><br><strong>Learning Competency/ies:</strong><br>${competencyHtmlText}`;
+
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<div class="loader border-2 border-white rounded-full w-4 h-4 mr-2"></div> ' + (currentLang === 'ph' ? 'Bumubuo...' : 'Generating...');
+            generateBtn.classList.add('opacity-75', 'cursor-not-allowed');
+            
+            emptyState.classList.add('hidden');
+            outputContent.classList.add('hidden');
+            copyBtn.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+
+            const selectedMode = document.querySelector('input[name="inputMode"]:checked').value;
+            
+            let systemPrompt = "";
+            let userQuery = "";
+            
+            if (currentLang === 'ph') {
+                systemPrompt = `Ikaw ay isang dalubhasang Master Teacher sa Pilipinas. Ang iyong gawain ay bumuo ng napakadetalye at nakaka-engganyong Pang-araw-araw na Tala sa Pagtuturo (Lesson Plan) base sa bagong DepEd Guidelines at sa 8 Learning Design Principles. ILABAS LAMANG ang hinihinging Markdown tables. HUWAG magdagdag ng anumang paliwanag o konbersasyonal na text sa labas ng markdown. 
+IMPORTANT: YOU MUST RESPOND ENTIRELY IN FILIPINO/TAGALOG. ALL CONTENT, DESCRIPTIONS, ASSESSMENTS, AND ACTIVITIES MUST BE WRITTEN IN TAGALOG.
+MATH AT TABLE FORMATTING REQUIREMENTS (MAHIGPIT NA IPINATUTUPAD):
+1. GAMITIN LAMANG ang inline math $...$ (Bawal ang block math $$...$$). Siguraduhing LAGING may pambukas at pansarang $.
+2. IPINAGBABAWAL ang pipe character (|) sa loob ng text o formula dahil sisirain nito ang table. Gamitin ang \\vert para sa absolute value (Hal: $\\vert x \\vert$).
+3. Gamitin ang \\lt at \\gt para sa less than at greater than (bawal ang < at > sa loob ng equation dahil nasisira ang pag-parse ng Markdown).
+4. IWASAN ang paggamit ng \\text{} sa loob ng equation; ilagay ang ordinaryong text o bantas sa labas ng $.
+5. HUWAG maglagay ng space pagkatapos ng unang $ at bago ang huling $ (Halimbawa: $x+y$).
+6. Kung gagamit ng <br> para sa bagong linya sa table, MAGLAGAY NG SPACE bago at pagkatapos nito (Halimbawa: 1. $x=1$ <br> 2. $y=2$). Huwag idikit ang <br> sa $.
+7. MATATAG FRAMEWORK INTEGRATION: Tahasang isama at i-label ang mga gawain gamit ang MATATAG Instructional Design Frameworks.
+   - 4Is (Inclusive, Ideational, Integrative, Innovative): Tukuyin ang Overarching Strategy at ipaliwanag nang maikli kung bakit.
+   - 4Es (Engage, Explore, Experience, Empathize): Gamitin bilang BOLD HEADINGS para hatiin ang daloy ng karanasan sa pagkatuto.
+   - 4Cs (Context, Connection, Collaboration, Creativity): I-tag ang bawat gawain o learning task sa dulo nito (hal. *[Collaboration]*).
+   - Gumamit ng BOLD headings at HTML BULLET POINTS (<ul><li>) sa paglista ng mga gawain upang mapanatili ang format kapag na-download.
+Lalo na kung ang asignatura ay Mathematics, SIGURADUHIN na lahat ng formulas ay sumusunod dito.`;
+                
+                let fileInstruction = "";
+                let objectiveFormatPH = "(Layunin SPECIFIC para sa araw na ito)";
+
+                if (selectedMode === 'manual') {
+                    objectiveFormatPH = "<ul><li><strong>Kaalaman (Knowledge):</strong> (Specific objective)</li><li><strong>Kasanayan (Skills):</strong> (Specific objective)</li><li><strong>Saloobin (Attitudes):</strong> (Specific objective)</li></ul>";
+                    fileInstruction = `\n[MAHALAGANG PANUTO PARA SA MANUAL INPUT: Dahil manual input ang ginamit, ikaw ang aayos o bubuo ng mga Layunin. MAHIGPIT na kinakailangan na ang mga Tiyak na Layunin bawat araw ay naka-kategorya sa Kaalaman (Knowledge), Kasanayan (Skills), at Saloobin (Attitudes). Gamitin ang format na ibinigay sa table.]\n`;
+                } else if (selectedMode === 'exemplar' && referenceFileData) {
+                    fileInstruction = `\n[MAHALAGANG PANUTO: Mayroong in-upload na Lesson Exemplar ang user. Gamitin ang in-upload na document na ito bilang pangunahing REFERENCE para sa content, paksa, mga aktibidad, at daloy ng aralin. \n\nCRITICAL CONGRUENCY REQUIREMENT: Suriin ang mga Learning Objectives sa in-upload na Lesson Exemplar. DAPAT MAYROONG STRICT CONGRUENCY (eksaktong pagkakatugma) sa mga araw. Ang Layunin sa Day 1 ng in-upload na Exemplar ay DAPAT MAGING Layunin sa Day 1 ng iyong bubuuing DLL. Ang Day 2 ng Exemplar ay sa Day 2 ng DLL, at iba pa. (Maliban sa Day 5 kung pinili ito ng user, na may hiwalay na rule para sa Assessment).\n\nNGUNIT, MAHIGPIT NA IPINAGBABAWAL ang paggamit ng format ng exemplar. ANG STRICT SEQUENCE AT FORMAT NG MGA TABLES NA IBINIGAY SA BABA ANG DAPAT MONG SUNDIN AT BUUIN.]\n`;
+                } else if (selectedMode === 'others' && referenceFileData) {
+                    fileInstruction = `\n[MAHALAGANG PANUTO: Mayroong in-upload na Other Sources (e.g. readings, modules, activity sheets) ang user. Gamitin ang impormasyon sa in-upload na document na ito bilang karagdagang REFERENCE para paghugutan ng nilalaman, paksa, at mga konsepto sa pagbuo ng aralin. SUNDIN NANG MAHIGPIT ANG SEQUENCE AT FORMAT NG MGA TABLES NA IBINIGAY SA BABA.]\n`;
+                }
+
+                let lastDayInstruction = "";
+                if (selectedMode === 'exemplar' && sessionsValue >= 5) {
+                    lastDayInstruction = `\n\nMAHALAGANG BILIN PARA SA DAY ${sessionsValue}: Dahil Lesson Exemplar ang gamit (na karaniwang pang-4 na araw lamang), ang Araw ${sessionsValue} ay DAPAT nakalaan lamang para sa Pangkalahatang Pagbabalik-aral (Review) at Lingguhang Pagtataya (Summative Assessment o Catch-up Friday).`;
+                }
+
+                userQuery = `
+Ang user ay nangangailangan ng ${sessionsValue} na araw ng klase.
+Gagawa ka ng ${sessionsValue} na SEPARATE (hiwa-hiwalay) at kumpletong Lesson Plan tables.
+${fileInstruction}
+Details:
+- Asignatura: ${area}
+- Guro: ${teacher}
+- Baitang at Pangkat: ${grade}
+- Antas ng Mag-aaral (Learner Level): ${learnerLevel}
+- Pamantayang Pangnilalaman: ${contentStandard}
+- Pamantayan sa Pagganap: ${performanceStandard}
+- Kasanayang Pampagkatuto: \n${competencyPromptText}
+- Mga Layunin: ${objectives || 'Bumuo ng specific at progressive na layunin para sa bawat araw sa wikang Filipino.'}
+- Kontekstwalisasyon / Lokal na Konteksto: ${contextualization || 'Wala (Pangkalahatan)'}
+
+CRITICAL INSTRUCTION FOR MULTI-DAY PLAN:
+HINDI MO PAGSASAMAHIN ang mga araw sa iisang table. 
+Gagawa ka ng ISANG BUONG TABLE para sa DAY 1, maglalagay ng page break marker, tapos panibagong BUONG TABLE para sa DAY 2, hanggang DAY ${sessionsValue}.
+Ang bawat araw ay may logical flow (E.g. Day 1: Panimula, Day 2: Aktibidad, Day 3: Aplikasyon, Day 4: Pagtataya).${lastDayInstruction}
+Tiyaking naka-angkop ang hirap ng mga gawain, bokabularyo, at pagtataya sa antas ng mga mag-aaral na: ${learnerLevel}. 
+Gamitin ang Kontekstwalisasyon (kung meron) upang i-angkop ang mga halimbawa, sitwasyon, at gawain sa kultura at lugar ng mga mag-aaral nang HINDI binabago ang pangkalahatang format ng table.
+Lahat dapat nasa wikang FILIPINO/TAGALOG.
+
+FORMAT REQUIREMENT (ULITIN ANG BUONG BLOCK NA ITO ${sessionsValue} NA BESES, ISA PARA SA BAWAT ARAW):
+
+<div class="page-break"></div>
+<div style="text-align: center; line-height: 1.3; margin-bottom: 20px; color: black;">
+    <span style="font-size: 11pt;">Republic of the Philippines</span><br>
+    <strong style="font-size: 12pt;">Department of Education</strong><br>
+    <span style="font-size: 11pt;">REGION XI – DAVAO REGION</span><br>
+    <span style="font-size: 11pt;">SCHOOLS DIVISION OFFICE OF DAVAO DEL SUR</span><br>
+    <strong style="font-size: 12pt;">CABASAGAN ELEMENTARY SCHOOL</strong>
+</div>
+<h1 style="text-align: center; color: #1e40af; font-size: 1.5rem; font-weight: bold; text-transform: uppercase;">TALA SA PAGTUTURO - ARAW [X]</h1>
+
+| | |
+| :--- | :--- |
+| **Pamagat ng Aralin** | (Pangalan ng lesson na eksakto para sa araw na ito) |
+| **Larangan ng Pagkatuto** | ${area} |
+| **Baitang at Seksyon** | ${grade} |
+| **Termino** | ${term} |
+| **Petsa** | ${teachingDate} (Araw [X]) |
+| **Pangalan ng Guro** | ${teacher} |
+| **Bilang ng Sesyon** | 1 Sesyon (Araw [X]) |
+| **Mga Sanggunian**<br><em style="font-size:0.85em;">(mga aklat, websites, toolkits, atbp.)</em> | (Mga Sanggunian) |
+| **Deklarasyon ng Paggamit ng AI** | Ang AI ay ginamit upang buuin at i-format ang lesson plan para sa Araw [X]. |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Layunin.</h2> | <em style="font-size:0.9em;">Ang makabuluhang pagkatuto ay naka-angkla sa layunin.</em> |
+| **Mga Pamantayan at Kasanayan:** | ${combinedStandardsCompetenciesPH} |
+| **Mga Tiyak na Layunin:** | ${objectiveFormatPH} |
+| **Konteksto ng Mag-aaral:** | (Realistic context base sa kakayahan ng mag-aaral) |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Karanasan sa Pagkatuto.</h2> | <em style="font-size:0.9em;">Ang karanasan sa pagkatuto ay tulad ng isang pinag-isipang paglalakbay.</em> |
+| **Pangkalahatang Istratehiya (MATATAG 4Is):** | **[Pumili sa: Inclusive, Ideational, Integrative, o Innovative]** <br> (Maikling paliwanag kung bakit ito ang napili base sa daloy ng aralin.) |
+| **Karanasan sa Pagkatuto – Panimulang Gawain:** | **ENGAGE** <br><ul><li>(Ilarawan ang gawain) *[Tag: Context/Connection/Collaboration/Creativity]*</li></ul> |
+| **Karanasan sa Pagkatuto – Daloy ng Aralin:** | **EXPLORE** <br><ul><li>(Ilarawan ang gawain) *[Tag: 4Cs]*</li></ul> <br> **EXPERIENCE** <br><ul><li>(Ilarawan ang gawain) *[Tag: 4Cs]*</li></ul> <br> **EMPATHIZE** <br><ul><li>(Ilarawan ang gawain) *[Tag: 4Cs]*</li></ul> |
+| **Mga Kagamitang Panturo:** | (Mga kagamitan para sa araw na ito) |
+| **Oportunidad para sa Integrasyon:** | (Integrasyon para sa araw na ito) |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Pagtataya.</h2> | <em style="font-size:0.9em;">Ipinapakita ng pagtataya kung ano ang natutunan ng mga mag-aaral.</em> |
+| **Formative na Pagtataya:** | (ACTUAL 5-item formative assessment o gawain na akma sa natapos na flow ng araw na ito) |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Mga Susunod na Hakbang.</h2> | <em style="font-size:0.9em;">Ang makabuluhang pagkatuto ay nangyayari rin sa labas ng silid-aralan.</em> |
+| **Mga Karagdagang Gawain:** | (Takdang-aralin o extension para sa araw na ito) |
+| **Mga Pagninilay:** | *(Sasagutan pagkatapos ng aralin)* <br><br>**Gabay na Tanong sa Pagninilay:** (Guiding reflection question para sa araw na ito) |
+
+<br>
+<table class="signature-table">
+    <tr>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Inihanda ni:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${teacher}</strong><br>
+            ${teacherRole}
+        </td>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Sinuri ni:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${checkerName}</strong><br>
+            ${checkerRole}
+        </td>
+    </tr>
+</table>
+`;
+            } else {
+                systemPrompt = `You are an expert Master Teacher in the Philippines. Your task is to generate highly detailed and engaging Daily Lesson Plans based on the new DepEd Guidelines and the 8 Learning Design Principles. Output ONLY the requested Markdown tables. Do not add conversational text. 
+IMPORTANT: YOU MUST RESPOND ENTIRELY IN ENGLISH. ALL CONTENT, DESCRIPTIONS, ASSESSMENTS, AND ACTIVITIES MUST BE WRITTEN IN ENGLISH.
+MATH AND TABLE FORMATTING REQUIREMENTS (STRICTLY ENFORCED):
+1. USE ONLY inline math $...$ (DO NOT use multi-line block math $$...$$). ENSURE EVERY formula has both an opening and a closing $.
+2. The pipe character (|) is PROHIBITED in text or formulas as it breaks the table. Use \\vert for absolute values (Example: $\\vert x \\vert$).
+3. Use \\lt and \\gt for less than/greater than (DO NOT use < and > inside math, it breaks Markdown/HTML parsing).
+4. AVOID using \\text{} inside the math block; place regular text or punctuation outside the $ signs.
+5. NO SPACES immediately inside the $ symbols (Example: write $x+y$).
+6. If using <br> for new lines in a table cell, PUT A SPACE before and after it (Example: 1. $x=1$ <br> 2. $y=2$). Do not stick <br> directly to the $.
+7. MATATAG FRAMEWORK INTEGRATION: You MUST explicitly incorporate and label the activities using the MATATAG Instructional Design Frameworks.
+   - 4Is (Inclusive, Ideational, Integrative, Innovative): Identify as the Overarching Strategy and briefly explain why.
+   - 4Es (Engage, Explore, Experience, Empathize): Use as BOLD HEADINGS to structure the flow of the learning experience.
+   - 4Cs (Context, Connection, Collaboration, Creativity): Tag each learning task with its corresponding 'C' (e.g., *[Creativity]*).
+   - Use BOLD headings and HTML BULLET POINTS (<ul><li>) for all learning tasks so the structure remains intact when exported to Word.
+Especially if the subject is Mathematics, ensure ALL formulas strictly adhere to these rules.`;
+                
+                let fileInstruction = "";
+                let objectiveFormatEN = "(SPECIFIC objectives for this day)";
+
+                if (selectedMode === 'manual') {
+                    objectiveFormatEN = "<ul><li><strong>Knowledge:</strong> (Specific objective)</li><li><strong>Skills:</strong> (Specific objective)</li><li><strong>Attitudes:</strong> (Specific objective)</li></ul>";
+                    fileInstruction = `\n[IMPORTANT INSTRUCTION FOR MANUAL INPUT: Since manual input is used, you will format or generate the objectives. IT IS STRICTLY REQUIRED that the Learning Objectives for each day are categorized into Knowledge, Skills, and Attitudes domains. Use the provided format in the table.]\n`;
+                } else if (selectedMode === 'exemplar' && referenceFileData) {
+                    fileInstruction = `\n[IMPORTANT INSTRUCTION: The user has uploaded a Lesson Exemplar. Use this document as the primary REFERENCE for content, topics, activities, and lesson flow. \n\nCRITICAL CONGRUENCY REQUIREMENT: Carefully analyze the Learning Objectives from the uploaded Lesson Exemplar. THERE MUST BE STRICT CONGRUENCY between the exemplar's daily objectives and the objectives in your generated sessions. The Day 1 Objective from the Exemplar MUST be the Day 1 Objective in your generated DLL. The Day 2 Objective from the Exemplar MUST be the Day 2 Objective, and so on. (Except for Day 5 if chosen, which has a separate rule for Assessments).\n\nHOWEVER, IT IS STRICTLY PROHIBITED to use the format of the exemplar. YOU MUST FOLLOW AND GENERATE THE STRICT SEQUENCE AND FORMAT OF THE TABLES PROVIDED BELOW.]\n`;
+                } else if (selectedMode === 'others' && referenceFileData) {
+                    fileInstruction = `\n[IMPORTANT INSTRUCTION: The user has uploaded Other Sources (e.g. readings, modules, activity sheets). Use the information in this document as an additional REFERENCE for content, topics, and concepts when building the lesson. YOU MUST STRICTLY FOLLOW THE SEQUENCE AND FORMAT OF THE TABLES PROVIDED BELOW.]\n`;
+                }
+
+                let lastDayInstruction = "";
+                if (selectedMode === 'exemplar' && sessionsValue >= 5) {
+                    lastDayInstruction = `\n\nCRITICAL RULE FOR DAY ${sessionsValue}: Because a Lesson Exemplar is used (which typically covers only 4 days), Day ${sessionsValue} MUST be dedicated exclusively to a Comprehensive Review and a Summative Assessment (or Catch-up Friday activities).`;
+                }
+
+                userQuery = `
+The user requires ${sessionsValue} session(s) / day(s) of classes.
+You will generate ${sessionsValue} SEPARATE and complete Lesson Plan tables.
+${fileInstruction}
+Details:
+- Learning Area: ${area}
+- Designed by: ${teacher}
+- Grade Level and Section: ${grade}
+- Level of Learners: ${learnerLevel}
+- Content Standard: ${contentStandard}
+- Performance Standard: ${performanceStandard}
+- Learning Competency/ies: \n${competencyPromptText}
+- Learning Objectives: ${objectives || 'Generate specific and progressive objectives for each day in English.'}
+- Contextualization / Local Context: ${contextualization || 'None (General)'}
+
+CRITICAL INSTRUCTION FOR MULTI-DAY PLAN:
+DO NOT COMBINE the days into a single table. 
+You must generate ONE FULL TABLE for DAY 1, insert a page break marker, then another FULL TABLE for DAY 2, up to DAY ${sessionsValue}.
+Each day must have a logical flow (E.g. Day 1: Introduction, Day 2: Activity/Deep Dive, Day 3: Application, Day 4: Assessment).${lastDayInstruction}
+Ensure that the difficulty, vocabulary, and assessments are tailored to the learners' level: ${learnerLevel}. 
+Integrate the Contextualization details (if provided) to adapt examples, scenarios, and activities to the learners' culture and locality, WITHOUT changing the table sequence or format.
+Everything must be in ENGLISH.
+
+FORMAT REQUIREMENT (REPEAT THIS ENTIRE BLOCK ${sessionsValue} TIMES, ONE FOR EACH DAY):
+
+<div class="page-break"></div>
+<div style="text-align: center; line-height: 1.3; margin-bottom: 20px; color: black;">
+    <span style="font-size: 11pt;">Republic of the Philippines</span><br>
+    <strong style="font-size: 12pt;">Department of Education</strong><br>
+    <span style="font-size: 11pt;">REGION XI – DAVAO REGION</span><br>
+    <span style="font-size: 11pt;">SCHOOLS DIVISION OFFICE OF DAVAO DEL SUR</span><br>
+    <strong style="font-size: 12pt;">CABASAGAN ELEMENTARY SCHOOL</strong>
+</div>
+<h1 style="text-align: center; color: #1e40af; font-size: 1.5rem; font-weight: bold; text-transform: uppercase;">LESSON PLAN - DAY [X]</h1>
+
+| | |
+| :--- | :--- |
+| **Name of Lesson** | (Specific lesson name for this day) |
+| **Subject Area** | ${area} |
+| **Grade Level & Section** | ${grade} |
+| **Term** | ${term} |
+| **Date** | ${teachingDate} (Day [X]) |
+| **Designed by Teacher/s** | ${teacher} |
+| **No. of Sessions** | 1 Session (Day [X]) |
+| **References**<br><em style="font-size:0.85em;">(books, websites, toolkits, etc.)</em> | (References) |
+| **Declaration of AI use**<br><em style="font-size:0.85em;">(Cite how AI was used in the formulation of the lesson plan)</em> | AI was utilized to format the lesson plan and generate evidence-based instructional scaffolding for Day [X]. |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Intentions.</h2> | <em style="font-size:0.9em;">Meaningful learning experiences are anchored in how we frame them. Start by deciding what you want learners to master by the end of the lesson – keep it clear and simple.</em> |
+| **Standards and Competencies:**<br><em style="font-size:0.85em;">(Content Standard, Performance Standard, and Learning Competencies)</em> | ${combinedStandardsCompetenciesEN} |
+| **Learning Objectives:**<br><em style="font-size:0.85em;">(Write the smaller knowledge, skills, or tasks...)</em> | ${objectiveFormatEN} |
+| **Learner Context:**<br><em style="font-size:0.85em;">(Write your observations of your learners...)</em> | (Realistic learner context) |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Learning Experience.</h2> | <em style="font-size:0.9em;">A learning experience is like a thoughtfully designed journey. Each activity and interaction builds towards meaningful understanding and growth.</em> |
+| **Overarching Strategy (MATATAG 4Is):** | **[Choose one: Inclusive, Ideational, Integrative, Innovative]** <br> (Brief explanation of why this strategy was chosen for the lesson.) |
+| **Pre-Lesson:**<br><em style="font-size:0.85em;">(Describe how you will help the learners get ready for the lesson.)</em> | **ENGAGE** <br><ul><li>(Describe the task) *[Tag: Context/Connection/Collaboration/Creativity]*</li></ul> |
+| **Flow:**<br><em style="font-size:0.85em;">(Describe the activities that you can implement in 1 or more sessions. Apply the Learning Design Principles...)</em> | **EXPLORE** <br><ul><li>(Describe the task) *[Tag: 4Cs]*</li></ul> <br> **EXPERIENCE** <br><ul><li>(Describe the task) *[Tag: 4Cs]*</li></ul> <br> **EMPATHIZE** <br><ul><li>(Describe the task) *[Tag: 4Cs]*</li></ul> |
+| **Learning Resources:**<br><em style="font-size:0.85em;">(List down the learning resources...)</em> | (Resources for this day) |
+| **Opportunities for integration:**<br><em style="font-size:0.85em;">(Write down any possibilities to meaningfully integrate another learning area, special topic, or technology.)</em> | (Integration for this day) |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Assessment.</h2> | <em style="font-size:0.9em;">Assessments reveal what learners have gained and what they still need help with.</em> |
+| **Formative Assessment:**<br><em style="font-size:0.85em;">(Create a task, activity or questions to evaluate learning and provide feedback...)</em> | (ACTUAL 5-item formative assessment suitable for this day's flow) |
+| <h2 style="margin:0; font-size:1.5em; font-weight:bold;">Ways Forward.</h2> | <em style="font-size:0.9em;">Meaningful learning can also happen beyond the classroom.</em> |
+| **Extended learning opportunities:**<br><em style="font-size:0.85em;">(Suggest other learning experiences outside the classroom/class hours...)</em> | (Homework/extension for this day) |
+| **Reflections:**<br><em style="font-size:0.85em;">(Think about what you need to change for the next session...)</em> | *(To be filled out after the lesson)* <br><br>**Pre-planned Reflection Prompt:** (Guiding reflection question for this day) |
+
+<br>
+<table class="signature-table">
+    <tr>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Prepared by:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${teacher}</strong><br>
+            ${teacherRole}
+        </td>
+        <td style="width: 50%;">
+            <p style="margin-bottom: 40px;"><strong>Checked by:</strong></p>
+            <strong style="text-decoration: underline; text-transform: uppercase;">${checkerName}</strong><br>
+            ${checkerRole}
+        </td>
+    </tr>
+</table>
+`;
+            }
+
+            const parts = [{ text: userQuery }];
+            if (referenceFileData) {
+                parts.push({
+                    inlineData: { mimeType: referenceMimeType, data: referenceFileData }
+                });
+            }
+
+            const payload = {
+                contents: [{ parts: parts }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const result = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!generatedText) {
+                    throw new Error("Received an empty response from the AI.");
+                }
+
+                outputContent.innerHTML = marked.parse(generatedText);
+                
+                loadingState.classList.add('hidden');
+                outputContent.classList.remove('hidden');
+                copyBtn.classList.remove('hidden');
+                downloadBtn.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("API Error:", error);
+                loadingState.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                showError("Failed to generate the lesson plan. Please ensure your connection is stable and try again. (API Error: " + error.message + ")");
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> <span id="ui-gen-btn">' + i18n[currentLang].genBtn + '</span>';
+                generateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(outputContent);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            try {
+                document.execCommand('copy');
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="fas fa-check text-green-600 mr-1"></i> Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                showError("Failed to copy text. Please select the text manually and press Ctrl+C.");
+            }
+            
+            selection.removeAllRanges();
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const exportContainer = document.createElement('div');
+            exportContainer.innerHTML = document.getElementById('output-content').innerHTML;
+            
+            const tables = exportContainer.querySelectorAll('table');
+            tables.forEach(table => {
+                if (!table.classList.contains('signature-table')) {
+                    table.setAttribute('border', '1');
+                    table.style.borderCollapse = 'collapse';
+                    table.style.width = '100%';
+                    table.style.border = '1px solid black';
+                    
+                    const cells = table.querySelectorAll('th, td');
+                    cells.forEach(cell => {
+                        cell.style.border = '1px solid black';
+                        cell.style.padding = '10px';
+                        cell.style.textAlign = 'left';
+                        cell.style.verticalAlign = 'top';
+                    });
+                } else {
+                    table.setAttribute('border', '0');
+                    table.style.border = 'none';
+                    table.style.width = '100%';
+                    table.style.marginTop = '40px';
+                    const cells = table.querySelectorAll('td');
+                    cells.forEach(cell => {
+                        cell.style.border = 'none';
+                        cell.style.padding = '10px';
+                    });
+                }
+            });
+
+            const content = exportContainer.innerHTML;
+            
+            const htmlString = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <style>
+                        table:not(.signature-table) { width: 100%; border-collapse: collapse; border: 2px solid black; }
+                        table.signature-table { width: 100%; border: none; margin-top: 40px; }
+                        table:not(.signature-table) th, table:not(.signature-table) td { border: 1px solid black; padding: 10px; vertical-align: top; text-align: left; }
+                        table.signature-table td { border: none; padding: 10px; vertical-align: top; text-align: left; }
+                        h1 { text-align: center; color: #1e40af; font-size: 1.5em; font-weight: bold; margin-top: 30px; }
+                        h2 { margin: 0; font-size: 1.5em; font-weight: bold; padding-top: 10px;}
+                        em { font-style: italic; color: #4b5563; }
+                        .page-break { page-break-before: always; clear: both; } 
+                    </style>
+                </head>
+                <body>
+                    ${content}
+                </body>
+                </html>
+            `;
+            
+            try {
+                const converted = htmlDocx.asBlob(htmlString);
+                saveAs(converted, 'Master_Teacher_Lesson_Plan.docx');
+                
+                const originalText = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '<i class="fas fa-check text-green-600 mr-1"></i> Downloaded!';
+                setTimeout(() => {
+                    downloadBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error("DOCX generation error:", err);
+                showError("Failed to generate DOCX. Try using the Copy button instead.");
+            }
+        });
+    </script>
+</body>
+</html>
