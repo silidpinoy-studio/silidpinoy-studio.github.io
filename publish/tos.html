@@ -220,7 +220,7 @@
 
     const TOS_TEMPLATES = [
       { id:'silidpinoy', name:'SilidPinoy TOS', tag:'SOLO Taxonomy', icon:'Layers',
-        desc:'Four SOLO levels, performance and content standards, per-row level caps, saved configurations, and a Make Test handoff.' },
+        desc:'Four SOLO levels, performance and content standards, saved configurations, and a Make Test handoff.' },
       { id:'school', name:'School TOS Template', tag:'Bloom\u2019s \u2013 LOTS / HOTS', icon:'Table',
         desc:'Six cognitive levels grouped into LOTS and HOTS, teaching-hours weighting, and No. of Days/Hours and % of Teaching Time columns.' },
     ];
@@ -1806,38 +1806,6 @@
                               className="w-full px-2.5 py-2 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-bold text-iris-700 bg-iris-50/20" />
                             <span className="bg-iris-50/50 text-iris-600 text-[10px] px-2 py-2 border-l border-black/5 font-bold">Items</span>
                           </div>
-                        </div>
-                      )}
-                      {cognitiveLevels.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {(() => { const capRow = rowLevelCaps.find(cap => cap.compId === comp.id); return (capRow && capRow.caps) || []; })().map((capValue, li) => (
-                            <div key={li} className="flex items-center bg-white ring-1 ring-black/5 rounded-xl overflow-hidden" title={cognitiveLevels[li]?.name}>
-                              <input
-                                type="number"
-                                min="0"
-                                value={capValue}
-                                onChange={(e) => {
-                                  const next = [...(rowLevelCaps.find(cap => cap.compId === comp.id) || { caps: cognitiveLevels.map(() => '') }).caps];
-                                  next[li] = e.target.value;
-                                  setRowLevelCaps(prev => {
-                                    const existing = prev.findIndex(c => c.compId === comp.id);
-                                    if (existing >= 0) {
-                                      const updated = [...prev];
-                                      updated[existing] = { compId: comp.id, caps: next };
-                                      return updated;
-                                    }
-                                    return [...prev, { compId: comp.id, caps: next }];
-                                  });
-                                  setLastGeneratedTime(new Date().toLocaleTimeString());
-                                }}
-                                placeholder="auto"
-                                className="w-14 px-1.5 py-2 focus:ring-2 focus:ring-iris-500 outline-none text-xs text-center font-semibold"
-                              />
-                              <span className="bg-mist text-ink/45 text-[9px] px-1 py-2 border-l border-black/5 font-semibold truncate">
-                                {cognitiveLevels[li]?.name || `L${li+1}`}
-                              </span>
-                            </div>
-                          ))}
                         </div>
                       )}
                       <button onClick={() => deleteCompetency(comp.id)} disabled={competencies.length <= 1}
