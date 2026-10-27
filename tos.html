@@ -146,6 +146,48 @@
       return rounded;
     }
 
+    /* SilidPinoy TOS: distribute cognitive levels per competency. When Extended
+       Abstract is enabled, its items are essay items quantised to whole 5-item
+       blocks and placed as one contiguous block at the very end of the test,
+       all under the competency with the most weight (hours mode: hours;
+       manual mode: items). */
+    function buildSoloLevelCounts(rowTotals, cogWeights, competencies, allocationMode, cognitiveLevels) {
+      const totalItems = rowTotals.reduce((a, b) => a + b, 0);
+      const eaIdx = cognitiveLevels.findIndex(lvl => /extended\s*abstract/i.test(String(lvl.name || '')));
+      const counts = rowTotals.map(() => cognitiveLevels.map(() => 0));
+      if (eaIdx < 0) {
+        rowTotals.forEach((n, i) => { counts[i] = distributeExact(n, cogWeights); });
+        return counts;
+      }
+      const nonEaWeights = cogWeights.map((w, i) => i === eaIdx ? 0 : w);
+      const sumNonEa = nonEaWeights.reduce((a, b) => a + b, 0);
+      if (sumNonEa === 0) {
+        rowTotals.forEach((n, i) => { counts[i] = distributeExact(n, cogWeights); });
+        return counts;
+      }
+      const rawEa = rowTotals.reduce((s, n, i) => s + (distributeExact(n, cogWeights)[eaIdx] || 0), 0);
+      let eaFinal = rawEa > 0 ? Math.ceil(rawEa / 5) * 5 : 0;
+      eaFinal = Math.min(eaFinal, totalItems);
+      let chosenIdx = 0;
+      if (eaFinal > 0) {
+        let best = -1;
+        competencies.forEach((c, i) => {
+          const w = allocationMode === 'hours' ? (parseFloat(c.hours || 0) || 0) : Math.max(0, parseInt(c.manualItems || 0) || 0);
+          if (w > best) { best = w; chosenIdx = i; }
+        });
+        const capacity = Math.floor((rowTotals[chosenIdx] || 0) / 5) * 5;
+        eaFinal = Math.min(eaFinal, capacity > 0 ? capacity : rowTotals[chosenIdx] || 0);
+      }
+      rowTotals.forEach((n, i) => {
+        const target = i === chosenIdx ? n - eaFinal : n;
+        const base = distributeExact(target, nonEaWeights);
+        const rowCounts = [...base];
+        rowCounts[eaIdx] = i === chosenIdx ? eaFinal : 0;
+        counts[i] = rowCounts;
+      });
+      return counts;
+    }
+
     function formatItemRanges(items) {
       if (!items || items.length === 0) return '';
       return items.join(', ');
@@ -1147,11 +1189,11 @@
         } else {
           computedItems = competencies.map(c => Math.max(0, parseInt(c.manualItems) || 0));
         }
+        const counts = buildSoloLevelCounts(computedItems, cogWeights, competencies, allocationMode, cognitiveLevels);
         const competencyDistributions = competencies
           .filter(c => c.name && c.name.trim())
           .map((c, idx) => {
-            const itemCount = computedItems[idx] || 0;
-            const levelCounts = applyRowLevelCaps(distributeExact(itemCount, cogWeights), c.id);
+            const levelCounts = counts[idx] || cognitiveLevels.map(() => 0);
             const distribution = {};
             cognitiveLevels.forEach((lv, li) => {
               if (levelCounts[li] > 0) distribution[lv.name] = levelCounts[li];
@@ -1233,18 +1275,12 @@
         }
         const totalItemsCount = computedItems.reduce((a, b) => a + b, 0);
         const cogWeights = cognitiveLevels.map(lvl => Number(lvl.pct) || 0);
-        const levelCountsPerRow = computedItems.map((itemCount, idx) => {
-          const compId = competencies[idx]?.id;
-          const raw = distributeExact(itemCount, cogWeights);
-          return applyRowLevelCaps(raw, compId);
-        });
-
         /* Extended Abstract items always occupy the LAST item numbers of the whole test,
            grouped at the end after every other cognitive level. Everything else keeps the
            progressive round-robin so a competency still opens with easier items. */
+        const levelCountsPerRow = buildSoloLevelCounts(computedItems, cogWeights, competencies, allocationMode, cognitiveLevels);
         const eaIdx = cognitiveLevels.findIndex(lvl => /extended\s*abstract/i.test(String(lvl.name || '')));
         const eaTotal = eaIdx >= 0 ? levelCountsPerRow.reduce((sum, lc) => sum + (lc[eaIdx] || 0), 0) : 0;
-
         const rowPlacements = [];
         const rowLevelBuckets = [];
         let currentItemTracker = 1;
