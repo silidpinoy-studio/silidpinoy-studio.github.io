@@ -1,4 +1,4 @@
-const CACHE_NAME = 'silidpinoy-v3';
+const CACHE_NAME = 'silidpinoy-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
