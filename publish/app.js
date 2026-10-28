@@ -48,6 +48,7 @@ function Home() {
     { id: 'lesson-plan', name: 'iLaw Lesson Plan', desc: 'DepEd-aligned lesson plans drafted in minutes, not hours.', icon: 'ClipboardList' },
     { id: 'ppt-maker', name: 'PPT Maker', desc: 'Turn any topic, DLL, exam, or quiz into a polished slide deck automatically.', icon: 'Presentation' },
     { id: 'activity-sheet', name: 'Activity Sheet Maker', desc: 'Turn any lesson plan into a beautiful module-style worksheet with puzzles, tables, and icons.', icon: 'FileDigit' },
+    { id: 'share-link', name: 'Shareable Test Link', desc: 'Send any test as a link — students answer on their phones and scores flow straight into Item Analysis. No accounts needed.', icon: 'Link', soon: true },
   ];
 
   return (
@@ -60,6 +61,25 @@ function Home() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
         {tools.map((tool, i) => (
+          tool.soon ? (
+            <div
+              key={tool.id}
+              aria-disabled="true"
+              className="reveal card-bezel group grayscale opacity-70"
+              style={{ transitionDelay: `${i * 80}ms` }}
+            >
+              <div className="card-inner p-6 md:p-8 h-full flex flex-col">
+                <div className="flex items-start justify-between mb-4">
+                  <span className="icon-orb w-12 h-12 rounded-xl bg-iris-50 text-iris-600 flex items-center justify-center">
+                    <LucideIcon name={tool.icon} className="w-6 h-6" />
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold rounded-full bg-ink/5 text-ink/60 px-2.5 py-1">Soon</span>
+                </div>
+                <h3 className="font-semibold text-lg text-ink mb-2">{tool.name}</h3>
+                <p className="text-ink/45 text-sm flex-grow">{tool.desc}</p>
+              </div>
+            </div>
+          ) : (
           <a
             key={tool.id}
             href={`#${tool.id}`}
@@ -78,6 +98,7 @@ function Home() {
               </span>
             </div>
           </a>
+          )
         ))}
       </div>
 

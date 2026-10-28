@@ -195,6 +195,7 @@
       ShieldCheck:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
       Save:'<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
       Heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+      Link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     };
     function LucideIcon({ name, className = '', strokeWidth = 2, ...props }) {
       const [loaded, setLoaded] = useState(false);
@@ -252,6 +253,7 @@
       { id:'ppt', name:'PPT Maker', desc:'Turn any topic, DLL, exam, or quiz into a polished slide deck automatically.', icon:'Presentation', ready:true, url:'powerpoint.html' },
       { id:'activity', name:'Activity Sheet Maker', desc:'Turn any lesson plan into a beautiful module-style worksheet with puzzles, tables, and icons.', icon:'ClipboardCheck', ready:true, url:'activity.html' },
       { id:'item-analysis', name:'Item Analyzer', desc:'Upload a TOS and enter scores to get mastery levels, least-mastered competencies, and exportable reports.', icon:'BarChart3', ready:true },
+      { id:'share-link', name:'Shareable Test Link', desc:'Send any test as a link — students answer on their phones and scores flow straight into Item Analysis. No accounts needed.', icon:'Link', ready:false },
     ];
 
     /* ============================================================
@@ -3226,11 +3228,11 @@ ${signTable([
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {TOOLS.map((t) => (
                     <button key={t.id} onClick={() => t.url ? window.location.href = t.url : (t.ready ? setCurrentView('creator') : notifySoon(t.name))}
-                      className={`group text-left rounded-[1.75rem] p-1.5 transition-all duration-500 ease-spring ${t.ready ? 'bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)] hover:-translate-y-1' : 'bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-34px_rgba(11,10,18,0.25)] hover:-translate-y-1'}`}>
+                      className={`group text-left rounded-[1.75rem] p-1.5 transition-all duration-500 ease-spring ${t.ready ? 'bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)] hover:-translate-y-1' : 'bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-34px_rgba(11,10,18,0.25)] hover:-translate-y-1 grayscale opacity-70'}`}>
                       <div className={`rounded-[calc(1.75rem-0.375rem)] h-full p-6 flex flex-col gap-4 min-h-[230px] ${t.ready ? 'bg-white/5 backdrop-blur-sm text-white' : 'bg-canvas text-ink'}`}>
                         <div className="flex items-center justify-between">
                           <span className={`grid place-items-center w-12 h-12 rounded-2xl ${t.ready ? 'bg-white/10 text-white' : 'bg-mist text-iris-600'}`}><LucideIcon name={t.icon} className="w-6 h-6"/></span>
-                          {!t.ready && <span className="text-[10px] uppercase tracking-wider font-bold rounded-full bg-ink/5 text-ink/45 px-2.5 py-1">Soon</span>}
+                          {!t.ready && <span className="text-[10px] uppercase tracking-wider font-bold rounded-full bg-ink/5 text-ink/60 px-2.5 py-1">Soon</span>}
                         </div>
                         <div className="mt-auto">
                           <h3 className="font-semibold text-lg">{t.name}</h3>

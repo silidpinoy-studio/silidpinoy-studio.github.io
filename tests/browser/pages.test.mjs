@@ -192,6 +192,48 @@ test('the home offers a quiet GCash support card that reveals the QR', { timeout
 });
 
 /* ===============================================================
+   2b-bis. the home teases the shareable test link
+   =============================================================== */
+
+test('the home shows the shareable test link as a grayed-out Soon card', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  try {
+    const card = page.getByRole('button', { name: /Shareable Test Link/ });
+    if (!(await card.count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('the home must tease the shareable test link card');
+    }
+    assert.ok(await card.first().isVisible(), 'the teaser card must be visible');
+
+    const body = await page.evaluate(() => document.body.innerText);
+    assert.match(body, /Shareable Test Link/, 'the card must name the feature');
+    assert.match(body, /soon/i, 'the card must wear the Soon badge');
+
+    // it is grayed out and reads as disabled, not as a live tool
+    const look = await card.first().evaluate((el) => ({
+      filter: getComputedStyle(el).filter,
+      opacity: Number(getComputedStyle(el).opacity),
+      text: el.innerText
+    }));
+    assert.match(look.filter, /grayscale/, 'the teaser card must be grayed out');
+    assert.ok(look.opacity < 1, `the teaser card must be dimmed — got ${look.opacity}`);
+    assert.doesNotMatch(look.text, /Open tool/, 'a coming-soon card must not offer to open');
+
+    // clicking promises the feature instead of navigating away
+    const url = page.url();
+    await card.first().click();
+    await page.waitForTimeout(300);
+    assert.match(await page.evaluate(() => document.body.innerText), /coming soon/,
+      'the teaser must say it is not ready yet');
+    assert.equal(page.url(), url, 'the teaser must not navigate anywhere');
+
+    assert.deepEqual(errors, [], 'the teaser card must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
    2c. School & Personal Info saves from its Save button
    =============================================================== */
 
