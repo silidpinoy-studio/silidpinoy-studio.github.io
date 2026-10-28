@@ -1428,6 +1428,9 @@
         const [tosFile, setTosFile] = useState(null);
         const [manualCompetencies, setManualCompetencies] = useState('');
         const [useManualCompetencies, setUseManualCompetencies] = useState(false);
+        /* The file browser only appears once the teacher has picked Upload or
+           Manual Entry — nothing to browse before a source is chosen. */
+        const [iaSourcePicked, setIaSourcePicked] = useState(false);
 
         const [itemCount, setItemCount] = useState(10);
         // Scratch value for the "fill every item at once" control.
@@ -1550,6 +1553,7 @@
 
         const handleCompetencyToggle = () => {
           setUseManualCompetencies(!useManualCompetencies);
+          setIaSourcePicked(true); // choosing Manual Entry counts as a source pick
           if (!useManualCompetencies) setErrorMsg('');
         };
 
@@ -2047,7 +2051,7 @@ ${mpsRow}
           const content = `${logoHtml}${headerHtml}
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
 ${infoRow('School:', si.schoolName || '', 'School Year:', meta.schoolYear)}
-${infoRow('Subject', meta.subject, 'Grading Period', meta.gradingPeriod)}
+${infoRow('Subject', meta.subject, 'Term / Grading Period', meta.gradingPeriod)}
 </table>
 ${bands.map(([s, e], i) => buildBand(i, s, e)).join('\n')}
 ${sigTable}`;
@@ -2369,7 +2373,7 @@ ${signTable([
             {/* Mode selector */}
             <div className="grid md:grid-cols-2 gap-4">
               <button
-                onClick={() => { setUseManualCompetencies(false); setTosFile(null); }}
+                onClick={() => { setUseManualCompetencies(false); setTosFile(null); setIaSourcePicked(true); }}
                 className={`p-6 rounded-2xl border-2 transition-all ${!useManualCompetencies && tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
               >
                 <LucideIcon name="Upload" className={"w-8 h-8 " + (!useManualCompetencies && tosFile ? 'text-iris-500' : 'text-ink/40')} />
@@ -2386,7 +2390,7 @@ ${signTable([
               </button>
             </div>
 
-            {!useManualCompetencies && (
+            {!useManualCompetencies && iaSourcePicked && (
               <div
                 className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
                 onDragOver={handleDragOver}
@@ -2434,6 +2438,26 @@ ${signTable([
 
             {/* Scores section */}
             <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+              <div className="bg-ink/10 p-4 rounded-xl border border-ink/10 flex flex-col md:flex-row items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name="Info" className="w-5 h-5 text-iris-500" />
+                  <span className="text-sm text-ink/50">Section name &amp; Total No. of Takers (this row)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text" value={currentSection.name}
+                    onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
+                    placeholder="e.g. BABBAGE"
+                    className="w-44 px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-sm text-ink"
+                  />
+                  <input
+                    type="number" value={currentSection.takers}
+                    onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
+                    className="w-32 px-4 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-center text-lg font-semibold text-ink"
+                    min="1"
+                  />
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2 pb-4 mb-4 border-b border-ink/10">
                 <LucideIcon name="ClipboardList" className="w-4 h-4 text-iris-600" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40 mr-1">Sections</span>
@@ -2524,26 +2548,6 @@ ${signTable([
                   </div>
                 ))}
               </div>
-              <div className="bg-ink/10 p-4 rounded-xl border border-ink/10 flex flex-col md:flex-row items-center justify-between gap-3 mt-4">
-                <div className="flex items-center gap-2">
-                  <LucideIcon name="Info" className="w-5 h-5 text-iris-500" />
-                  <span className="text-sm text-ink/50">Section name &amp; Total No. of Takers (this row)</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text" value={currentSection.name}
-                    onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
-                    placeholder="e.g. BABBAGE"
-                    className="w-44 px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-sm text-ink"
-                  />
-                  <input
-                    type="number" value={currentSection.takers}
-                    onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
-                    className="w-32 px-4 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-center text-lg font-semibold text-ink"
-                    min="1"
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Report details — header rows of the Excel-style table */}
@@ -2561,7 +2565,7 @@ ${signTable([
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {[
                   ['School Year', 'schoolYear', 'e.g. 2025-2026'],
-                  ['Grading Period', 'gradingPeriod', 'e.g. SECOND'],
+                  ['Term / Grading Period', 'gradingPeriod', 'e.g. SECOND'],
                   ['Subject (full title)', 'subject', 'e.g. MEDIA AND INFORMATION LITERACY'],
                   ['Subject code (table)', 'subjectCode', 'e.g. MIL'],
                   ['Grade Level', 'gradeLevel', 'e.g. 12'],
@@ -2840,7 +2844,7 @@ ${signTable([
                       <tr>
                         <td className={`${xCell} font-semibold bg-ink/5 text-left`}>Subject</td>
                         <td className={`${xCell} text-left`}>{meta.subject}</td>
-                        <td className={`${xCell} font-semibold bg-ink/5`}>Grading Period</td>
+                        <td className={`${xCell} font-semibold bg-ink/5`}>Term / Grading Period</td>
                         <td className={xCell}>{meta.gradingPeriod}</td>
                       </tr>
                     </tbody>

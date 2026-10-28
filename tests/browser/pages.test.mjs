@@ -2902,7 +2902,31 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       assert.fail('index.html did not render the Item Analyzer');
     }
     await start.click();
+
+    // the file browser stays hidden until a source is picked
+    assert.equal(await page.getByText('Browse Files').count(), 0,
+      'the file browser must stay hidden until Upload or Manual Entry is chosen');
+
     await page.getByRole('button', { name: /Manual Entry/ }).click();
+    assert.ok(await page.getByPlaceholder(/Identifies the main idea/).isVisible(),
+      'choosing Manual Entry must reveal the competency textarea');
+
+    // switching to Upload reveals the file browser instead — then back to manual
+    await page.getByRole('button', { name: /Upload TOS Document/ }).click();
+    assert.ok(await page.getByText('Browse Files').isVisible(),
+      'choosing Upload must reveal the file browser');
+    await page.getByRole('button', { name: /Manual Entry/ }).click();
+
+    // the section name & takers row leads the scores card, above the scores header
+    const rowAbove = await page.evaluate(() => {
+      const row = Array.from(document.querySelectorAll('span'))
+        .find(s => s.textContent.includes('Section name & Total No. of Takers'));
+      const scores = Array.from(document.querySelectorAll('h3'))
+        .find(h => h.textContent.includes('3. Enter Scores'));
+      if (!row || !scores) return null;
+      return !!(row.compareDocumentPosition(scores) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    assert.ok(rowAbove, 'the section name & takers row must sit above the scores section');
 
     // task 3 — the shared fields are no longer collected here
     const labels = await page.evaluate(() =>
@@ -2911,7 +2935,7 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       'Report Details must not re-ask the school name — Settings owns it');
     assert.ok(!labels.some(l => /^Submitted (by|to)$/.test(l)),
       'Report Details must not re-ask the signatories — Settings owns them');
-    assert.ok(labels.includes('School Year') && labels.includes('Grading Period') &&
+    assert.ok(labels.includes('School Year') && labels.includes('Term / Grading Period') &&
       labels.includes('Grade Level') && labels.includes('Assessment Conducted'),
       'the table header fields must remain in Report Details');
 
@@ -3094,7 +3118,7 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     const exportTables = [...docHtml.matchAll(/<table[\s\S]*?<\/table>/g)].map(m => m[0]);
     const infoTable = exportTables.find(t => /School:/.test(t));
     assert.ok(infoTable, 'the export must render the School/Subject info block');
-    assert.match(infoTable, /Grading Period/,
+    assert.match(infoTable, /Term \/ Grading Period/,
       'all four info fields must live together in the info table');
     assert.doesNotMatch(infoTable, /Total No\. of Items/,
       'the info table must not share cells with the score grid');
@@ -3292,6 +3316,9 @@ test('the Item Analysis never reads the subject as a competency', { timeout: LON
       assert.fail('index.html did not render the Item Analyzer');
     }
     await start.click();
+
+    // a source must be picked before the file browser appears
+    await page.getByRole('button', { name: /Upload TOS Document/ }).click();
 
     // A ToS table row that repeats the SUBJECT cell — longer than the
     // competency text, which used to make "longest text wins" hand back the
