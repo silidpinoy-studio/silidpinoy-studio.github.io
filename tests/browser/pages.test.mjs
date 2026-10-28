@@ -1470,7 +1470,7 @@ test('the Activity Sheet Maker gets the K-3 rules when the sheet is for early le
 
     // the shared Settings header (Region/Division) rides above the sheet, and travels with the .doc
     const sheetText = await page.locator('#output-content').innerText();
-    assert.match(sheetText, /REGION 04 – NCR/,
+    assert.match(sheetText, /REGION 04 – NCR REGION/,
       'the activity sheet must carry the shared Region line from Settings');
     assert.match(sheetText, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
       'the activity sheet must carry the shared Division line from Settings');
@@ -1824,7 +1824,7 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
     // the SOLO sheet shows the Settings school header on screen too
     const soloSheetText = await page.evaluate(() => document.body.innerText);
     assert.match(soloSheetText, /rizal high school/i, 'the SOLO on-screen sheet must carry the school header');
-    assert.match(soloSheetText, /REGION 04 – NCR/,
+    assert.match(soloSheetText, /REGION 04 – NCR REGION/,
       'the sheet must carry the shared Region line from Settings');
     assert.match(soloSheetText, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
       'the sheet must carry the shared Division line from Settings');
@@ -2128,7 +2128,7 @@ test('the TOS Maker offers a school template that is chosen first and remembers 
 
     const body = await page.evaluate(() => document.body.innerText);
     assert.match(body, /Lower Order Thinking Skills/, 'the school template must group LOTS');
-    assert.match(body, /REGION 04 – NCR/,
+    assert.match(body, /REGION 04 – NCR REGION/,
       'the school sheet must carry the shared Region line from Settings');
     assert.match(body, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
       'the school sheet must carry the shared Division line from Settings');

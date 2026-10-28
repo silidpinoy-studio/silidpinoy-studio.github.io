@@ -198,7 +198,12 @@
     function sharedRegionLine(si) {
       const s = si || {};
       if (!s.regionNo && !s.regionName) return '';
-      return ('REGION ' + [s.regionNo, s.regionName].filter(Boolean).join(' \u2013 ')).toUpperCase();
+      /* Same wording as the lesson plan, Test Maker and Item Analysis:
+         "REGION XI \u2013 DAVAO REGION" (Region No + Region Name as entered in Settings). */
+      let reg = 'REGION ' + (s.regionNo || '');
+      if (s.regionNo && s.regionName) reg += ' \u2013 ';
+      reg += s.regionName ? s.regionName + ' REGION' : '';
+      return reg.toUpperCase();
     }
     function sharedDivisionLine(si) {
       const s = si || {};

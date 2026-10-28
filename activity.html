@@ -1144,9 +1144,15 @@
                 if (si.schoolLogo2) h += '<img src="' + si.schoolLogo2 + '" style="height:64px;margin:0 10px;vertical-align:middle;">';
                 h += '</div>';
             }
-            /* Shared DepEd header lines from Settings — same wording as the TOS and lesson plan */
+            /* Shared DepEd header lines from Settings — same wording as the lesson
+               plan, Test Maker, TOS and Item Analysis: "REGION XI \u2013 DAVAO REGION" */
             var regionLine = '';
-            if (si.regionNo || si.regionName) regionLine = ('REGION ' + [si.regionNo, si.regionName].filter(Boolean).join(' \u2013 ')).toUpperCase();
+            if (si.regionNo || si.regionName) {
+                regionLine = 'REGION ' + (si.regionNo || '');
+                if (si.regionNo && si.regionName) regionLine += ' \u2013 ';
+                regionLine += si.regionName ? si.regionName + ' REGION' : '';
+                regionLine = regionLine.toUpperCase();
+            }
             if (regionLine) h += '<p style="font-size:12px;font-weight:bold;letter-spacing:1px;margin:0;">' + regionLine + '</p>';
             if (si.division) h += '<p style="font-size:12px;font-weight:bold;letter-spacing:1px;margin:0;">SCHOOLS DIVISION OFFICE OF ' + String(si.division).toUpperCase() + '</p>';
             if (si.schoolName) h += '<p style="font-size:15px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin:0;">' + si.schoolName + '</p>';
