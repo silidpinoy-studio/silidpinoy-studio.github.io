@@ -1315,7 +1315,15 @@
           const rowTotalItems = computedItems[idx];
           const rowItemNumbers = rowPlacements[idx] || [];
           const levelItemCounts = levelCountsPerRow[idx];
-          const levelItemStrings = (rowLevelBuckets[idx] || []).map((bucket) => bucket.length ? formatItemRanges(bucket) : "");
+          /* Extended Abstract cells carry an open clause after the item numbers —
+             EA items are whole 5-item essay blocks, e.g. "26, 27, 28, 29, 30 (1 item Essay)". */
+          const levelItemStrings = (rowLevelBuckets[idx] || []).map((bucket, li) => {
+            if (!bucket.length) return "";
+            const nums = formatItemRanges(bucket);
+            if (li !== eaIdx) return nums;
+            const essays = Math.ceil(bucket.length / 5);
+            return `${nums} (${essays} item${essays === 1 ? '' : 's'} Essay)`;
+          });
           const percentTime = totalHours > 0 ? (((parseFloat(comp.hours) || 0) / totalHours) * 100).toFixed(1) : "0.0";
           return { ...comp, rowTotalItems, percentTime, placementStr: formatItemRanges(rowItemNumbers), levelItemStrings, levelItemCounts };
         });

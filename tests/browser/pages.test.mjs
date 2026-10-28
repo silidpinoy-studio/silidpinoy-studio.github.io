@@ -1885,6 +1885,75 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
 });
 
 /* ===============================================================
+   17b. Extended Abstract cells carry the essay open clause
+   =============================================================== */
+
+test('the TOS Extended Abstract cell appends the essay clause', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors } = await openPage('tos.html');
+  try {
+    const silidCard = page.locator('button:has-text("SilidPinoy TOS")').first();
+    if (!(await silidCard.count())) {
+      t.skip('tos.html did not render its format chooser (CDN unavailable?)');
+      return;
+    }
+    await silidCard.click();
+    await page.waitForTimeout(400);
+
+    const essayCells = () => page.evaluate(() =>
+      Array.from(document.querySelectorAll('tbody td'))
+        .map(td => td.innerText.trim())
+        .filter(text => /\(\d+ items? Essay\)/.test(text)));
+
+    // Extended Abstract starts at 0% — no essay clause anywhere yet
+    assert.deepEqual(await essayCells(), [],
+      'no essay clause may appear while Extended Abstract is 0%');
+
+    // enable Extended Abstract (20%) while keeping the weights at 100
+    const pctInputs = page.locator('div.grid > div.p-3.bg-mist input[type="number"]');
+    assert.equal(await pctInputs.count(), 4, 'the SOLO template must expose four cognitive % inputs');
+    await pctInputs.nth(0).fill('30'); // Unistructural 50 → 30
+    await pctInputs.nth(1).fill('30'); // Multi-structural stays 30
+    await pctInputs.nth(2).fill('20'); // Relational stays 20
+    await pctInputs.nth(3).fill('20'); // Extended Abstract 0 → 20
+    await page.waitForTimeout(400);
+
+    const cells = await essayCells();
+    assert.equal(cells.length, 1,
+      'exactly one Extended Abstract cell may carry the essay clause');
+    assert.equal(cells[0], '16, 17, 18, 19, 20 (1 item Essay)',
+      'the five trailing EA items must be listed with the "1 item Essay" open clause');
+
+    // the sheet's placement column still ends at the same trailing block
+    const placement = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll('tbody tr'));
+      const row = rows.find(r => r.innerText.includes('Essay'));
+      return row ? row.innerText : '';
+    });
+    assert.match(placement, /16, 17, 18, 19, 20/, 'the EA block must sit at the very end of the test');
+
+    // the Word export carries the same clause
+    const docBtn = page.getByRole('button', { name: /Export Word \(\.doc\)/ });
+    if (await docBtn.count()) {
+      const doc = await Promise.all([
+        page.waitForEvent('download', { timeout: 15000 }).catch(() => null),
+        docBtn.click()
+      ]).then(([d]) => d);
+      if (doc) {
+        const html = fs.readFileSync(await doc.path(), 'utf8');
+        assert.match(html, /16, 17, 18, 19, 20 \(1 item Essay\)/,
+          'the Word export must carry the essay clause');
+      } else {
+        t.diagnostic('the .doc download did not fire — essay clause not checked in the export');
+      }
+    }
+
+    assert.deepEqual(errors, [], 'the essay clause must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
    18. print / PDF handout on the PPT Maker
    =============================================================== */
 
