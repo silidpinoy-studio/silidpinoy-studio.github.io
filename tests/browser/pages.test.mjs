@@ -1405,7 +1405,13 @@ test('the Activity Sheet Maker gets the K-3 rules when the sheet is for early le
 
   const { context, page, errors } = await openPage('activity.html', {
     initScript: () => {
-      try { sessionStorage.setItem('gemini_api_key', 'TEST_KEY'); } catch { /* storage unavailable */ }
+      try {
+        sessionStorage.setItem('gemini_api_key', 'TEST_KEY');
+        localStorage.setItem('school_info', JSON.stringify({
+          schoolName: 'Rizal High School', schoolAddress: 'Pasig City', schoolLogo1: '', schoolLogo2: '',
+          regionNo: '04', regionName: 'NCR', division: 'Pasig City'
+        }));
+      } catch { /* storage unavailable */ }
     }
   });
   try {
@@ -1461,6 +1467,21 @@ test('the Activity Sheet Maker gets the K-3 rules when the sheet is for early le
     }));
     assert.ok(!after.cls.includes('k3-mode'), 'a Grade 7 sheet must drop the kid theme');
     assert.ok(!after.badge, 'the kids-theme badge must hide for a senior grade');
+
+    // the shared Settings header (Region/Division) rides above the sheet, and travels with the .doc
+    const sheetText = await page.locator('#output-content').innerText();
+    assert.match(sheetText, /REGION 04 – NCR/,
+      'the activity sheet must carry the shared Region line from Settings');
+    assert.match(sheetText, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
+      'the activity sheet must carry the shared Division line from Settings');
+
+    const [sheetFile] = await Promise.all([
+      page.waitForEvent('download', { timeout: 20000 }),
+      page.locator('#btn-download-doc').click()
+    ]);
+    const sheetDoc = fs.readFileSync(await sheetFile.path(), 'utf8');
+    assert.ok(sheetDoc.includes('SCHOOLS DIVISION OFFICE OF PASIG CITY'),
+      'the activity .doc export must carry the shared Division line from Settings');
 
     assert.deepEqual(errors, [], 'generating sheets must not raise page errors');
   } finally {

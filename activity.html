@@ -1136,7 +1136,7 @@
         var si = {};
         try { si = JSON.parse(localStorage.getItem('school_info')) || {}; } catch (e) { si = {}; }
         var h = '';
-        if (si.schoolLogo1 || si.schoolLogo2 || si.schoolName) {
+        if (si.schoolLogo1 || si.schoolLogo2 || si.schoolName || si.regionNo || si.regionName || si.division) {
             h += '<div style="text-align:center;margin-bottom:10px;">';
             if (si.schoolLogo1 || si.schoolLogo2) {
                 h += '<div style="margin-bottom:6px;">';
@@ -1144,6 +1144,11 @@
                 if (si.schoolLogo2) h += '<img src="' + si.schoolLogo2 + '" style="height:64px;margin:0 10px;vertical-align:middle;">';
                 h += '</div>';
             }
+            /* Shared DepEd header lines from Settings — same wording as the TOS and lesson plan */
+            var regionLine = '';
+            if (si.regionNo || si.regionName) regionLine = ('REGION ' + [si.regionNo, si.regionName].filter(Boolean).join(' \u2013 ')).toUpperCase();
+            if (regionLine) h += '<p style="font-size:12px;font-weight:bold;letter-spacing:1px;margin:0;">' + regionLine + '</p>';
+            if (si.division) h += '<p style="font-size:12px;font-weight:bold;letter-spacing:1px;margin:0;">SCHOOLS DIVISION OFFICE OF ' + String(si.division).toUpperCase() + '</p>';
             if (si.schoolName) h += '<p style="font-size:15px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin:0;">' + si.schoolName + '</p>';
             if (si.schoolAddress) h += '<p style="font-size:11px;color:#666;margin:2px 0;">' + si.schoolAddress + '</p>';
             if (si.department) h += '<p style="font-size:11px;color:#666;margin:2px 0;font-weight:bold;">' + si.department + '</p>';
