@@ -1620,7 +1620,7 @@
                     className="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
                   <span>Remember my API key on this device</span>
                 </label>
-                <p className="text-[10px] text-ink/40 mt-1.5">{window.SilidKeys && window.SilidKeys.rememberHint(rememberKeys)} Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-iris-600 underline">Get keys</a></p>
+                <p className="text-[10px] text-ink/40 mt-1.5">{window.SilidKeys && window.SilidKeys.rememberHint(rememberKeys)} Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="inline-flex items-center align-middle ml-2 bg-iris-600 hover:bg-iris-700 text-white text-[11px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">Get keys</a></p>
                 <button onClick={handleTestApiKey} disabled={keyTestStatus === 'testing'}
                   className={`w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${keyTestStatus === 'ok' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : keyTestStatus === 'fail' ? 'bg-red-50 text-red-700 ring-1 ring-red-200' : 'bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100'}`}>
                   {keyTestStatus === 'testing' ? 'Testing…' : keyTestStatus === 'ok' ? '✓ API Key Working' : keyTestStatus === 'fail' ? 'API Key Failed' : 'Test API Key'}

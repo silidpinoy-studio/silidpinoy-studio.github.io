@@ -192,6 +192,39 @@ test('the home offers a quiet GCash support card that reveals the QR', { timeout
 });
 
 /* ===============================================================
+   2c. School & Personal Info saves from its Save button
+   =============================================================== */
+
+test('School & Personal Info has a Save button that confirms and persists', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html#settings');
+  try {
+    const save = page.getByRole('button', { name: 'Save', exact: true });
+    if (!(await save.count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('the Settings view must offer a Save button');
+    }
+    assert.ok(await save.isVisible(), 'the Save button must be visible in School & Personal Info');
+
+    await page.locator('input[name="teacherName"]').fill('Juan Dela Cruz');
+    await page.waitForTimeout(200);
+    await save.click();
+    await page.waitForTimeout(200);
+    assert.match(await page.evaluate(() => document.body.innerText), /\u2713 Saved/,
+      'the Save button must confirm the save');
+
+    const stored = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem('school_info')) || {}; } catch { return {}; }
+    });
+    assert.equal(stored.teacherName, 'Juan Dela Cruz',
+      'the save must persist to the shared school_info');
+
+    assert.deepEqual(errors, [], 'saving school info must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
    3. document drawer
    =============================================================== */
 

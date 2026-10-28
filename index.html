@@ -338,6 +338,16 @@
         else localStorage.removeItem('gemini_api_key_2');
       }, [apiKey2]);
       useEffect(() => { localStorage.setItem('school_info', JSON.stringify(schoolInfo)); }, [schoolInfo]);
+      const [schoolSaved, setSchoolSaved] = useState('');
+      const handleSaveSchoolInfo = () => {
+        try {
+          localStorage.setItem('school_info', JSON.stringify(schoolInfo));
+          setSchoolSaved('\u2713 Saved');
+        } catch (e) {
+          setSchoolSaved('\u26a0 Could not save \u2014 export a backup');
+        }
+        setTimeout(() => setSchoolSaved(''), 2500);
+      };
       useEffect(() => {
         if (!showKeyInput) return;
         const h = (e) => { if (keyDropdownRef.current && !keyDropdownRef.current.contains(e.target)) setShowKeyInput(false); };
@@ -3174,7 +3184,7 @@ ${signTable([
                     className="mt-0.5 rounded border-black/20 text-iris-600 focus:ring-iris-500" />
                   <span>Remember my API key on this device</span>
                 </label>
-                <p className="text-[10px] text-ink/40 mt-1.5">{window.SilidKeys && window.SilidKeys.rememberHint(rememberKeys)} Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-iris-600 underline">Get keys</a></p>
+                <p className="text-[10px] text-ink/40 mt-1.5">{window.SilidKeys && window.SilidKeys.rememberHint(rememberKeys)} Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="inline-flex items-center align-middle ml-2 bg-iris-600 hover:bg-iris-700 text-white text-[11px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">Get keys</a></p>
                 <button onClick={handleTestApiKey} disabled={apiKeyTestStatus==='testing'}
                   className={`w-full mt-2 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${apiKeyTestStatus==='ok'?'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200':apiKeyTestStatus==='fail'?'bg-red-50 text-red-700 ring-1 ring-red-200':'bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100'}`}>
                   {apiKeyTestStatus==='testing'?(<><LucideIcon name="Loader2" className="w-3 h-3 animate-spin"/> Testing...</>)
@@ -3220,7 +3230,7 @@ ${signTable([
                   </div>
 
                   {/* Support card — directly under the Explore All Tools button */}
-                  <div className="mt-14 card-bezel max-w-2xl mx-auto ring-1 ring-rose-200">
+                  <div className="mt-24 card-bezel max-w-2xl mx-auto ring-1 ring-rose-200">
                     <div className="card-inner p-4 md:p-5" style={{ background: 'linear-gradient(135deg,#FFF1F2 0%,#FFE4E6 45%,#FEF3C7 100%)' }}>
                       <div className="flex flex-col items-center text-center gap-3">
                         <span className="grid place-items-center w-11 h-11 rounded-2xl bg-rose-600 text-white shadow-[0_10px_24px_-10px_rgba(225,29,72,0.8)]"><LucideIcon name="Heart" className="w-5 h-5" /></span>
@@ -3416,6 +3426,13 @@ ${signTable([
                       <input type="text" name="approvedByPosition" value={schoolInfo.approvedByPosition} onChange={handleSchoolInfoChange} placeholder="e.g. School Principal II"
                         className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
                   </div>
+                </div>
+                <div className="border-t border-black/5 pt-5 flex items-center justify-end gap-4">
+                  <span className="text-sm font-medium text-emerald-600">{schoolSaved}</span>
+                  <button type="button" onClick={handleSaveSchoolInfo}
+                    className="btn-spring rounded-full bg-iris-600 hover:bg-iris-700 text-white font-semibold text-sm px-8 py-3 shadow-[0_16px_36px_-16px_rgba(91,70,232,0.8)]">
+                    Save
+                  </button>
                 </div>
                 {/* Backup / Restore */}
                 <div className="border-t border-black/5 pt-6 space-y-4">

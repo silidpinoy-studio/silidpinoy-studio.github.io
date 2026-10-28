@@ -12,6 +12,16 @@ export default function Settings() {
     catch { return { schoolName:'',schoolAddress:'',regionNo:'',regionName:'',division:'',schoolLogo1:'',schoolLogo2:'',teacherName:'',teacherTitle:'',department:'',checkedBy:'',checkedByPosition:'',approvedBy:'',approvedByPosition:'' }; }
   });
   const [showSchoolInfo, setShowSchoolInfo] = useState(false);
+  const [schoolSaved, setSchoolSaved] = useState('');
+  const handleSaveSchoolInfo = () => {
+    try {
+      localStorage.setItem('school_info', JSON.stringify(schoolInfo));
+      setSchoolSaved('\u2713 Saved');
+    } catch (e) {
+      setSchoolSaved('\u26a0 Could not save \u2014 export a backup');
+    }
+    setTimeout(() => setSchoolSaved(''), 2500);
+  };
 
   useEffect(() => {
     if (window.SilidKeys) window.SilidKeys.set('primary', apiKey);
@@ -91,7 +101,7 @@ export default function Settings() {
               <span>Remember my API key on this device</span>
             </label>
             <p id="remember-keys-hint" className="text-[10px] text-ink/40 mt-1.5">{rememberKeys ? 'On — your key is stored in device storage and will persist across sessions.' : 'Off — your key is kept for this browser session only and is never written to your device.'}</p>
-            <p className="text-[10px] text-ink/40 mt-1">Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-iris-600 underline">Get keys</a></p>
+            <p className="text-[10px] text-ink/40 mt-1">Primary is used first; if it hits daily quota or high demand, the backup takes over automatically. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="inline-flex items-center align-middle ml-2 bg-iris-600 hover:bg-iris-700 text-white text-[11px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">Get keys</a></p>
             <button onClick={handleTestApiKey} disabled={apiKeyTestStatus === 'testing'}
               className="w-full py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100 disabled:opacity-50">
               {apiKeyTestStatus === 'testing' ? 'Testing...' : 'Test API Key'}
@@ -156,6 +166,10 @@ export default function Settings() {
                   </div>
                 )}
                 <input type="file" accept="image/*" onChange={(e) => handleLogoUpload(e, 'schoolLogo2')} className="w-full px-3 py-2 text-sm bg-white/80 ring-1 ring-black/10 rounded-xl focus:ring-2 focus:ring-iris-500 focus:outline-none transition-all" />
+              </div>
+              <div className="md:col-span-2 flex items-center justify-end gap-3 pt-2">
+                <span className="text-sm font-medium text-emerald-600">{schoolSaved}</span>
+                <button type="button" onClick={handleSaveSchoolInfo} className="rounded-full bg-iris-600 hover:bg-iris-700 text-white text-sm font-semibold px-7 py-2.5 transition-colors">Save</button>
               </div>
             </div>
           )}
