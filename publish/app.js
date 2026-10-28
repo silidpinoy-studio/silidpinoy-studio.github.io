@@ -1,5 +1,5 @@
 import { createRoot } from 'https://unpkg.com/react-dom@18/client.js';
-import { LucideIcons, initLucideIcons } from './shared-icons.js';
+import { LucideIcons, LucideIcon, initLucideIcons } from './shared-icons.js';
 
 initLucideIcons();
 
@@ -79,6 +79,47 @@ function Home() {
             </div>
           </a>
         ))}
+      </div>
+
+      <div className="reveal max-w-4xl mx-auto">
+        <div className="card-bezel">
+          <div className="card-inner p-6 md:p-7">
+            <div className="flex flex-col md:flex-row md:items-center gap-5">
+              <div className="icon-orb w-11 h-11 rounded-xl bg-iris-50 text-iris-600 flex items-center justify-center shrink-0">
+                <LucideIcon name="Heart" className="w-5 h-5" />
+              </div>
+              <div className="flex-grow">
+                <h3 className="font-semibold text-ink">Help keep SilidPinoy free for every teacher</h3>
+                <p className="text-ink/60 text-sm mt-1">No ads, no subscriptions, no accounts — just tools made with care for Filipino teachers. If SilidPinoy gave you your evenings back, a small GCash contribution keeps it free for everyone and funds what we build next.</p>
+              </div>
+              <button
+                type="button"
+                id="donate-toggle"
+                aria-expanded="false"
+                aria-controls="gcash-panel"
+                onClick={(e) => {
+                  const panel = document.getElementById('gcash-panel');
+                  const hidden = panel.classList.toggle('hidden');
+                  e.currentTarget.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+                }}
+                className="shrink-0 w-full md:w-auto justify-center inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-iris-50 text-iris-700 ring-1 ring-iris-200 hover:bg-iris-100 transition btn-spring">
+                <LucideIcon name="Heart" className="w-4 h-4" />
+                Support via GCash
+              </button>
+            </div>
+            <div id="gcash-panel" className="hidden" role="region" aria-label="GCash donation QR code">
+              <div className="mt-5 pt-5 border-t border-black/5 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+                <img src="gcash.jpg" alt="GCash QR code — scan to support SilidPinoy Studio"
+                  className="w-52 h-52 shrink-0 object-contain rounded-2xl bg-white ring-1 ring-black/10 p-2 shadow-sm" />
+                <div className="space-y-2">
+                  <p className="text-sm text-ink/70">Open your <b>GCash</b> app, scan the code, and send any amount — kahit maliit, malaking tulong po.</p>
+                  <p className="text-sm text-ink/70">Your support keeps SilidPinoy free, ad-free, and growing for every Filipino teacher.</p>
+                  <p className="text-xs text-ink/45">Maraming salamat po! 🙏</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="text-center reveal mt-12">

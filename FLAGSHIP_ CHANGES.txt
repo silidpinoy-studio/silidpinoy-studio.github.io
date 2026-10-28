@@ -1,0 +1,19 @@
+🎯 Flagship features (grow what the app can do)
+
+1. Close the teaching loop — the tools are connected but feel like 6 separate apps. The handoffs exist (TOS → Test Maker → Item Analysis), but the return trip doesn't: when Item Analysis finds least-mastered competencies, there should be a one-click "Plan reteach" that pre-fills a Lesson Plan (or PPT discussion slides) with exactly those competencies. A small home dashboard showing pipeline state — TOS made → test taken → 3 LMCs found → reteach ready — would turn the suite into one product.
+2. Score import that doesn't hurt — Item Analysis is where the loop dies if score entry is manual. Add paste-from-Excel/Sheets (TSV) and CSV upload. Stretch:  shared-api.js  already accepts image input, so a snap-a-scoresheet → auto-extract flow with Gemini vision is very doable with your existing keys.
+3. Shareable offline test links — encode the test in the URL hash (no backend, no accounts): students open the link on their phones, take the test, scores compute locally, teacher feeds results straight into Item Analysis. Fully fits your "no accounts, works offline" philosophy — and it's the one feature that could make the app spread school-wide.
+4. Starter packs against the blank page — the A–J lesson plans are already content in the repo. Surface them (plus grade/subject presets) as one-click starters that seed TOS competencies, a test, and a DLL together.
+
+🖱️ UX improvements (remove friction in what exists)
+
+5. My Documents has no search —  shared-docs-ui.js  has zero filtering (I checked). Add a search box + tool/subject/quarter filters, and a "Resume where you left off" strip on the home page. Cheap, felt every session.
+6. First-run setup wizard — one screen (school info → API key → your grade/subject) seeds every tool; today a new teacher lands on six empty forms and a key prompt.
+7. Settings don't live-sync — school info is read once at mount, and there are no  storage  event listeners anywhere. Edit Settings in one tab, open the TOS in another → stale header. One shared listener fixes it across tools.
+8. Global language toggle — Filipino support exists in pieces (lesson ph mode, activity  sheetLang , TOS Filipino preambles) but it's per-tool. Promote it to one Settings switch.
+
+🛡️ Trust & safety (quiet failures teachers never report)
+
+9. Offline banner — the service worker caches pages, but nothing tells the user "Offline — AI generation paused; drafts and exports still work." Use  navigator.onLine  + online/offline events; the friendly error text already exists in  shared-api.js .
+10. Storage meter in Settings — logos + documents live in ~5 MB of localStorage. A usage bar with an "export backup" nudge above ~80% prevents the silent  QuotaExceededError  that wipes a teacher's work (we already dodge this once with PPT images).
+11. Install button — the manifest exists but there's no  beforeinstallprompt  capture; one button on home turns the site into an app icon on teachers' phones.

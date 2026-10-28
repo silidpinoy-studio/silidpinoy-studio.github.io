@@ -30,6 +30,7 @@ export const PAYLOAD = PAGES.concat([
   'favicon.svg',
   'silid pinoy logo.jpg',
   'silidpinoy_logo.png',
+  'gcash.jpg',
   'apple-touch-icon.png',
   'icon-192.png',
   'icon-512.png',

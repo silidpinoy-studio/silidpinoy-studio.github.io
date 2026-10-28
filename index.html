@@ -194,6 +194,7 @@
       Clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
       ShieldCheck:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
       Save:'<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+      Heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
     };
     function LucideIcon({ name, className = '', strokeWidth = 2, ...props }) {
       const [loaded, setLoaded] = useState(false);
@@ -3216,6 +3217,42 @@ ${signTable([
                     <button onClick={() => document.getElementById('tools')?.scrollIntoView({ behavior:'smooth' })} className="btn-spring w-full sm:w-auto rounded-full bg-iris-600 text-white font-semibold text-base px-10 py-4 flex items-center justify-center gap-3 shadow-[0_18px_50px_-18px_rgba(91,70,232,0.7)]">
                       Explore All Tools <span className="icon-orb grid place-items-center w-8 h-8 rounded-full bg-white/15"><LucideIcon name="ArrowRight" className="w-4 h-4"/></span>
                     </button>
+                  </div>
+
+                  {/* Support card — directly under the Explore All Tools button */}
+                  <div className="mt-12 card-bezel max-w-2xl mx-auto">
+                    <div className="card-inner p-6 md:p-7">
+                      <div className="flex flex-col items-center text-center gap-4">
+                        <span className="grid place-items-center w-11 h-11 rounded-2xl bg-rose-50 text-rose-500"><LucideIcon name="Heart" className="w-5 h-5" /></span>
+                        <div>
+                          <h3 className="font-semibold text-lg">Help keep SilidPinoy free for every teacher</h3>
+                          <p className="text-ink/60 text-sm mt-1">No ads, no subscriptions, no accounts — just tools made with care for Filipino teachers. If SilidPinoy gave you your evenings back, a small GCash contribution keeps it free for everyone and funds what we build next.</p>
+                        </div>
+                        <button
+                          type="button"
+                          id="donate-toggle"
+                          aria-expanded="false"
+                          aria-controls="gcash-panel"
+                          onClick={(e) => {
+                            const panel = document.getElementById('gcash-panel');
+                            const hidden = panel.classList.toggle('hidden');
+                            e.currentTarget.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+                          }}
+                          className="btn-spring rounded-full bg-iris-600 text-white font-semibold text-sm px-7 py-3 inline-flex items-center justify-center gap-2">
+                          <LucideIcon name="Heart" className="w-4 h-4" /> Support via GCash
+                        </button>
+                      </div>
+                      <div id="gcash-panel" className="hidden" role="region" aria-label="GCash donation QR code">
+                        <div className="mt-5 pt-5 border-t border-black/5 flex flex-col items-center gap-4 text-center">
+                          <img src="gcash.jpg" alt="GCash QR code — scan to support SilidPinoy Studio" className="w-48 md:w-52 object-contain rounded-2xl bg-white ring-1 ring-black/10 p-2 shadow-sm" />
+                          <div className="space-y-1.5">
+                            <p className="text-sm text-ink/70">Open your <b>GCash</b> app, scan the code, and send any amount — kahit maliit, malaking tulong po.</p>
+                            <p className="text-sm text-ink/70">Your support keeps SilidPinoy free, ad-free, and growing for every Filipino teacher.</p>
+                            <p className="text-xs text-ink/45">Maraming salamat po! 🙏</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>

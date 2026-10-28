@@ -1,4 +1,4 @@
-const CACHE_NAME = 'silidpinoy-v4';
+const CACHE_NAME = 'silidpinoy-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/activity.html',
   '/tos.html',
   '/favicon.svg',
+  '/gcash.jpg',
   '/icon-192.png',
   '/icon-512.png',
   '/icon-maskable-512.png',

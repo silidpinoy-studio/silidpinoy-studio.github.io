@@ -144,6 +144,54 @@ test('each page exposes the shared modules it loads', { timeout: LONG_TIMEOUT },
 });
 
 /* ===============================================================
+   2b. the home donation card
+   =============================================================== */
+
+test('the home offers a quiet GCash support card that reveals the QR', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  try {
+    const toggle = page.locator('#donate-toggle');
+    if (!(await toggle.count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('the home must render its support card');
+    }
+
+    // the card sits in the home flow — nothing auto-opens on load
+    assert.ok(await toggle.isVisible(), 'the home must show the support card');
+    assert.match(await page.evaluate(() => document.body.innerText),
+      /Help keep SilidPinoy free for every teacher/, 'the support card must carry its headline');
+    assert.ok(!(await page.locator('#gcash-panel').isVisible()),
+      'the QR panel must stay closed until asked for');
+
+    // one click reveals the QR
+    await toggle.click();
+    await page.waitForTimeout(200);
+    assert.ok(await page.locator('#gcash-panel').isVisible(), 'the QR panel must open on click');
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true', 'the toggle must report its state');
+
+    const qr = page.locator('#gcash-panel img[alt*="GCash"]');
+    assert.ok(await qr.isVisible(), 'the GCash QR image must show');
+    const loaded = await qr.evaluate((img) => ({
+      complete: img.complete,
+      width: img.naturalWidth,
+      src: img.getAttribute('src')
+    }));
+    assert.equal(loaded.src, 'gcash.jpg', 'the QR must load from the project image');
+    assert.ok(loaded.complete && loaded.width > 0, 'the QR image must actually decode');
+
+    // and it folds away again
+    await toggle.click();
+    await page.waitForTimeout(200);
+    assert.ok(!(await page.locator('#gcash-panel').isVisible()),
+      'the QR panel must close on the second click');
+
+    assert.deepEqual(errors, [], 'the donation card must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
    3. document drawer
    =============================================================== */
 
