@@ -1784,14 +1784,15 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
     initScript: () => {
       try {
         localStorage.setItem('school_info', JSON.stringify({
-          schoolName: 'Rizal High School', schoolAddress: 'Pasig City', schoolLogo1: '', schoolLogo2: ''
+          schoolName: 'Rizal High School', schoolAddress: 'Pasig City', schoolLogo1: '', schoolLogo2: '',
+          regionNo: '04', regionName: 'NCR', division: 'Pasig City'
         }));
       } catch { /* storage unavailable */ }
     }
   });
   try {
     // the page now opens on a format chooser, so pick the SOLO template first
-    const silidCard = page.locator('button:has-text("SilidPinoy TOS")').first();
+    const silidCard = page.locator('button:has-text("SOLO TAXONOMY")').first();
     if (!(await silidCard.count())) {
       t.skip('tos.html did not render its format chooser (CDN unavailable?)');
       return;
@@ -1800,7 +1801,12 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
     await page.waitForTimeout(400);
 
     // the SOLO sheet shows the Settings school header on screen too
-    assert.match(await page.evaluate(() => document.body.innerText), /rizal high school/i, 'the SOLO on-screen sheet must carry the school header');
+    const soloSheetText = await page.evaluate(() => document.body.innerText);
+    assert.match(soloSheetText, /rizal high school/i, 'the SOLO on-screen sheet must carry the school header');
+    assert.match(soloSheetText, /REGION 04 – NCR/,
+      'the sheet must carry the shared Region line from Settings');
+    assert.match(soloSheetText, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
+      'the sheet must carry the shared Division line from Settings');
 
     // the standards carry their DepEd preamble
     const english = await page.evaluate(() => document.body.innerText);
@@ -1857,6 +1863,8 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
     if (docDownload) {
       const docHtml = fs.readFileSync(await docDownload.path(), 'utf8');
       assert.match(docHtml, /able to…<\/i><\/b><br>The learners investigate forces\.<br>The learners design a simple machine\./, 'the Word export must put the preamble and each performance standard on its own line');
+      assert.match(docHtml, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
+        'the Word export must carry the shared Division line from Settings');
       assert.match(docHtml, /understanding of…<\/i><\/b><br>The learners understand motion\.<br>The learners understand energy\./, 'the Word export must put the preamble and each content standard on its own line');
     } else {
       t.diagnostic('the .doc download did not fire — line breaks not checked in the export');
@@ -1891,7 +1899,7 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
 test('the TOS Extended Abstract cell appends the essay clause', { timeout: LONG_TIMEOUT }, async (t) => {
   const { context, page, errors } = await openPage('tos.html');
   try {
-    const silidCard = page.locator('button:has-text("SilidPinoy TOS")').first();
+    const silidCard = page.locator('button:has-text("SOLO TAXONOMY")').first();
     if (!(await silidCard.count())) {
       t.skip('tos.html did not render its format chooser (CDN unavailable?)');
       return;
@@ -2032,7 +2040,7 @@ test('the TOS Maker prints the table, not a blank page', { timeout: LONG_TIMEOUT
   });
   try {
     // pick the SOLO template — the page opens on the format chooser now
-    const silidCard = page.locator('button:has-text("SilidPinoy TOS")').first();
+    const silidCard = page.locator('button:has-text("SOLO TAXONOMY")').first();
     if (!(await silidCard.count())) {
       t.skip('tos.html did not render its format chooser (CDN unavailable?)');
       return;
@@ -2068,23 +2076,41 @@ test('the TOS Maker prints the table, not a blank page', { timeout: LONG_TIMEOUT
    =============================================================== */
 
 test('the TOS Maker offers a school template that is chosen first and remembers its work', { timeout: LONG_TIMEOUT }, async (t) => {
-  const { context, page, errors } = await openPage('tos.html');
+  const { context, page, errors } = await openPage('tos.html', {
+    initScript: () => {
+      try {
+        localStorage.setItem('school_info', JSON.stringify({
+          schoolName: 'Rizal High School', schoolAddress: 'Pasig City', schoolLogo1: '', schoolLogo2: '',
+          regionNo: '04', regionName: 'NCR', division: 'Pasig City'
+        }));
+      } catch { /* storage unavailable */ }
+    }
+  });
   try {
-    const schoolCard = page.locator('button:has-text("School TOS Template")').first();
+    const schoolCard = page.locator('button:has-text("BLOOMS - LOT/HOTS")').first();
     if (!(await schoolCard.count())) {
       t.skip('tos.html did not render its format chooser (CDN unavailable?)');
       return;
     }
 
     // the format is picked before any form appears
-    assert.ok(await page.locator('button:has-text("SilidPinoy TOS")').first().isVisible(), 'the SOLO template must be offered');
+    assert.ok(await page.locator('button:has-text("SOLO TAXONOMY")').first().isVisible(), 'the SOLO template must be offered');
     assert.ok(await schoolCard.isVisible(), 'the school template must be offered');
+
+    // the cards now carry the framework names — the old redundant badges are gone
+    const chooserText = await page.evaluate(() => document.body.innerText);
+    assert.ok(!chooserText.includes('SOLO Taxonomy'), 'the old SOLO badge text must be removed from the chooser');
+    assert.ok(!chooserText.includes('LOTS / HOTS'), 'the old Bloom badge text must be removed from the chooser');
 
     await schoolCard.click();
     await page.waitForTimeout(400);
 
     const body = await page.evaluate(() => document.body.innerText);
     assert.match(body, /Lower Order Thinking Skills/, 'the school template must group LOTS');
+    assert.match(body, /REGION 04 – NCR/,
+      'the school sheet must carry the shared Region line from Settings');
+    assert.match(body, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
+      'the school sheet must carry the shared Division line from Settings');
     assert.match(body, /Higher Order Thinking Skills/, 'the school template must group HOTS');
     assert.ok(!/reysimplifai/i.test(await page.evaluate(() => document.body.innerHTML)), 'vendor credits must be removed');
 
@@ -2101,7 +2127,7 @@ test('the TOS Maker offers a school template that is chosen first and remembers 
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(WAIT_MS);
     // the chooser shows first again; picking the school template restores the work
-    await page.locator('button:has-text("School TOS Template")').first().click();
+    await page.locator('button:has-text("BLOOMS - LOT/HOTS")').first().click();
     await page.waitForTimeout(400);
     assert.equal(
       await page.getByPlaceholder('Competency 1 description...').inputValue(),
@@ -2147,6 +2173,8 @@ test('the TOS Maker offers a school template that is chosen first and remembers 
     assert.match(doc.suggestedFilename(), /^TOS_.*\.doc$/, 'the school export must be a .doc file');
     const text = fs.readFileSync(await doc.path(), 'utf8');
     assert.ok(text.includes('Lower Order Thinking Skills') && text.includes('Placement'), 'the exported sheet must carry the school table headers');
+    assert.ok(text.includes('SCHOOLS DIVISION OFFICE OF PASIG CITY'),
+      'the school Word export must carry the shared Division line from Settings');
     assert.ok(text.includes('Prepared by:') && text.includes('Checked by:') && text.includes('Approved by:'), 'the exported sheet must carry the signature block');
     assert.ok(!text.startsWith('PK'), 'the flat .doc must not be a zip archive');
     assert.match(await page.evaluate(() => document.body.innerText), /Prepared by:[\s\S]*Checked by:[\s\S]*Approved by:/, 'the on-screen sheet must carry the signature block');
@@ -2182,7 +2210,7 @@ test('the school TOS hands a finished specification to the Test Maker', { timeou
     }
   });
   try {
-    const schoolCard = page.locator('button:has-text("School TOS Template")').first();
+    const schoolCard = page.locator('button:has-text("BLOOMS - LOT/HOTS")').first();
     if (!(await schoolCard.count())) {
       t.skip('tos.html did not render its format chooser (CDN unavailable?)');
       return;
@@ -2260,7 +2288,7 @@ test('the school TOS saves to and reopens from My Documents', { timeout: LONG_TI
   try {
     await page.goto(server.url + 'tos.html', { waitUntil: 'load', timeout: NAV_TIMEOUT });
     await page.waitForTimeout(WAIT_MS);
-    const card = page.locator('button:has-text("School TOS Template")').first();
+    const card = page.locator('button:has-text("BLOOMS - LOT/HOTS")').first();
     if (!(await card.count())) { t.skip('tos.html did not render its format chooser (CDN unavailable?)'); return; }
     await card.click();
     await page.waitForTimeout(400);

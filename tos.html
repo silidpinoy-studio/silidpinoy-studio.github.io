@@ -193,6 +193,22 @@
       return items.join(', ');
     }
 
+    /* Shared DepEd header lines from Settings (School & Personal Info) — the same
+       Region and Division lines the lesson plan prints above the school name. */
+    function sharedRegionLine(si) {
+      const s = si || {};
+      if (!s.regionNo && !s.regionName) return '';
+      return ('REGION ' + [s.regionNo, s.regionName].filter(Boolean).join(' \u2013 ')).toUpperCase();
+    }
+    function sharedDivisionLine(si) {
+      const s = si || {};
+      return s.division ? ('SCHOOLS DIVISION OFFICE OF ' + s.division).toUpperCase() : '';
+    }
+    function hasSharedHeader(si) {
+      const s = si || {};
+      return !!(s.schoolLogo1 || s.schoolLogo2 || s.schoolName || s.regionNo || s.regionName || s.division);
+    }
+
     /* Split a standards field into individual standards — one per line. */
     function standardLines(value) {
       return String(value || '')
@@ -261,9 +277,9 @@
     }
 
     const TOS_TEMPLATES = [
-      { id:'silidpinoy', name:'SilidPinoy TOS', tag:'SOLO Taxonomy', icon:'Layers',
+      { id:'silidpinoy', name:'SOLO TAXONOMY', icon:'Layers',
         desc:'Four SOLO levels, performance and content standards, saved configurations, and a Make Test handoff.' },
-      { id:'school', name:'School TOS Template', tag:'Bloom\u2019s \u2013 LOTS / HOTS', icon:'Table',
+      { id:'school', name:'BLOOMS - LOT/HOTS', icon:'Table',
         desc:'Six cognitive levels grouped into LOTS and HOTS, teaching-hours weighting, and No. of Days/Hours and % of Teaching Time columns.' },
     ];
 
@@ -286,7 +302,6 @@
                   <span className="grid place-items-center w-11 h-11 rounded-2xl bg-iris-100 text-iris-600 mb-4">
                     <LucideIcon name={t.icon} className="w-5 h-5" />
                   </span>
-                  <span className="inline-flex w-max items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-iris-50 text-iris-700 border border-iris-100 mb-2">{t.tag}</span>
                   <h3 className="text-lg font-bold text-ink font-display">{t.name}</h3>
                   <p className="text-sm text-ink/50 mt-1.5 leading-relaxed flex-1">{t.desc}</p>
                   <span className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-iris-600 group-hover:gap-3 transition-all">
@@ -350,10 +365,10 @@
       const [schoolInfo] = useState(() => {
         try { return JSON.parse(localStorage.getItem('school_info')) || {}; } catch { return {}; }
       });
-      const hasSchoolHeader = !!(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2 || schoolInfo.schoolName);
+      const hasSchoolHeader = hasSharedHeader(schoolInfo);
       const buildHeaderHtml = () => {
         const si = schoolInfo || {};
-        if (!(si.schoolLogo1 || si.schoolLogo2 || si.schoolName)) return '';
+        if (!hasSharedHeader(si)) return '';
         let h = '<div style="text-align:center;margin-bottom:12pt;">';
         if (si.schoolLogo1 || si.schoolLogo2) {
           h += '<div style="margin-bottom:6pt;">';
@@ -361,6 +376,10 @@
           if (si.schoolLogo2) h += `<img src="${si.schoolLogo2}" style="height:64pt;margin:0 12pt;vertical-align:middle;">`;
           h += '</div>';
         }
+        const region = sharedRegionLine(si);
+        const division = sharedDivisionLine(si);
+        if (region) h += `<p style="font-size:11pt;font-weight:bold;margin:0;">${region}</p>`;
+        if (division) h += `<p style="font-size:11pt;font-weight:bold;margin:0;">${division}</p>`;
         if (si.schoolName) h += `<p style="font-size:13pt;font-weight:bold;text-transform:uppercase;letter-spacing:1pt;margin:0;">${si.schoolName}</p>`;
         if (si.schoolAddress) h += `<p style="font-size:10pt;color:#666;margin:2pt 0;">${si.schoolAddress}</p>`;
         h += '</div>';
@@ -822,6 +841,8 @@
                         {schoolInfo.schoolLogo2 && <img src={schoolInfo.schoolLogo2} alt="" className="h-16 object-contain" />}
                       </div>
                     )}
+                    {sharedRegionLine(schoolInfo) && <p className="text-xs font-bold">{sharedRegionLine(schoolInfo)}</p>}
+                    {sharedDivisionLine(schoolInfo) && <p className="text-xs font-bold">{sharedDivisionLine(schoolInfo)}</p>}
                     {schoolInfo.schoolName && <p className="text-sm font-bold uppercase tracking-wide">{schoolInfo.schoolName}</p>}
                     {schoolInfo.schoolAddress && <p className="text-xs text-ink/50">{schoolInfo.schoolAddress}</p>}
                   </div>
@@ -1367,7 +1388,7 @@
       const buildTosWordHtml = () => {
         /* School header */
         let sh = '';
-        if (schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2 || schoolInfo.schoolName) {
+        if (hasSharedHeader(schoolInfo)) {
           sh = '<div style="text-align:center;margin-bottom:16pt;">';
           if (schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2) {
             sh += '<div style="margin-bottom:8pt;">';
@@ -1375,6 +1396,10 @@
             if (schoolInfo.schoolLogo2) sh += `<img src="${schoolInfo.schoolLogo2}" style="height:72pt;margin:0 12pt;vertical-align:middle;">`;
             sh += '</div>';
           }
+          const shRegion = sharedRegionLine(schoolInfo);
+          const shDivision = sharedDivisionLine(schoolInfo);
+          if (shRegion) sh += `<p style="font-size:11pt;font-weight:bold;margin:0;">${shRegion}</p>`;
+          if (shDivision) sh += `<p style="font-size:11pt;font-weight:bold;margin:0;">${shDivision}</p>`;
           if (schoolInfo.schoolName) sh += `<p style="font-size:13pt;font-weight:bold;text-transform:uppercase;letter-spacing:1pt;margin:0;">${schoolInfo.schoolName}</p>`;
           if (schoolInfo.schoolAddress) sh += `<p style="font-size:10pt;color:#666;margin:2pt 0;">${schoolInfo.schoolAddress}</p>`;
           sh += '<hr style="border:none;border-top:1pt solid #ccc;margin:10pt 0;"></div>';
@@ -1905,7 +1930,7 @@
               <div className="card-inner p-4 md:p-12 rounded-[calc(1.75rem-6px)] overflow-x-auto">
                 {/* Title */}
                 <div className="mb-5 text-center font-serif">
-                  {(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2 || schoolInfo.schoolName) && (
+                  {hasSharedHeader(schoolInfo) && (
                     <div className="mb-4">
                       {(schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2) && (
                         <div className="mb-2 flex items-center justify-center gap-6">
@@ -1913,6 +1938,8 @@
                           {schoolInfo.schoolLogo2 && <img src={schoolInfo.schoolLogo2} alt="" className="h-16 object-contain" />}
                         </div>
                       )}
+                      {sharedRegionLine(schoolInfo) && <p className="text-xs font-bold">{sharedRegionLine(schoolInfo)}</p>}
+                      {sharedDivisionLine(schoolInfo) && <p className="text-xs font-bold">{sharedDivisionLine(schoolInfo)}</p>}
                       {schoolInfo.schoolName && <p className="text-sm font-bold uppercase tracking-wide">{schoolInfo.schoolName}</p>}
                       {schoolInfo.schoolAddress && <p className="text-xs text-ink/50">{schoolInfo.schoolAddress}</p>}
                     </div>
