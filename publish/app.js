@@ -83,8 +83,8 @@ function Home() {
 
       <div className="reveal max-w-4xl mx-auto">
         <div className="card-bezel">
-          <div className="card-inner p-6 md:p-7" style={{ background: 'linear-gradient(135deg,#FFF1F2 0%,#FFE4E6 45%,#FEF3C7 100%)' }}>
-            <div className="flex flex-col md:flex-row md:items-center gap-5">
+          <div className="card-inner p-4 md:p-5" style={{ background: 'linear-gradient(135deg,#FFF1F2 0%,#FFE4E6 45%,#FEF3C7 100%)' }}>
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
               <div className="icon-orb w-11 h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-[0_10px_24px_-10px_rgba(225,29,72,0.8)]">
                 <LucideIcon name="Heart" className="w-5 h-5" />
               </div>
@@ -108,7 +108,7 @@ function Home() {
               </button>
             </div>
             <div id="gcash-panel" className="hidden" role="region" aria-label="GCash donation QR code">
-              <div className="mt-5 pt-5 border-t border-black/5 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+              <div className="mt-4 pt-4 border-t border-black/5 flex flex-col md:flex-row items-center gap-5 text-center md:text-left">
                 <img src="gcash.jpg" alt="GCash QR code — scan to support SilidPinoy Studio"
                   className="w-52 h-52 shrink-0 object-contain rounded-2xl bg-white ring-1 ring-black/10 p-2 shadow-sm" />
                 <div className="space-y-2">
