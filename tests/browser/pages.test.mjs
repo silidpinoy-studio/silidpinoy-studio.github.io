@@ -443,7 +443,7 @@ test('SilidAPI retries transient failures and falls back to the backup key', { t
         return route.fulfill({
           status: 429,
           contentType: 'application/json',
-          body: JSON.stringify({ error: { message: 'quota exceeded' } })
+          body: JSON.stringify({ error: { message: 'high demand — try again later' } })
         });
       }
       return route.fulfill({
@@ -463,6 +463,39 @@ test('SilidAPI retries transient failures and falls back to the backup key', { t
     assert.ok(hits.length >= 6, `expected primary retries then backup, saw ${hits.length} calls`);
     assert.ok(hits.slice(0, 5).every((h) => h.key === 'PRIMARY_KEY'), 'primary should be tried first');
     assert.equal(hits[hits.length - 1].key, 'BACKUP_KEY', 'last attempt should use the backup key');
+  } finally {
+    await context.close();
+  }
+});
+
+test('SilidAPI reports an exhausted quota at once, with Gemini\'s own message', { timeout: LONG_TIMEOUT }, async () => {
+  const { context, page } = await openPage('lesson.html');
+  try {
+    let calls = 0;
+    await page.route('**/generativelanguage.googleapis.com/**', (route) => {
+      calls++;
+      return route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { message: 'You exceeded your current quota, please check your plan and billing details.' }
+        })
+      });
+    });
+
+    const message = await page.evaluate(async () => {
+      window.SilidKeys.set('primary', 'PRIMARY_KEY');
+      window.SilidKeys.set('backup', 'BACKUP_KEY');
+      try {
+        await window.SilidAPI.callGemini({ prompt: 'hello' });
+        return 'resolved';
+      } catch (e) {
+        return e.message;
+      }
+    });
+
+    assert.match(message, /You exceeded your current quota/, 'the real Gemini message must reach the teacher');
+    assert.equal(calls, 2, 'one attempt per key, then stop — no minute-long retry ladder');
   } finally {
     await context.close();
   }

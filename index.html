@@ -497,6 +497,42 @@
       };
       const removeLogo = (field) => setSchoolInfo(p => ({ ...p, [field]: '' }));
 
+      /* ── Storage meter (Settings) ─────────────────────────────────────
+         localStorage holds the school info + logos and each tool's last
+         output. Document history lives in IndexedDB (shared-docs.js) and is
+         deliberately not counted here. Chrome's per-origin budget is about
+         5 MB of UTF-16 code units, so sizes are measured the same way. */
+      const storageStats = (() => {
+        const empty = { total: 0, logos: 0, saved: 0, other: 0, percent: 0 };
+        let ls = null;
+        try { ls = window.localStorage; } catch (e) { return empty; }
+        if (!ls) return empty;
+        const stats = { total: 0, logos: 0, saved: 0, other: 0, percent: 0 };
+        try {
+          for (let i = 0; i < ls.length; i++) {
+            const key = ls.key(i) || '';
+            const value = ls.getItem(key) || '';
+            const size = key.length + value.length;
+            stats.total += size;
+            if (key === 'school_info') {
+              let si = {};
+              try { si = JSON.parse(value) || {}; } catch (e) { si = {}; }
+              stats.logos += String(si.schoolLogo1 || '').length + String(si.schoolLogo2 || '').length;
+            }
+            if (/^(saved_|lesson_activity_sheet$|lesson_ppt_import$|tos_make_test$)/.test(key)) stats.saved += size;
+          }
+        } catch (e) { /* storage unreadable — show what we have */ }
+        stats.other = Math.max(0, stats.total - stats.logos - stats.saved);
+        stats.percent = Math.min(100, (stats.total / (5 * 1024 * 1024)) * 100);
+        return stats;
+      })();
+      const formatStorage = (chars) => {
+        if (!chars) return '0 KB';
+        const mb = chars / (1024 * 1024);
+        if (mb >= 0.1) return mb.toFixed(1) + ' MB';
+        return Math.max(1, Math.round(chars / 1024)) + ' KB';
+      };
+
       const handleBackupImport = async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
@@ -687,6 +723,10 @@
         const si = schoolInfo || {};
         const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         let h = '<div style="text-align:center;font-family:Arial,sans-serif;line-height:1.25;margin-bottom:8px;">';
+        /* School logos from Settings — every document tool prints the same block. */
+        if (si.schoolLogo1 || si.schoolLogo2) {
+          h += '<p style="margin:0 0 4px;">' + [si.schoolLogo1, si.schoolLogo2].filter(Boolean).map((src) => '<img src="' + src + '" alt="" style="height:50px;margin:0 10px;vertical-align:middle;">').join('') + '</p>';
+        }
         h += '<p style="margin:0;font-size:11pt;">Republic of the Philippines</p>';
         h += '<p style="margin:0;font-size:13pt;font-weight:bold;font-family:\'Times New Roman\',serif;">Department of Education</p>';
         if (si.regionNo || si.regionName) {
@@ -3404,6 +3444,26 @@ ${signTable([
                   </div>
                   {backupMsg&&<p className="text-[11px] text-iris-600 font-medium">{backupMsg}</p>}
                   {backupWarnings.length>0&&<ul className="text-[11px] text-amber-600 space-y-0.5">{backupWarnings.map((w,i)=><li key={i}>{w}</li>)}</ul>}
+                </div>
+                {/* Storage meter — logos and saved outputs share the ~5 MB localStorage budget */}
+                <div className="border-t border-black/5 pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Storage</h3>
+                    <span className="text-[11px] font-semibold text-ink/60">{formatStorage(storageStats.total)} of about 5 MB</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-black/5 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${storageStats.percent >= 80 ? 'bg-rose-500' : 'bg-iris-500'}`}
+                      style={{ width: Math.max(1, storageStats.percent) + '%' }} />
+                  </div>
+                  <div className="mt-2 grid sm:grid-cols-3 gap-1 text-[11px] text-ink/55">
+                    <span>Logos: <b className="text-ink/75">{formatStorage(storageStats.logos)}</b></span>
+                    <span>Saved plans &amp; tests: <b className="text-ink/75">{formatStorage(storageStats.saved)}</b></span>
+                    <span>Other: <b className="text-ink/75">{formatStorage(storageStats.other)}</b></span>
+                  </div>
+                  {storageStats.percent >= 80 && (
+                    <p className="mt-2 text-[11px] text-rose-600 font-medium">Storage is nearly full — export a backup, then remove a logo or an old saved output.</p>
+                  )}
+                  <p className="mt-1.5 text-[10px] text-ink/35">Document history is kept separately and is not counted here.</p>
                 </div>
                 <div className="border-t border-black/5 pt-6">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40 mb-3">Document Header Preview</h3>

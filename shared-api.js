@@ -5,6 +5,7 @@
  *
  * Features:
  *  - Primary + automatic backup key fallback on quota/transient errors
+ *  - Exhausted quota is reported at once (one attempt per key, real message)
  *  - Exponential backoff retry for transient failures (429, 5xx, network)
  *  - AbortController signal support for cancellation
  *  - Standardized friendly error messages
@@ -37,12 +38,26 @@
       /high demand|overloaded|resource exhausted|too many requests|temporar|unavailable/i.test(msg);
   }
 
+  /* A spent daily quota will not refill while the teacher waits, so retrying it
+     only burns the backoff ladder (2s + 4s + 8s + 15s, twice when a backup key
+     is set) and lands on the same error. Report it at once instead: the caller
+     switches to the backup key a single time, then surfaces this message.
+     Per-minute rate limits are still transient — those clear on their own. */
+  function isQuotaExhausted(msg) {
+    if (!msg) return false;
+    if (/per minute|per-minute|rate limit|too many requests|try again in/i.test(msg)) return false;
+    return /quota|resource (has been )?exhausted/i.test(msg);
+  }
+
   function friendlyError(msg) {
     if (!msg) return 'Something went wrong. Please check your key and try again.';
     if (msg.indexOf('API key not valid') !== -1) return 'Your API key is not valid. Please paste a fresh key from aistudio.google.com/apikey.';
     if (msg.indexOf('invalid authentication credentials') !== -1) return 'Your API key is not valid. Please paste a fresh key from aistudio.google.com/apikey.';
     if (msg.indexOf('Permission denied') !== -1) return 'Permission denied. Make sure the Generative Language API is enabled for your Google account.';
-    if (msg.indexOf('quota') !== -1) return 'Daily quota reached for this key. Add a backup key in Settings, or try again later.';
+    if (msg.indexOf('quota') !== -1 || /resource (has been )?exhausted/i.test(msg)) {
+      // Keep Gemini's own wording: teachers and support both need the real reason.
+      return 'Daily quota reached for this key. Add a backup key in Settings, or try again later. Gemini said: ' + msg;
+    }
     if (msg.indexOf('not found') !== -1 && msg.indexOf('API version') !== -1) return 'The AI model is unavailable right now. Please try again later.';
     if (msg.indexOf('not found') !== -1) return 'This API key does not have access to Gemini. Use a key from aistudio.google.com/apikey.';
     if (msg.indexOf('Invalid JSON') !== -1 || msg.indexOf('Unexpected token') !== -1) return 'The AI returned an invalid response. Please try again.';
@@ -77,6 +92,7 @@
         return res.json().then(function (data) {
           if (!res.ok) {
             var msg = (data.error && data.error.message) || ('HTTP error ' + res.status);
+            if (isQuotaExhausted(msg)) throw new Error(friendlyError(msg));
             if (!isTransient(res.status, msg)) throw new Error(friendlyError(msg));
             if (attempt < retries) {
               var wait = DELAYS[attempt]; attempt++;

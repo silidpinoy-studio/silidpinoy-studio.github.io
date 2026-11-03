@@ -135,16 +135,9 @@ test('a persistently failing network gives one clear message', async () => {
   await assert.rejects(() => api.callGemini({ prompt: 'x' }), /Check your internet connection/i);
 });
 
-test('exhausted quota falls back to the backup key', async () => {
-  // primary always says "quota"; backup answers
-  const fetchImpl = fakeFetch([
-    apiError(429, 'quota exceeded'),
-    apiError(429, 'quota exceeded'),
-    apiError(429, 'quota exceeded'),
-    apiError(429, 'quota exceeded'),
-    apiError(429, 'quota exceeded'),
-    ok('served by backup')
-  ]);
+test('exhausted quota falls back to the backup key without retrying the primary', async () => {
+  // a spent quota is final for that key, so the primary gets one attempt
+  const fetchImpl = fakeFetch([apiError(429, 'quota exceeded'), ok('served by backup')]);
   const api = loadApi({
     fetchImpl,
     storedKeys: { gemini_api_key: 'PRIMARY', gemini_api_key_2: 'BACKUP' }
@@ -152,8 +145,22 @@ test('exhausted quota falls back to the backup key', async () => {
 
   assert.equal(await api.callGemini({ prompt: 'x' }), 'served by backup');
   const keys = fetchImpl.calls.map((c) => c.headers['x-goog-api-key']);
-  assert.ok(keys.slice(0, 5).every((k) => k === 'PRIMARY'), 'primary tried first');
-  assert.equal(keys[5], 'BACKUP', 'last attempt uses the backup key');
+  assert.equal(keys[0], 'PRIMARY', 'primary tried first');
+  assert.equal(keys[1], 'BACKUP', 'the backup key serves the fallback call');
+  assert.equal(fetchImpl.calls.length, 2, 'quota must not sit on the retry ladder');
+});
+
+test('an exhausted quota fails fast with the real Gemini message', async () => {
+  const fetchImpl = fakeFetch([
+    apiError(429, 'You exceeded your current quota, please check your plan and billing details.')
+  ]);
+  const api = loadApi({ fetchImpl, storedKeys: { gemini_api_key: 'K' } });
+
+  await assert.rejects(
+    () => api.callGemini({ prompt: 'x' }),
+    /You exceeded your current quota/
+  );
+  assert.equal(fetchImpl.calls.length, 1, 'a quota error must not be retried');
 });
 
 test('the backup key is not used for permanent errors', async () => {
@@ -278,12 +285,7 @@ test('generateImage requires a key and a prompt', async () => {
 });
 
 test('generateImage falls back to the backup key on quota errors', async () => {
-  const fetchImpl = fakeFetch([
-    apiError(429, 'quota exceeded'),
-    apiError(429, 'quota exceeded'),
-    apiError(429, 'quota exceeded'),
-    imageReply('BACKUP')
-  ]);
+  const fetchImpl = fakeFetch([apiError(429, 'quota exceeded'), imageReply('BACKUP')]);
   const api = loadApi({
     fetchImpl,
     storedKeys: { gemini_api_key: 'PRIMARY', gemini_api_key_2: 'BACKUP_KEY' }
@@ -292,8 +294,9 @@ test('generateImage falls back to the backup key on quota errors', async () => {
   const img = await api.generateImage({ prompt: 'x' });
   assert.equal(img.dataUri, 'data:image/png;base64,BACKUP');
   const keys = fetchImpl.calls.map((c) => c.headers['x-goog-api-key']);
-  assert.ok(keys.slice(0, 3).every((k) => k === 'PRIMARY'), 'primary tried first (initial + 2 retries)');
-  assert.equal(keys[3], 'BACKUP_KEY', 'the backup key serves the fallback call');
+  assert.equal(keys[0], 'PRIMARY', 'primary tried first');
+  assert.equal(keys[1], 'BACKUP_KEY', 'the backup key serves the fallback call');
+  assert.equal(fetchImpl.calls.length, 2, 'quota must not sit on the retry ladder');
 });
 
 test('generateImage reports a response that carries no image', async () => {

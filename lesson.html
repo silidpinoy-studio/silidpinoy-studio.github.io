@@ -616,6 +616,9 @@
                         <p id="ui-load-desc" class="text-ink/45 text-sm mt-2 max-w-sm">Bumubuo ng weekly table format gamit ang iyong mga detalye at references. Karaniwang tumatagal ito ng ilang segundo — huwag isara ang tab.</p>
                     </div>
 
+                    <!-- School logos from Settings, above the generated header -->
+                    <div id="lesson-logo-strip" class="hidden text-center"></div>
+
                     <!-- Result State -->
                     <div id="output-content" class="hidden text-sm md:text-base pb-8 w-full overflow-x-auto">
                         <!-- Content will be injected here -->
@@ -730,6 +733,17 @@
             if (schoolInfo.schoolName) lines.push('<p style="margin: 0; font-size: 13pt; font-weight: bold; margin-top: 5px;">' + schoolInfo.schoolName.toUpperCase() + '</p>');
             if (schoolInfo.schoolAddress) lines.push('<p style="margin: 0; font-size: 11pt;">' + schoolInfo.schoolAddress + '</p>');
             return lines.join('\n    ');
+        }
+        /* School logos for the plan header. Deliberately kept out of the AI
+           prompt and out of the saved localStorage payload: they are large
+           data URLs, and the model only needs the text header above. */
+        function lessonLogosHtml() {
+            var logos = [schoolInfo.schoolLogo1, schoolInfo.schoolLogo2].filter(Boolean);
+            if (!logos.length) return '';
+            return '<p style="text-align:center;margin:0 0 10px;line-height:1;">' +
+                logos.map(function (src) {
+                    return '<img src="' + src + '" alt="" style="height:52px;margin:0 12px;vertical-align:middle;">';
+                }).join('') + '</p>';
         }
         document.addEventListener('DOMContentLoaded', () => {
             if (schoolInfo.teacherName) document.getElementById('teacherName').value = schoolInfo.teacherName;
@@ -1132,6 +1146,7 @@
         const emptyState = document.getElementById('empty-state');
         const loadingState = document.getElementById('loading-state');
         const outputContent = document.getElementById('output-content');
+        const lessonLogoStrip = document.getElementById('lesson-logo-strip');
         const copyBtn = document.getElementById('copy-btn');
         const downloadBtn = document.getElementById('download-btn');
         const downloadDocBtn = document.getElementById('download-doc-btn');
@@ -1144,6 +1159,17 @@
         const uploadTitle = document.getElementById('upload-title');
         const uploadDesc = document.getElementById('upload-desc');
         const objectivesContainer = document.getElementById('objectives-container');
+
+        /* The logo strip sits outside #output-content so the saved lesson HTML
+           (and the activity/PPT hand-offs) never carry the base64 logos. */
+        function showLessonLogos() {
+            if (!lessonLogoStrip) return;
+            if (!lessonLogoStrip.innerHTML.trim()) lessonLogoStrip.innerHTML = lessonLogosHtml();
+            if (lessonLogoStrip.innerHTML.trim()) lessonLogoStrip.classList.remove('hidden');
+        }
+        function hideLessonLogos() {
+            if (lessonLogoStrip) lessonLogoStrip.classList.add('hidden');
+        }
         
         const languageModeInput = document.getElementById('languageMode');
         const inputModeInput = document.getElementById('inputMode');
@@ -1326,6 +1352,7 @@
             emptyState.classList.remove('hidden');
             loadingState.classList.add('hidden');
             outputContent.classList.add('hidden');
+            hideLessonLogos();
             copyBtn.classList.add('hidden');
             downloadBtn.classList.add('hidden');
             downloadDocBtn.classList.add('hidden');
@@ -2465,6 +2492,7 @@ function showError(message) {
             
             emptyState.classList.add('hidden');
             outputContent.classList.add('hidden');
+            hideLessonLogos();
             copyBtn.classList.add('hidden');
             downloadBtn.classList.add('hidden');
             downloadDocBtn.classList.add('hidden');
@@ -3569,6 +3597,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 
                 loadingState.classList.add('hidden');
                 outputContent.classList.remove('hidden');
+                showLessonLogos();
                 copyBtn.classList.remove('hidden');
                 downloadBtn.classList.remove('hidden');
             downloadDocBtn.classList.remove('hidden');
@@ -3660,7 +3689,9 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 }
             });
 
-            const content = exportContainer.innerHTML;
+            /* The on-screen logo strip lives outside #output-content so it cannot
+               bloat the stored plan; add it back for the downloaded document. */
+            const content = lessonLogosHtml() + exportContainer.innerHTML;
             
             const htmlString = `
                 <!DOCTYPE html>
@@ -3868,6 +3899,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
             emptyState.classList.add('hidden');
             loadingState.classList.add('hidden');
             outputContent.classList.remove('hidden');
+            showLessonLogos();
             copyBtn.classList.remove('hidden');
             downloadBtn.classList.remove('hidden');
             downloadDocBtn.classList.remove('hidden');
@@ -3888,6 +3920,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 emptyState.classList.add('hidden');
                 loadingState.classList.add('hidden');
                 outputContent.classList.remove('hidden');
+                showLessonLogos();
                 copyBtn.classList.remove('hidden');
                 downloadBtn.classList.remove('hidden');
             downloadDocBtn.classList.remove('hidden');
