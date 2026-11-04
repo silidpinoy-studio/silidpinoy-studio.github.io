@@ -18,6 +18,7 @@ export const PAGES = [
 
 /** Everything copied straight from the project root into `publish/`. */
 export const PAYLOAD = PAGES.concat([
+  'shared-assets.js',
   'shared-api.js',
   'shared-keys.js',
   'shared-backup.js',

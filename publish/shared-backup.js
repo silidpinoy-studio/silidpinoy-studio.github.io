@@ -89,6 +89,12 @@
       var v = safeGetJSON(k);
       if (v !== undefined) data[k] = v;
     });
+    /* Logos live in IndexedDB (shared-assets.js), not in school_info, so they
+       must be carried explicitly or a restore would lose them. */
+    var logos = window.SilidAssets ? window.SilidAssets.getLogos() : null;
+    if (logos && (logos.schoolLogo1 || logos.schoolLogo2)) {
+      data.school_logos = { schoolLogo1: logos.schoolLogo1 || '', schoolLogo2: logos.schoolLogo2 || '' };
+    }
     if (includeKeys) {
       API_KEY_KEYS.forEach(function (k) {
         var v = readApiKey(k);
@@ -179,6 +185,19 @@
         localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
       }
     });
+
+    /* Logos: restore whatever the backup carries (a replace also clears logos
+       the backup does not have, so the browser matches the backup). */
+    if (window.SilidAssets) {
+      var logos = data.school_logos;
+      if (logos && typeof logos === 'object') {
+        window.SilidAssets.setLogo('schoolLogo1', logos.schoolLogo1 || '');
+        window.SilidAssets.setLogo('schoolLogo2', logos.schoolLogo2 || '');
+      } else if (mode === 'replace') {
+        window.SilidAssets.setLogo('schoolLogo1', '');
+        window.SilidAssets.setLogo('schoolLogo2', '');
+      }
+    }
 
     // write API keys only if they were included
     if (payload.includeApiKeys) {

@@ -12,6 +12,7 @@ const STATIC_ASSETS = [
   '/icon-512.png',
   '/icon-maskable-512.png',
   '/apple-touch-icon.png',
+  '/shared-assets.js',
   '/shared-api.js',
   '/shared-keys.js',
   '/shared-backup.js',

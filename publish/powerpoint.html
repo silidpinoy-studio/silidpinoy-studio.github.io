@@ -1634,7 +1634,7 @@ return fallback[i % fallback.length];
                 if (state.visuals === 'emoji' || (state.visuals === 'both' && !hasIdea)) {
                     return '<div class="flex flex-col items-center justify-center text-center rounded-xl p-4 gap-2" style="width:42%;min-height:180px;background:' + theme.accent + '">' +
                         '<span class="text-[64px] leading-none select-none">' + emojiForSlide(s, state.current) + '</span>' +
-                        '<span class="text-[10px] font-bold uppercase tracking-wider opacity-60" style="color:' + theme.text + '">' + escapeHtml((visual || 'Slide icon').slice(0, 70)) + '</span>' +
+                        (hasIdea ? '<span class="text-[10px] font-bold uppercase tracking-wider opacity-60" style="color:' + theme.text + '">' + escapeHtml(visual.slice(0, 70)) + '</span>' : '') +
                     '</div>';
                 }
                 if (state.visuals === 'none') return '';
@@ -1781,7 +1781,11 @@ return fallback[i % fallback.length];
         }
 
 function escapeHtml(str) {
-            return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"');
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
         }
 
         /* ---------- print / PDF handout (every slide + its notes, one per page) ---------- */
@@ -1876,7 +1880,10 @@ function escapeHtml(str) {
                     // "Cannot create property 'options' on string". Always wrap strings.
                     function textObjects(lines, extra) {
                         return (lines || []).map(function (p) {
-                            var opts = { breakLine: false };
+                            // Each bullet must end its own paragraph. With breakLine:false
+                            // every run collapsed into one line and the deck looked
+                            // like a single run-on paragraph (no alignment, no bullets).
+                            var opts = { breakLine: true };
                             if (extra) for (var k in extra) opts[k] = extra[k];
                             return { text: p, options: opts };
                         });
@@ -2049,28 +2056,36 @@ function escapeHtml(str) {
                             align: 'center', fontFace: isPlayful ? 'Arial' : 'Georgia'
                         });
                         var cbullets = textObjects(contentLines, { bullet: { code: '2022', color: isPlayful ? theme.secondary : undefined } });
+                        /* The AI often writes "None" as the visual idea — never print
+                           that as a caption under the emoji. */
+                        var topicIdea = String(s.suggestedVisual || '').trim();
+                        var topicHasIdea = topicIdea.length > 5 && topicIdea.toLowerCase() !== 'none';
+                        /* Same text box and alignment on every slide so the deck reads
+                           consistently instead of shifting between first and later
+                           slides (it used to centre the first slide's bullets only). */
+                        var bodyTextOpts = {
+                            fontSize: 17, color: isPlayful ? theme.text : '2A2438',
+                            valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
+                        };
                         if (s.aiImage) {
-                            slide.addText(cbullets, {
-                                x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
-                                valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
-                            });
+                            bodyTextOpts.x = 0.9; bodyTextOpts.y = 1.6; bodyTextOpts.w = 5.2; bodyTextOpts.h = 3.7;
+                            slide.addText(cbullets, bodyTextOpts);
                             slide.addShape('rect', { x: 6.5, y: 1.6, w: 4.2, h: 3.6, fill: { color: isPlayful ? theme.accent : 'EDEBF8' }, rectRadius: 0.1 });
                             slide.addImage({ data: s.aiImage, x: 6.5, y: 1.6, w: 4.2, h: 3.6, sizing: { type: 'contain', w: 4.2, h: 3.6 } });
                         } else if (state.visuals === 'emoji') {
-                            slide.addText(cbullets, {
-                                x: 0.8, y: 1.6, w: 5.4, h: 3.6, fontSize: 16, color: isPlayful ? theme.text : '2A2438',
-                                valign: 'top', align: 'left', lineSpacingMultiple: 1.25, autoFit: true
-                            });
+                            bodyTextOpts.x = 0.9; bodyTextOpts.y = 1.6; bodyTextOpts.w = 5.2; bodyTextOpts.h = 3.7;
+                            slide.addText(cbullets, bodyTextOpts);
                             slide.addShape('rect', { x: 6.5, y: 1.6, w: 4.2, h: 3.6, fill: { color: isPlayful ? theme.accent : 'EDEBF8' }, rectRadius: 0.1 });
-                            slide.addText(emojiForSlide(s, i), { x: 6.5, y: 1.9, w: 4.2, h: 2.4, fontSize: 96, align: 'center', valign: 'middle' });
-                            slide.addText((s.suggestedVisual || 'Slide icon').slice(0, 60), { x: 6.5, y: 4.4, w: 4.2, h: 0.6, fontSize: 11, align: 'center', color: isPlayful ? theme.text : '6B6578', italic: true });
-                        } else {
-                            slide.addText(cbullets, {
-                                x: isFirst ? 1.2 : 1.0, y: isFirst ? 2.3 : 1.8,
-                                w: isFirst ? 9.6 : 10.0, h: 3.4, fontSize: 18, color: isPlayful ? theme.text : '2A2438',
-                                valign: 'top', align: isFirst ? 'center' : 'left',
-                                lineSpacingMultiple: 1.25, autoFit: true
+                            slide.addText(emojiForSlide(s, i), {
+                                x: 6.5, y: topicHasIdea ? 1.9 : 1.6, w: 4.2, h: topicHasIdea ? 2.4 : 3.6,
+                                fontSize: 96, align: 'center', valign: 'middle'
                             });
+                            if (topicHasIdea) {
+                                slide.addText(topicIdea.slice(0, 60), { x: 6.5, y: 4.4, w: 4.2, h: 0.6, fontSize: 11, align: 'center', color: isPlayful ? theme.text : '6B6578', italic: true });
+                            }
+                        } else {
+                            bodyTextOpts.x = 0.9; bodyTextOpts.y = 1.9; bodyTextOpts.w = 10.2; bodyTextOpts.h = 3.4;
+                            slide.addText(cbullets, bodyTextOpts);
                         }
                     }
 

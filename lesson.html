@@ -38,6 +38,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="deped-options.js"></script>
+    <script src="shared-assets.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
     <script src="shared-validate.js"></script>
@@ -1164,7 +1165,7 @@
            (and the activity/PPT hand-offs) never carry the base64 logos. */
         function showLessonLogos() {
             if (!lessonLogoStrip) return;
-            if (!lessonLogoStrip.innerHTML.trim()) lessonLogoStrip.innerHTML = lessonLogosHtml();
+            lessonLogoStrip.innerHTML = lessonLogosHtml();
             if (lessonLogoStrip.innerHTML.trim()) lessonLogoStrip.classList.remove('hidden');
         }
         function hideLessonLogos() {
@@ -3908,6 +3909,16 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
             pptBtn.classList.remove('hidden');
         }
         restoreLessonOutput();
+
+        /* Logos come from IndexedDB (shared-assets.js), so hydrate them once the
+           store is ready and re-render the strip if a plan is already on screen. */
+        if (window.SilidAssets) {
+            window.SilidAssets.load().then(function (logos) {
+                schoolInfo.schoolLogo1 = logos.schoolLogo1 || '';
+                schoolInfo.schoolLogo2 = logos.schoolLogo2 || '';
+                if (!outputContent.classList.contains('hidden')) showLessonLogos();
+            });
+        }
 
         /* ── Document history (shared-docs-ui.js + shared-docs.js) ── */
         (function () {

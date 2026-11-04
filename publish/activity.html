@@ -37,6 +37,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="deped-options.js"></script>
+    <script src="shared-assets.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
     <script src="shared-validate.js"></script>
@@ -1135,6 +1136,13 @@
     function buildSheetHeader(meta) {
         var si = {};
         try { si = JSON.parse(localStorage.getItem('school_info')) || {}; } catch (e) { si = {}; }
+        /* Logos live in IndexedDB (shared-assets.js) so they cannot eat the
+           localStorage budget; fall back to any legacy copy while migrating. */
+        if (window.SilidAssets) {
+            var logos = window.SilidAssets.getLogos();
+            if (logos.schoolLogo1) si.schoolLogo1 = logos.schoolLogo1;
+            if (logos.schoolLogo2) si.schoolLogo2 = logos.schoolLogo2;
+        }
         var h = '';
         if (si.schoolLogo1 || si.schoolLogo2 || si.schoolName || si.regionNo || si.regionName || si.division) {
             h += '<div style="text-align:center;margin-bottom:10px;">';
@@ -1809,6 +1817,16 @@
         $('btn-answer-key').addEventListener('click', generateAnswerKey);
         $('btn-rubric').addEventListener('click', generateRubric);
         restoreActivityOutput();
+
+        /* Logos arrive asynchronously from IndexedDB; when a restored sheet is
+           already on screen, rebuild its header so the logos appear. */
+        window.addEventListener('silid:logos-ready', function (e) {
+            var logos = e && e.detail;
+            if (!logos || (!logos.schoolLogo1 && !logos.schoolLogo2)) return;
+            if (!state.sheetHtml) return;
+            if ($('output-wrap').classList.contains('hidden')) return;
+            $('output-content').innerHTML = buildSheetHeader(state.sheetMeta || {}) + state.sheetHtml;
+        });
 
         if (window.SilidDocsUI) {
             window.SilidDocsUI.mount({ tool: 'activity-sheet', label: 'Activity Sheet' });

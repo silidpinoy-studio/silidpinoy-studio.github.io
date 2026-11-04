@@ -137,6 +137,7 @@
       .catch((e) => console.warn('mathml2omml did not load:', e));
   </script>
   <script src="deped-options.js"></script>
+  <script src="shared-assets.js"></script>
   <script src="shared-api.js"></script>
   <script src="shared-keys.js"></script>
   <script src="shared-backup.js"></script>
@@ -339,11 +340,28 @@
         else if (apiKey2) localStorage.setItem('gemini_api_key_2', apiKey2);
         else localStorage.removeItem('gemini_api_key_2');
       }, [apiKey2]);
-      useEffect(() => { localStorage.setItem('school_info', JSON.stringify(schoolInfo)); }, [schoolInfo]);
+      /* Logos live in IndexedDB (shared-assets.js); only the text fields go to localStorage. */
+      const schoolInfoText = (si) => { const copy = { ...(si || {}) }; delete copy.schoolLogo1; delete copy.schoolLogo2; return copy; };
+      useEffect(() => { try { localStorage.setItem('school_info', JSON.stringify(schoolInfoText(schoolInfo))); } catch (e) { /* storage full */ } }, [schoolInfo]);
+      /* Pull the logos out of IndexedDB (migrating any legacy localStorage copies). */
+      useEffect(() => {
+        let alive = true;
+        const apply = (logos) => {
+          if (!alive || !logos) return;
+          if (logos.schoolLogo1 || logos.schoolLogo2) {
+            setSchoolInfo((p) => ({ ...p, schoolLogo1: logos.schoolLogo1 || p.schoolLogo1 || '', schoolLogo2: logos.schoolLogo2 || p.schoolLogo2 || '' }));
+          }
+        };
+        if (!window.SilidAssets) return undefined;
+        window.SilidAssets.load().then(apply);
+        const onReady = (e) => apply(e.detail);
+        window.addEventListener('silid:logos-ready', onReady);
+        return () => { alive = false; window.removeEventListener('silid:logos-ready', onReady); };
+      }, []);
       const [schoolSaved, setSchoolSaved] = useState('');
       const handleSaveSchoolInfo = () => {
         try {
-          localStorage.setItem('school_info', JSON.stringify(schoolInfo));
+          localStorage.setItem('school_info', JSON.stringify(schoolInfoText(schoolInfo)));
           setSchoolSaved('\u2713 Saved');
         } catch (e) {
           setSchoolSaved('\u26a0 Could not save \u2014 export a backup');
@@ -493,9 +511,18 @@
       const handleLogoUpload = (e, field) => {
         const file = e.target.files?.[0]; if (!file) return;
         if (file.size > 500*1024) { if(window.SilidToast) window.SilidToast.warning('Logo must be under 500 KB.'); else alert('Logo must be under 500 KB.'); return; }
-        const reader = new FileReader(); reader.onload = (ev) => setSchoolInfo(p => ({ ...p, [field]: ev.target.result })); reader.readAsDataURL(file);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = String(ev.target.result || '');
+          setSchoolInfo(p => ({ ...p, [field]: dataUrl }));
+          if (window.SilidAssets) window.SilidAssets.setLogo(field, dataUrl);
+        };
+        reader.readAsDataURL(file);
       };
-      const removeLogo = (field) => setSchoolInfo(p => ({ ...p, [field]: '' }));
+      const removeLogo = (field) => {
+        setSchoolInfo(p => ({ ...p, [field]: '' }));
+        if (window.SilidAssets) window.SilidAssets.removeLogo(field);
+      };
 
       /* ── Storage meter (Settings) ─────────────────────────────────────
          localStorage holds the school info + logos and each tool's last
@@ -522,7 +549,11 @@
             if (/^(saved_|lesson_activity_sheet$|lesson_ppt_import$|tos_make_test$)/.test(key)) stats.saved += size;
           }
         } catch (e) { /* storage unreadable — show what we have */ }
-        stats.other = Math.max(0, stats.total - stats.logos - stats.saved);
+        /* Logos moved to IndexedDB — report their real size, but keep the bar
+           and total measured against the localStorage budget they no longer use. */
+        const idbLogos = (window.SilidAssets && window.SilidAssets.getLogos()) || {};
+        stats.logos = String(idbLogos.schoolLogo1 || '').length + String(idbLogos.schoolLogo2 || '').length;
+        stats.other = Math.max(0, stats.total - stats.saved);
         stats.percent = Math.min(100, (stats.total / (5 * 1024 * 1024)) * 100);
         return stats;
       })();
@@ -548,7 +579,11 @@
             // Reload school info from localStorage
             try {
               const si = JSON.parse(localStorage.getItem('school_info'));
-              if (si) setSchoolInfo(si);
+              if (si) {
+                if (window.SilidAssets && si.schoolLogo1) window.SilidAssets.setLogo('schoolLogo1', si.schoolLogo1);
+                if (window.SilidAssets && si.schoolLogo2) window.SilidAssets.setLogo('schoolLogo2', si.schoolLogo2);
+                setSchoolInfo(si);
+              }
             } catch (_) {}
             setTimeout(() => { e.target.value = ''; setBackupMsg('Import complete. Your data has been restored.'); }, 600);
           }
@@ -3363,7 +3398,7 @@ ${signTable([
                         className="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"/></div>
                   </div>
                 </div>
-                <div className="space-y-4" style={{display: 'none'}}>
+                <div className="space-y-4">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Logos (optional)</h3>
                   <div className="grid sm:grid-cols-2 gap-4">
                     {[['schoolLogo1','School Logo'],['schoolLogo2','Division / District Logo']].map(([field,label])=>(
@@ -3449,21 +3484,21 @@ ${signTable([
                 <div className="border-t border-black/5 pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Storage</h3>
-                    <span className="text-[11px] font-semibold text-ink/60">{formatStorage(storageStats.total)} of about 5 MB</span>
+                    <span className="text-[11px] font-semibold text-ink/60">{formatStorage(storageStats.total)} of about 5 MB in localStorage</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-black/5 overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${storageStats.percent >= 80 ? 'bg-rose-500' : 'bg-iris-500'}`}
                       style={{ width: Math.max(1, storageStats.percent) + '%' }} />
                   </div>
                   <div className="mt-2 grid sm:grid-cols-3 gap-1 text-[11px] text-ink/55">
-                    <span>Logos: <b className="text-ink/75">{formatStorage(storageStats.logos)}</b></span>
+                    <span>Logos (browser database): <b className="text-ink/75">{formatStorage(storageStats.logos)}</b></span>
                     <span>Saved plans &amp; tests: <b className="text-ink/75">{formatStorage(storageStats.saved)}</b></span>
                     <span>Other: <b className="text-ink/75">{formatStorage(storageStats.other)}</b></span>
                   </div>
                   {storageStats.percent >= 80 && (
-                    <p className="mt-2 text-[11px] text-rose-600 font-medium">Storage is nearly full — export a backup, then remove a logo or an old saved output.</p>
+                    <p className="mt-2 text-[11px] text-rose-600 font-medium">localStorage is nearly full — export a backup, then remove an old saved output.</p>
                   )}
-                  <p className="mt-1.5 text-[10px] text-ink/35">Document history is kept separately and is not counted here.</p>
+                  <p className="mt-1.5 text-[10px] text-ink/35">Logos and document history are kept in the browser database and are not counted in the bar.</p>
                 </div>
                 <div className="border-t border-black/5 pt-6">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40 mb-3">Document Header Preview</h3>
