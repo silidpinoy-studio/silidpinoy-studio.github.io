@@ -1681,7 +1681,9 @@ return fallback[i % fallback.length];
                             '</div>';
                         }).join('') +
                     '</div>' +
-                    (s.aiImage ? '<img src="' + s.aiImage + '" alt="" style="position:absolute;right:12px;bottom:10px;width:112px;height:76px;object-fit:cover;border-radius:10px;border:2px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,.3);z-index:10;" />' : '') +
+                    // proportional, not fixed px: the same 11.7% wide badge the
+                    // export draws (1.17 x 0.79 in on a 10 x 5.625 in slide)
+                    (s.aiImage ? '<img src="' + s.aiImage + '" alt="" style="position:absolute;right:1.25%;bottom:1.85%;width:11.7%;aspect-ratio:112/76;object-fit:cover;border-radius:10px;border:2px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,.3);z-index:10;" />' : '') +
                 '</div>';
             } else if (isDll && layout === 'assessment') {
                 html = '<div class="h-full flex flex-col" style="background:' + theme.bg + '">' +
@@ -1858,14 +1860,14 @@ function escapeHtml(str) {
                 /* Playful helper: adds decorative shapes for the Playful theme */
                 function playfulDecorate(slide, idx) {
                     if (!isPlayful) return;
-                    // Top-right corner circle
-                    slide.addShape('ellipse', { x: 10.5, y: -0.6, w: 2.0, h: 2.0, fill: { color: theme.secondary, transparency: 25 } });
+                    // Top-right corner circle (bleeds off the 10 in edge)
+                    slide.addShape('ellipse', { x: 8.5, y: -0.6, w: 2.0, h: 2.0, fill: { color: theme.secondary, transparency: 25 } });
                     // Bottom-left corner circle
                     slide.addShape('ellipse', { x: -0.5, y: 4.5, w: 1.8, h: 1.8, fill: { color: theme.accent, transparency: 30 } });
                     // Small decorative dot top-left
                     slide.addShape('ellipse', { x: 0.3, y: 0.2, w: 0.3, h: 0.3, fill: { color: theme.secondary } });
                     // Small decorative dot bottom-right
-                    slide.addShape('ellipse', { x: 11.2, y: 5.0, w: 0.25, h: 0.25, fill: { color: theme.accent } });
+                    slide.addShape('ellipse', { x: 9.7, y: 5.0, w: 0.25, h: 0.25, fill: { color: theme.accent } });
                 }
 
                 state.slides.forEach(function (s, i) {
@@ -1937,13 +1939,13 @@ function escapeHtml(str) {
                     } else if (isDll && layout === 'assessment') {
                         slide.background = { color: theme.bg };
                         slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.5, fill: { color: theme.primary } });
-                        slide.addText(s.title || '', { x: 0.5, y: 0.25, w: 9, h: 1, fontSize: 36, bold: true, color: 'FFFFFF', valign: 'middle' });
+                        slide.addText(s.title || '', { x: 1.05, y: 0.25, w: 8.4, h: 1, fontSize: 36, bold: true, color: 'FFFFFF', valign: 'middle' });
                         if (state.visuals === 'emoji' || state.visuals === 'both') {
-                            slide.addText(emojiForSlide(s, i), { x: 9.0, y: 0.25, w: 0.9, h: 1, fontSize: 34, align: 'right', valign: 'middle' });
+                            slide.addText(emojiForSlide(s, i), { x: 0.45, y: 0.25, w: 0.55, h: 1, fontSize: 30, align: 'center', valign: 'middle' });
                         }
                         if (isPlayful) {
-                            slide.addShape('ellipse', { x: 10.5, y: 0.3, w: 1.5, h: 1.5, fill: { color: theme.secondary, transparency: 40 } });
-                            slide.addText('✅', { x: 9.8, y: 4.2, w: 1, h: 0.8, fontSize: 30 });
+                            slide.addShape('ellipse', { x: 9.3, y: 0.35, w: 1.3, h: 1.3, fill: { color: theme.secondary, transparency: 40 } });
+                            slide.addText('✅', { x: 9.15, y: 4.3, w: 0.8, h: 0.8, fontSize: 30 });
                             slide.addText('📝', { x: 0.3, y: 4.5, w: 1, h: 0.8, fontSize: 26 });
                         }
                         slide.addShape('rect', { x: 0.5, y: 1.8, w: 9, h: 3.2, fill: { color: 'FFFFFF' }, rectRadius: 0.1, line: { color: theme.accent, width: 2 },
@@ -1954,12 +1956,12 @@ function escapeHtml(str) {
                     } else if (isDll && layout === 'infographic_cards') {
                         slide.background = { color: theme.bg };
                         slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: theme.primary } });
-                        slide.addText(s.title || '', { x: 0.5, y: 0.1, w: 9, h: 1, fontSize: 32, bold: true, color: 'FFFFFF', valign: 'middle' });
                         if (state.visuals === 'emoji' || state.visuals === 'both') {
-                            slide.addText(emojiForSlide(s, i), { x: 9.1, y: 0.1, w: 0.8, h: 1, fontSize: 28, align: 'right', valign: 'middle' });
+                            slide.addText(emojiForSlide(s, i), { x: 0.45, y: 0.1, w: 0.55, h: 1, fontSize: 26, align: 'center', valign: 'middle' });
                         }
+                        slide.addText(s.title || '', { x: 1.05, y: 0.1, w: 8.4, h: 1, fontSize: 32, bold: true, color: 'FFFFFF', valign: 'middle' });
                         if (isPlayful) {
-                            slide.addShape('ellipse', { x: 10.0, y: 4.0, w: 1.8, h: 1.8, fill: { color: theme.secondary, transparency: 30 } });
+                            slide.addShape('ellipse', { x: 8.6, y: 3.9, w: 1.8, h: 1.8, fill: { color: theme.secondary, transparency: 30 } });
                             slide.addShape('ellipse', { x: -0.5, y: 4.5, w: 1.2, h: 1.2, fill: { color: theme.accent, transparency: 35 } });
                         }
                         var items = (s.content || []).slice(0, 3);
@@ -1980,23 +1982,26 @@ function escapeHtml(str) {
                             }
                             startX += cardWidth + spacing;
                         });
-                        // generated discussion art — corner thumbnail, clear of
-                        // the three cards (they end at x=9.7) and the slide number
+                        // generated discussion art — the same corner thumbnail the
+                        // preview shows: 112 x 76 px, 12 px from the right and 10 px
+                        // from the bottom of a 960 x 540 stage. It used to sit at
+                        // x=10.1, i.e. entirely past the 10 in edge, so it never
+                        // appeared in the exported file.
                         if (s.aiImage) {
-                            var cIw = 1.5, cIh = 1.0, cIx = 10.1, cIy = 3.95;
+                            var cIw = 1.17, cIh = 0.79, cIx = 8.7, cIy = 4.73;
                             slide.addShape('rect', { x: cIx, y: cIy, w: cIw, h: cIh, fill: { color: 'FFFFFF' }, rectRadius: 0.06,
                                 shadow: { type: 'outer', color: '000000', opacity: 0.25, blur: 6, offset: 2, angle: 45 } });
-                            slide.addImage({ data: s.aiImage, x: cIx + 0.05, y: cIy + 0.05, w: cIw - 0.1, h: cIh - 0.1,
-                                sizing: { type: 'contain', w: cIw - 0.1, h: cIh - 0.1 } });
+                            slide.addImage({ data: s.aiImage, x: cIx + 0.03, y: cIy + 0.03, w: cIw - 0.06, h: cIh - 0.06,
+                                sizing: { type: 'contain', w: cIw - 0.06, h: cIh - 0.06 } });
                         }
                     } else if (isDll && (layout === 'content_image_left' || layout === 'content_image_right' || layout === 'content_bullets')) {
                         slide.background = { color: theme.bg };
                         slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: theme.primary } });
                         slide.addShape('rect', { x: 0, y: 1.15, w: '100%', h: 0.05, fill: { color: theme.secondary } });
-                        slide.addText(s.title || '', { x: 0.5, y: 0.1, w: 9, h: 1, fontSize: 32, bold: true, color: 'FFFFFF', valign: 'middle' });
                         if (state.visuals === 'emoji' || state.visuals === 'both') {
-                            slide.addText(emojiForSlide(s, i), { x: 9.1, y: 0.1, w: 0.8, h: 1, fontSize: 30, align: 'right', valign: 'middle' });
+                            slide.addText(emojiForSlide(s, i), { x: 0.45, y: 0.1, w: 0.55, h: 1, fontSize: 28, align: 'center', valign: 'middle' });
                         }
+                        slide.addText(s.title || '', { x: 1.05, y: 0.1, w: 8.4, h: 1, fontSize: 32, bold: true, color: 'FFFFFF', valign: 'middle' });
                         if (isPlayful) playfulDecorate(slide, i);
                         var bbullets = textObjects(contentLines, { bullet: { type: 'bullet', color: theme.secondary }, color: theme.text });
                         var isImageLayout = layout === 'content_image_left' || layout === 'content_image_right';
@@ -2094,14 +2099,19 @@ function escapeHtml(str) {
                         }
                     }
 
-                    if (isPlayful) {
-                        // Playful: slide number in a colored circle (inside the 10 in canvas)
-                        slide.addShape('ellipse', { x: 8.95, y: 4.95, w: 0.5, h: 0.5, fill: { color: theme.primary } });
-                        slide.addText(String(i + 1), { x: 8.95, y: 4.95, w: 0.5, h: 0.5, fontSize: 11, color: 'FFFFFF', align: 'center', valign: 'middle', bold: true });
-                    } else {
-                        slide.addText(String(i + 1), {
-                            x: 8.9, y: 5.1, w: 0.9, h: 0.35, fontSize: 11, color: 'B0AAC8', align: 'right'
-                        });
+                    // The corner belongs to the generated discussion thumbnail when
+                    // there is one — the preview shows no page number on that slide.
+                    var cornerTaken = isDll && layout === 'infographic_cards' && !!s.aiImage;
+                    if (!cornerTaken) {
+                        if (isPlayful) {
+                            // Playful: slide number in a colored circle (inside the 10 in canvas)
+                            slide.addShape('ellipse', { x: 8.95, y: 4.95, w: 0.5, h: 0.5, fill: { color: theme.primary } });
+                            slide.addText(String(i + 1), { x: 8.95, y: 4.95, w: 0.5, h: 0.5, fontSize: 11, color: 'FFFFFF', align: 'center', valign: 'middle', bold: true });
+                        } else {
+                            slide.addText(String(i + 1), {
+                                x: 8.9, y: 5.1, w: 0.9, h: 0.35, fontSize: 11, color: 'B0AAC8', align: 'right'
+                            });
+                        }
                     }
                     // YouTube embed: if user provided a URL, embed it on this slide
                     if (state.youtubeUrl && i === state.current) {
@@ -2116,10 +2126,10 @@ function escapeHtml(str) {
                     // Playful: SVG icon + decorative shapes
                     if (isPlayful) {
                         var svgData = svgIconForSlide(s, i);
-                        // SVG icon top-right
-                        slide.addImage({ data: svgData, x: 10.5, y: 0.1, w: 0.6, h: 0.6, transparency: 30 });
+                        // SVG icon top-right (inside the 10 in edge, like the preview)
+                        slide.addImage({ data: svgData, x: 9.35, y: 0.12, w: 0.5, h: 0.5, transparency: 30 });
                         // Star shape
-                        slide.addShape('star5', { x: 11.2, y: 0.3, w: 0.35, h: 0.35, fill: { color: 'EEFF41', transparency: 40 } });
+                        slide.addShape('star5', { x: 9.68, y: 0.55, w: 0.28, h: 0.28, fill: { color: 'EEFF41', transparency: 40 } });
                         // Diamond shape bottom-left
                         slide.addShape('diamond', { x: 0.2, y: 5.0, w: 0.3, h: 0.3, fill: { color: theme.accent, transparency: 35 } });
                     }

@@ -881,6 +881,102 @@ test('the Lesson Plan Maker adds the K-3 rules for early learners only', { timeo
   }
 });
 
+test('a lesson plan always ends with the Prepared by / Checked by block', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('lesson.html', {
+    initScript: () => {
+      try {
+        localStorage.setItem('school_info', JSON.stringify({
+          teacherName: 'JUAN DELA CRUZ', teacherTitle: 'Teacher I',
+          checkedBy: 'MARIA CLARA', checkedByPosition: 'Department Head'
+        }));
+      } catch { /* storage unavailable */ }
+    }
+  });
+  try {
+    if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+
+    // the model is a stub, and this first reply forgets the signature block
+    let reply = '<div><h1>Weekly Lesson Plan</h1><table>' +
+      '<tr><td>Learning Objectives</td><td>Describe the water cycle.</td></tr></table></div>';
+    await page.route('**/generativelanguage.googleapis.com/**', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ candidates: [{ content: { parts: [{ text: reply }] } }] })
+    }));
+
+    await page.locator('#lang-pill button[data-value="en"]').click();
+    await page.locator('#settings-btn').click();
+    await page.fill('#settings-key-input', 'TEST_KEY');
+    await page.fill('#learningArea', 'Science');
+    await page.selectOption('#gradeLevelSel', 'Grade 7');
+    await page.fill('#sectionInput', 'Rizal');
+    await page.locator('.competency-input').first().fill('Describe the water cycle.');
+
+    await page.locator('#generate-btn').click();
+    await page.waitForFunction(() =>
+      /Prepared by/i.test(document.getElementById('output-content').innerText), null, { timeout: NAV_TIMEOUT });
+
+    const sheet = await page.evaluate(() => {
+      const out = document.getElementById('output-content');
+      return {
+        text: out.innerText,
+        blocks: out.querySelectorAll('table.signature-table').length,
+        blockText: Array.from(out.querySelectorAll('table.signature-table'))
+          .map((t) => t.innerText).join(' ')
+      };
+    });
+    assert.equal(sheet.blocks, 1, 'a generated plan must carry exactly one signature block');
+    assert.match(sheet.blockText, /Prepared by:/, 'the block must open with Prepared by');
+    assert.match(sheet.blockText, /Checked by:/, 'and close with Checked by');
+    assert.match(sheet.blockText, /JUAN DELA CRUZ/, 'the teacher must come from Settings');
+    assert.match(sheet.blockText, /MARIA CLARA/, 'the checker must come from Settings');
+    assert.match(sheet.blockText, /Department Head/, 'and keep the checker role');
+    assert.ok(sheet.text.lastIndexOf('Checked by') > sheet.text.lastIndexOf('Learning Objectives'),
+      'the signatures must sit below the plan body');
+
+    // the Word export must carry the same block, on the last page
+    const doc = await page.evaluate(() => window.buildLessonWordHtml());
+    assert.match(doc, /Prepared by:/, 'the Word export must keep Prepared by');
+    assert.match(doc, /Checked by:/, 'the Word export must keep Checked by');
+    assert.match(doc, /table\.signature-table \{[^}]*page-break-inside: avoid/,
+      'a page break must not split the signature row');
+    const body = await page.evaluate(() => {
+      const holder = new DOMParser().parseFromString(window.buildLessonWordHtml(), 'text/html');
+      const tails = holder.body.children;
+      const last = tails[tails.length - 1];
+      return {
+        lastTag: last ? last.tagName : '',
+        lastIsSignature: !!(last && last.classList && last.classList.contains('signature-table')),
+        bodyTables: holder.querySelectorAll('body table').length
+      };
+    });
+    assert.ok(body.lastIsSignature,
+      'the signature block must be the last block of the exported plan, found ' + body.lastTag);
+    assert.ok(body.bodyTables >= 2, 'the export must still contain the plan tables');
+    // a reply that already signs the plan must not be signed twice
+    reply = '<div><h1>Weekly Lesson Plan</h1><table><tr><td>Content</td><td>Demo.</td></tr></table>' +
+      '<table class="signature-table"><tr><td><p>Prepared by:</p><p>ORIGINAL SIGNER</p>' +
+      '<p>Checked by:</p><p>ORIGINAL CHECKER</p></td></tr></table></div>';
+    await page.locator('#generate-btn').click();
+    await page.waitForFunction(() =>
+      /ORIGINAL SIGNER/.test(document.getElementById('output-content').innerText), null, { timeout: NAV_TIMEOUT });
+
+    const again = await page.evaluate(() => {
+      const out = document.getElementById('output-content');
+      return {
+        blocks: out.querySelectorAll('table.signature-table').length,
+        text: out.innerText
+      };
+    });
+    assert.equal(again.blocks, 1, 'an already-signed reply must not gain a second block');
+    assert.match(again.text, /ORIGINAL CHECKER/, 'the model signature must be kept as-is');
+    assert.doesNotMatch(again.text, /JUAN DELA CRUZ/, 'and not replaced by Settings');
+    assert.deepEqual(errors, [], 'the signature fallback must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
 test('the Lesson Plan Maker keeps the sequence dropdown (with Custom Flow) in multigrade mode', { timeout: LONG_TIMEOUT }, async (t) => {
   const { context, page, cdnBlocked } = await openPage('lesson.html');
   try {
@@ -3648,7 +3744,18 @@ test('the lesson deck images its title and discussion slides', { timeout: LONG_T
       const img = document.querySelector('#slide-body img[src^="data:image/"]');
       if (!img) return null;
       const st = img.style;
-      return { pos: st.position, right: st.right, bottom: st.bottom, w: st.width };
+      // the same box in inches, so the export can be measured against it
+      const stage = document.getElementById('slide-body');
+      const a = img.getBoundingClientRect();
+      const b = stage.getBoundingClientRect();
+      const inX = 10 / b.width, inY = 5.625 / b.height;
+      return {
+        pos: st.position, right: st.right, bottom: st.bottom, w: st.width,
+        box: {
+          x: (a.left - b.left) * inX, y: (a.top - b.top) * inY,
+          w: a.width * inX, h: a.height * inY
+        }
+      };
     });
     assert.ok(corner, 'the infographic discussion slide must show its generated image');
     assert.equal(corner.pos, 'absolute', 'the image must sit in the corner, not in the card flow');
@@ -3661,6 +3768,81 @@ test('the lesson deck images its title and discussion slides', { timeout: LONG_T
     ]);
     assert.ok(fs.statSync(await dl.path()).size > 1000,
       'the lesson .pptx must export with its corner art');
+    // the exported thumbnail must land inside the slide, exactly where the
+    // preview draws it (112 x 76 px at the bottom-right of the 960 x 540 stage)
+    const deck = await page.evaluate(async (b64) => {
+      const zip = await window.JSZip.loadAsync(b64, { base64: true });
+      const parser = new DOMParser();
+      const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+      const P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+      const EMU = 914400;
+      const presentation = parser.parseFromString(
+        await zip.file('ppt/presentation.xml').async('string'), 'application/xml');
+      const sldSz = presentation.getElementsByTagNameNS(P, 'sldSz')[0];
+      const W = parseInt(sldSz.getAttribute('cx'), 10);
+      const H = parseInt(sldSz.getAttribute('cy'), 10);
+      const out = { W, H, slides: 0, pics: [], unreachable: [], malformed: [] };
+      for (const name of Object.keys(zip.files).sort()) {
+        if (!/^ppt\/slides\/slide\d+\.xml$/.test(name)) continue;
+        out.slides++;
+        const doc = parser.parseFromString(await zip.file(name).async('string'), 'application/xml');
+        if (doc.querySelector('parsererror')) { out.malformed.push(name); continue; }
+        const nodes = Array.from(doc.getElementsByTagNameNS(P, 'pic'))
+          .concat(Array.from(doc.getElementsByTagNameNS(P, 'sp')));
+        for (const node of nodes) {
+          const off = node.getElementsByTagNameNS(A, 'off')[0];
+          const ext = node.getElementsByTagNameNS(A, 'ext')[0];
+          if (!off || !ext) continue;
+          const x = parseInt(off.getAttribute('x'), 10);
+          const y = parseInt(off.getAttribute('y'), 10);
+          const w = parseInt(ext.getAttribute('cx'), 10);
+          const h = parseInt(ext.getAttribute('cy'), 10);
+          // a box drawn entirely outside the canvas can never be seen
+          if (x >= W || y >= H || x + w <= 0 || y + h <= 0) {
+            out.unreachable.push({ name, x: x / EMU, y: y / EMU });
+          }
+          if (node.localName === 'pic') {
+            out.pics.push({ name, x: x / EMU, y: y / EMU, w: w / EMU, h: h / EMU });
+          }
+        }
+      }
+      return out;
+    }, fs.readFileSync(await dl.path()).toString('base64'));
+
+    assert.equal(deck.W, 9144000, 'the lesson deck must use the 10 in 16:9 canvas');
+    assert.equal(deck.H, 5143500, 'and be 5.625 in tall');
+    assert.equal(deck.slides, 6, 'all six lesson slides must be exported');
+    assert.deepEqual(deck.malformed, [], 'every exported slide must be well-formed XML');
+    assert.deepEqual(deck.unreachable, [],
+      'no shape may sit entirely outside the slide - got ' + JSON.stringify(deck.unreachable));
+
+    const thumb = deck.pics.filter((pic) => /slide5\.xml$/.test(pic.name));
+    assert.equal(thumb.length, 1, 'the infographic discussion slide must export its corner thumbnail');
+    assert.ok(thumb[0].x > 8 && thumb[0].y > 4,
+      'the thumbnail must hug the bottom-right corner like the preview - got ' + JSON.stringify(thumb[0]));
+    assert.ok(thumb[0].x + thumb[0].w <= 10.0001 && thumb[0].y + thumb[0].h <= 5.6251,
+      'and stay inside the slide - got ' + JSON.stringify(thumb[0]));
+    const strayImages = deck.pics.filter((pic) => !/slide5\.xml$/.test(pic.name))
+      .filter((pic) => pic.x < -0.0001 || pic.y < -0.0001 ||
+        pic.x + pic.w > 10.0001 || pic.y + pic.h > 5.6251);
+    assert.deepEqual(strayImages, [], 'no generated image may hang off the slide');
+    // ---- preview and export must agree on the corner thumbnail ----
+    // the picture sits 0.03 in inside its white frame, and the browser rounds
+    // percentage sizing, so compare frame to frame with a little slack
+    const frame = {
+      x: thumb[0].x - 0.03, y: thumb[0].y - 0.03,
+      w: thumb[0].w + 0.06, h: thumb[0].h + 0.06
+    };
+    const slack = 0.12;
+    assert.ok(Math.abs(frame.w - corner.box.w) < slack,
+      'thumbnail width, preview ' + corner.box.w.toFixed(2) + ' in vs export ' + frame.w.toFixed(2) + ' in');
+    assert.ok(Math.abs(frame.h - corner.box.h) < slack,
+      'thumbnail height, preview ' + corner.box.h.toFixed(2) + ' in vs export ' + frame.h.toFixed(2) + ' in');
+    assert.ok(Math.abs(frame.x - corner.box.x) < slack,
+      'thumbnail left edge, preview ' + corner.box.x.toFixed(2) + ' in vs export ' + frame.x.toFixed(2) + ' in');
+    assert.ok(Math.abs(frame.y - corner.box.y) < slack,
+      'thumbnail top edge, preview ' + corner.box.y.toFixed(2) + ' in vs export ' + frame.y.toFixed(2) + ' in');
+
 
     // DLL saves its state — base64 images must not ride along
     const saved = await page.evaluate(() => {

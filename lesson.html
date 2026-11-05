@@ -3595,6 +3595,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
 
                 // We inject it directly since it is raw HTML
                 outputContent.innerHTML = generatedText;
+                ensureSignatureBlock();
                 
                 loadingState.classList.add('hidden');
                 outputContent.classList.remove('hidden');
@@ -3656,6 +3657,47 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
             selection.removeAllRanges();
         });
 
+        /* The AI writes the closing signature block into its own HTML, and
+           sometimes leaves it out. Put it back from Settings so no plan ships
+           without the Prepared by / Checked by lines. */
+        function ensureSignatureBlock() {
+            if (!outputContent) return;
+            const text = outputContent.textContent || '';
+            const hasPrepared = /prepared by|inihanda/i.test(text);
+            const hasChecked = /checked( and evaluated)? by|sinuri/i.test(text);
+            if (hasPrepared && hasChecked) return;
+
+            const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const fromInput = (id) => {
+                const el = document.getElementById(id);
+                return el && el.value ? el.value.trim() : '';
+            };
+            let info = schoolInfo || {};
+            try { info = JSON.parse(localStorage.getItem('school_info')) || info; } catch (e) { /* keep the loaded copy */ }
+            const cell = (label, name, role) =>
+                '<td style="width:50%; vertical-align:top;">' +
+                    '<p style="margin-bottom:40px;"><strong>' + esc(label) + '</strong></p>' +
+                    '<p style="margin:0; font-weight:bold; text-decoration:underline; text-transform:uppercase;">' +
+                        esc(name || '________________________') + '</p>' +
+                    '<p style="margin:0;">' + esc(role || '') + '</p>' +
+                '</td>';
+            const isPh = currentLang === 'ph';
+            const cells = [];
+            if (!hasPrepared) {
+                cells.push(cell(isPh ? 'Inihanda ni:' : 'Prepared by:',
+                    info.teacherName || fromInput('teacherName'),
+                    info.teacherTitle || fromInput('teacherRole')));
+            }
+            if (!hasChecked) {
+                cells.push(cell(isPh ? 'Sinuri ni:' : 'Checked by:',
+                    info.checkedBy || fromInput('checkerName'),
+                    info.checkedByPosition || fromInput('checkerRole')));
+            }
+            const table = document.createElement('table');
+            table.className = 'signature-table';
+            table.innerHTML = '<tbody><tr>' + cells.join('') + '</tr></tbody>';
+            outputContent.appendChild(table);
+        }
         /* The markup behind both Word downloads. Word opens this HTML as-is; the
            .docx export merely wraps the very same HTML in a zip archive. */
         function buildLessonWordHtml() {
@@ -3705,7 +3747,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                             margin: 0.4in;
                         }
                         table:not(.signature-table) { width: 100%; border-collapse: collapse; border: 2px solid black; }
-                        table.signature-table { width: 100%; border: none; margin-top: 40px; }
+                        table.signature-table { width: 100%; border: none; margin-top: 40px; page-break-inside: avoid; break-inside: avoid; }
                         table:not(.signature-table) th, table:not(.signature-table) td { border: 1px solid black; padding: 6px; vertical-align: top; text-align: left; font-size: 10px; }
                         table.signature-table td { border: none; padding: 10px; vertical-align: top; text-align: left; }
                         table:not(.signature-table) td:first-child { background-color: #f8fafc; }
@@ -3897,6 +3939,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
             try { saved = JSON.parse(localStorage.getItem(SAVED_LESSON_KEY)); } catch (e) {}
             if (!saved || !saved.html || !saved.html.trim()) return;
             outputContent.innerHTML = saved.html;
+            ensureSignatureBlock();
             emptyState.classList.add('hidden');
             loadingState.classList.add('hidden');
             outputContent.classList.remove('hidden');
