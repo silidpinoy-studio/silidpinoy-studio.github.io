@@ -508,21 +508,6 @@
       const updateTestTypeCount = (id, count) => setTestTypes(p => p.map(t => t.id === id ? { ...t, count: parseInt(count)||0 } : t));
       const updateTestTypeStyle = (id, style) => setTestTypes(p => p.map(t => t.id === id ? { ...t, style } : t));
       const handleSchoolInfoChange = (e) => setSchoolInfo(p => ({ ...p, [e.target.name]: e.target.value }));
-      const handleLogoUpload = (e, field) => {
-        const file = e.target.files?.[0]; if (!file) return;
-        if (file.size > 500*1024) { if(window.SilidToast) window.SilidToast.warning('Logo must be under 500 KB.'); else alert('Logo must be under 500 KB.'); return; }
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const dataUrl = String(ev.target.result || '');
-          setSchoolInfo(p => ({ ...p, [field]: dataUrl }));
-          if (window.SilidAssets) window.SilidAssets.setLogo(field, dataUrl);
-        };
-        reader.readAsDataURL(file);
-      };
-      const removeLogo = (field) => {
-        setSchoolInfo(p => ({ ...p, [field]: '' }));
-        if (window.SilidAssets) window.SilidAssets.removeLogo(field);
-      };
 
       /* ── Storage meter (Settings) ─────────────────────────────────────
          localStorage holds the school info + logos and each tool's last
