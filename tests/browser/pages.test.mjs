@@ -3676,3 +3676,231 @@ test('the lesson deck images its title and discussion slides', { timeout: LONG_T
     await context.close();
   }
 });
+/* ===============================================================
+   30. school logos migrate out of localStorage into IndexedDB
+   =============================================================== */
+
+test('school logos migrate from localStorage into IndexedDB and keep rendering', { timeout: LONG_TIMEOUT }, async (t) => {
+  // two 1x1 PNGs — real image data, small enough to inline in the test
+  const LOGO1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const LOGO2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+  // seed the old shape: logos inside school_info, plus a saved plan so the
+  // header strip has something to render
+  const seed = `
+    try {
+      localStorage.setItem('school_info', JSON.stringify({
+        schoolName: 'Migration High School', schoolLogo1: '${LOGO1}', schoolLogo2: '${LOGO2}'
+      }));
+      localStorage.setItem('saved_lesson_output', JSON.stringify({ html: '<h1>Saved lesson</h1><p>Body</p>' }));
+    } catch (e) {}
+  `;
+
+  const { context, page, errors } = await openPage('lesson.html', { initScript: seed });
+  try {
+    if (!(await page.locator('#lesson-logo-strip').count())) {
+      t.skip('lesson.html did not render (CDN unavailable?)');
+      return;
+    }
+    await page.waitForFunction(
+      () => window.SilidAssets && document.querySelectorAll('#lesson-logo-strip img').length === 2,
+      null, { timeout: 15000 }
+    ).catch(() => {});
+
+    const state = await page.evaluate(() => {
+      const raw = localStorage.getItem('school_info') || '{}';
+      const info = JSON.parse(raw);
+      return {
+        storedName: info.schoolName,
+        storedHasLogoKey: 'schoolLogo1' in info || 'schoolLogo2' in info,
+        storedHasImageData: /data:image/.test(raw),
+        logos: window.SilidAssets ? window.SilidAssets.getLogos() : null,
+        strip: Array.from(document.querySelectorAll('#lesson-logo-strip img')).map((img) => img.getAttribute('src')),
+        stripHidden: document.getElementById('lesson-logo-strip').classList.contains('hidden')
+      };
+    });
+
+    assert.equal(state.storedName, 'Migration High School', 'the text fields must survive the migration');
+    assert.equal(state.storedHasImageData, false, 'no base64 image may stay in school_info');
+    assert.equal(state.storedHasLogoKey, false, 'the old schoolLogo keys must be stripped once they are safe');
+    assert.ok(state.logos, 'shared-assets.js must expose the IndexedDB logo store');
+    assert.equal(state.logos.schoolLogo1, LOGO1, 'logo 1 must land in IndexedDB');
+    assert.equal(state.logos.schoolLogo2, LOGO2, 'logo 2 must land in IndexedDB');
+    assert.deepEqual(state.strip, [LOGO1, LOGO2], 'the saved lesson header must render both migrated logos');
+    assert.equal(state.stripHidden, false, 'the logo strip must be visible');
+
+    // the store must outlive a reload while localStorage stays logo-free
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => window.SilidAssets && window.SilidAssets.getLogos().schoolLogo1,
+      null, { timeout: 15000 });
+    const afterReload = await page.evaluate(() => ({
+      logos: window.SilidAssets.getLogos(),
+      storedHasImageData: /data:image/.test(localStorage.getItem('school_info') || '')
+    }));
+    assert.equal(afterReload.logos.schoolLogo1, LOGO1, 'the logo must come back from IndexedDB after a reload');
+    assert.equal(afterReload.storedHasImageData, false, 'a reload must not re-introduce logos into localStorage');
+
+    assert.deepEqual(errors, [], 'the logo migration must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+/* ===============================================================
+   31. the Any Topic deck fits the slide, one paragraph per bullet
+   =============================================================== */
+
+test('the Any Topic deck keeps every box on the slide and one paragraph per bullet', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors } = await openPage('powerpoint.html', {
+    initScript: () => {
+      try { sessionStorage.setItem('gemini_api_key', 'TEST_KEY'); } catch { /* storage unavailable */ }
+    }
+  });
+  try {
+    if (!(await page.locator('#topic-input').count())) {
+      t.skip('powerpoint.html did not render its input panel (CDN unavailable?)');
+      return;
+    }
+
+    const BULLETS = [
+      ['Water is always moving', 'Driven by the sun and the wind'],
+      ['Liquid water turns into vapour when the sun heats it', 'Puddles shrink on a hot afternoon', 'Wet clothes dry in the wind'],
+      ['Vapour cools back into tiny droplets', 'These droplets form clouds'],
+      ['Droplets fall back as rain or snow'],
+      ['Name the four stages', 'Draw the cycle from memory']
+    ];
+    const TITLES = ['The Water Cycle', 'Evaporation and the sun', 'Condensation & clouds', 'Precipitation', 'Review'];
+    const DECK = JSON.stringify(TITLES.map((title, i) => ({
+      title,
+      section: i === 0 ? 'Title' : (i === TITLES.length - 1 ? 'Wrap-up' : 'Discussion'),
+      content: BULLETS[i],
+      notes: 'n',
+      visualIdea: 'None'
+    })));
+
+    // text-only visuals keep the run offline and pin the full-width body layout
+    await page.locator('[data-visuals="none"]').click();
+    await page.waitForTimeout(150);
+    await page.route('**/generativelanguage.googleapis.com/**', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ candidates: [{ content: { parts: [{ text: DECK }] } }] })
+    }));
+    await page.locator('#topic-input').fill('The Water Cycle');
+    await page.locator('#topic-paste').fill('Water moves between the sea, the sky and the land in a continuous cycle driven by the sun.');
+    await page.locator('#btn-topic-generate').click();
+    await page.waitForFunction(
+      () => (document.getElementById('slide-total') || {}).textContent === '5',
+      null, { timeout: NAV_TIMEOUT }
+    );
+
+    await page.waitForFunction(() => !!(window.PptxGenJS && window.JSZip), null, { timeout: 15000 });
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      page.locator('#btn-download').click()
+    ]);
+
+    const deck = await page.evaluate(async ({ b64, slideTitles, expectedBullets }) => {
+      const zip = await window.JSZip.loadAsync(b64, { base64: true });
+      const parser = new DOMParser();
+      const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+      const P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+      const EMU = 914400;
+      const parse = (xml) => {
+        const doc = parser.parseFromString(xml, 'application/xml');
+        return doc.querySelector('parsererror') ? null : doc;
+      };
+      const presentation = parse(await zip.file('ppt/presentation.xml').async('string'));
+      const sldSz = presentation && presentation.getElementsByTagNameNS(P, 'sldSz')[0];
+      const slideW = sldSz ? parseInt(sldSz.getAttribute('cx'), 10) : 0;
+      const slideH = sldSz ? parseInt(sldSz.getAttribute('cy'), 10) : 0;
+      const out = {
+        slideW, slideH,
+        sldIds: presentation ? presentation.getElementsByTagNameNS(P, 'sldId').length : 0,
+        slides: 0, malformed: [], missingRels: [], outOfBounds: [],
+        paragraphs: [], titles: [], bodyFits: [], texts: []
+      };
+      for (const name of Object.keys(zip.files)) {
+        if (!/^ppt\/slides\/slide\d+\.xml$/.test(name)) continue;
+        out.slides++;
+        const base = name.replace(/^ppt\/slides\//, '');
+        if (!zip.file('ppt/slides/_rels/' + base + '.rels')) out.missingRels.push(name);
+        const doc = parse(await zip.file(name).async('string'));
+        if (!doc) { out.malformed.push(name); continue; }
+        const strs = [];
+        for (const sp of doc.getElementsByTagNameNS(P, 'sp')) {
+          const off = sp.getElementsByTagNameNS(A, 'off')[0];
+          const ext = sp.getElementsByTagNameNS(A, 'ext')[0];
+          const bodyPr = sp.getElementsByTagNameNS(A, 'bodyPr')[0];
+          const text = Array.from(sp.getElementsByTagNameNS(A, 't')).map((n) => n.textContent).join('');
+          if (text.trim()) strs.push(text);
+          const paraTexts = Array.from(sp.getElementsByTagNameNS(A, 'p'))
+            .map((p) => Array.from(p.getElementsByTagNameNS(A, 't')).map((n) => n.textContent).join(''))
+            .filter((v) => v.trim());
+          out.paragraphs.push(...paraTexts);
+          // the body shape holds every bullet of its slide as separate paragraphs
+          if (paraTexts.some((p) => expectedBullets.includes(p))) {
+            out.bodyFits.push(!!(bodyPr && bodyPr.getElementsByTagNameNS(A, 'normAutofit').length));
+          }
+          if (slideTitles.includes(text) && off && ext) {
+            out.titles.push({
+              text,
+              center: (parseInt(off.getAttribute('x'), 10) + parseInt(ext.getAttribute('cx'), 10) / 2) / EMU
+            });
+          }
+          if (!off || !ext) continue;
+          const x = parseInt(off.getAttribute('x'), 10), y = parseInt(off.getAttribute('y'), 10);
+          const w = parseInt(ext.getAttribute('cx'), 10), h = parseInt(ext.getAttribute('cy'), 10);
+          // 1/100 in tolerance for rounding; the real overhang used to be 1-2.3 in
+          const tol = EMU / 100;
+          if (x < -tol || y < -tol || x + w > slideW + tol || y + h > slideH + tol) {
+            out.outOfBounds.push({ name, text: text.slice(0, 30), x, y, w, h });
+          }
+        }
+        out.texts.push(...strs);
+      }
+      return out;
+    }, {
+      b64: fs.readFileSync(await dl.path()).toString('base64'),
+      slideTitles: TITLES,
+      expectedBullets: BULLETS.flat()
+    });
+
+    // ---- a well-formed package that PowerPoint can open ----
+    assert.equal(deck.slideW, 9144000, 'the deck must be the 10 in wide 16:9 layout');
+    assert.equal(deck.slideH, 5143500, 'and 5.625 in tall');
+    assert.equal(deck.slides, 5, 'all five slides must be in the package');
+    assert.equal(deck.sldIds, 5, 'presentation.xml must list every slide');
+    assert.deepEqual(deck.malformed, [], 'every slide must be well-formed XML');
+    assert.deepEqual(deck.missingRels, [], 'every slide needs its layout/image relationships');
+
+    // ---- no box may hang off the slide edge ----
+    assert.deepEqual(deck.outOfBounds, [],
+      'a text box may not run past the slide edge — got ' + JSON.stringify(deck.outOfBounds));
+
+    // ---- centred titles, on every slide ----
+    assert.equal(deck.titles.length, 5, 'each slide must carry its generated title');
+    for (const title of deck.titles) {
+      assert.ok(Math.abs(title.center - deck.slideW / 914400 / 2) < 0.02,
+        '"' + title.text + '" must be centred — its box centre is ' + title.center.toFixed(2) + ' in on a 10 in slide');
+    }
+
+    // ---- one paragraph per bullet ----
+    for (const bullet of BULLETS.flat()) {
+      assert.ok(deck.paragraphs.includes(bullet),
+        'each bullet must be its own paragraph — missing ' + JSON.stringify(bullet));
+    }
+    const runOn = deck.paragraphs.filter((p) => BULLETS.flat().filter((b) => p.includes(b)).length > 1);
+    assert.deepEqual(runOn, [], 'bullets collapsed back into one paragraph: ' + JSON.stringify(runOn));
+
+    // ---- bullet boxes shrink their text instead of growing off the slide ----
+    assert.equal(deck.bodyFits.length, BULLETS.length, 'one bullet box per slide must be found in the export');
+    assert.ok(deck.bodyFits.every(Boolean),
+      'bullet text must be set to shrink into its box, so a long list cannot spill off the slide');
+
+    // ---- the AI's "None" placeholder never prints ----
+    assert.ok(!deck.texts.includes('None'), 'the literal "None" must never be printed on a slide');
+
+    assert.deepEqual(errors, [], 'building the deck must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
