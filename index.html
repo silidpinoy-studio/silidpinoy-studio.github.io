@@ -508,6 +508,23 @@
       const updateTestTypeCount = (id, count) => setTestTypes(p => p.map(t => t.id === id ? { ...t, count: parseInt(count)||0 } : t));
       const updateTestTypeStyle = (id, style) => setTestTypes(p => p.map(t => t.id === id ? { ...t, style } : t));
       const handleSchoolInfoChange = (e) => setSchoolInfo(p => ({ ...p, [e.target.name]: e.target.value }));
+      /* Logo files are read to data URLs and stored in IndexedDB (shared-assets.js),
+         never in localStorage — a logo there used to blow the 5 MB quota. */
+      const handleLogoUpload = (e, field) => {
+        const file = e.target.files?.[0]; if (!file) return;
+        if (file.size > 500*1024) { if(window.SilidToast) window.SilidToast.warning('Logo must be under 500 KB.'); else alert('Logo must be under 500 KB.'); return; }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = String(ev.target.result || '');
+          setSchoolInfo(p => ({ ...p, [field]: dataUrl }));
+          if (window.SilidAssets) window.SilidAssets.setLogo(field, dataUrl);
+        };
+        reader.readAsDataURL(file);
+      };
+      const removeLogo = (field) => {
+        setSchoolInfo(p => ({ ...p, [field]: '' }));
+        if (window.SilidAssets) window.SilidAssets.removeLogo(field);
+      };
 
       /* ── Storage meter (Settings) ─────────────────────────────────────
          localStorage holds the school info + logos and each tool's last
@@ -745,7 +762,7 @@
         let h = '<div style="text-align:center;font-family:Arial,sans-serif;line-height:1.25;margin-bottom:8px;">';
         /* School logos from Settings — every document tool prints the same block. */
         if (si.schoolLogo1 || si.schoolLogo2) {
-          h += '<p style="margin:0 0 4px;">' + [si.schoolLogo1, si.schoolLogo2].filter(Boolean).map((src) => '<img src="' + src + '" alt="" style="height:50px;margin:0 10px;vertical-align:middle;">').join('') + '</p>';
+          h += '<p style="margin:0 0 4px;">' + [si.schoolLogo1, si.schoolLogo2].filter(Boolean).map((src) => window.SilidAssets.logoImgHtml(src, 50)).join('') + '</p>';
         }
         h += '<p style="margin:0;font-size:11pt;">Republic of the Philippines</p>';
         h += '<p style="margin:0;font-size:13pt;font-weight:bold;font-family:\'Times New Roman\',serif;">Department of Education</p>';
@@ -2089,7 +2106,7 @@ ${mpsRow}
           };
 
           const logoHtml = (si.schoolLogo1 || si.schoolLogo2)
-            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => `<img src="${src}" style="height:50px;" alt="" />`).join('&nbsp;&nbsp;&nbsp;')}</p>`
+            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => window.SilidAssets.logoImgHtml(src, 50)).join('&nbsp;&nbsp;&nbsp;')}</p>`
             : '';
           const headerHtml = '<div style="text-align:center;line-height:1.3;margin-bottom:6pt;">' +
             iaHeaderLines().map(l => `<p style="margin:1pt 0;font-size:${l.size}pt;${l.bold ? 'font-weight:bold;' : ''}${l.serif ? "font-family:'Times New Roman',Georgia,serif;" : ''}">${esc(l.text)}</p>`).join('') +
@@ -2212,7 +2229,7 @@ ${sigTable}`;
             iaHeaderLines().map(l => `<p style="margin:1pt 0;font-size:${l.size}pt;${l.bold ? 'font-weight:bold;' : ''}font-family:${l.serif ? "'Times New Roman',Georgia,serif" : 'Arial,Helvetica,sans-serif'};">${esc(l.text)}</p>`).join('') +
             '</div>';
           const logos = (si.schoolLogo1 || si.schoolLogo2)
-            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => `<img src="${src}" style="height:52px;" alt="" />`).join('&nbsp;&nbsp;&nbsp;')}</p>`
+            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => window.SilidAssets.logoImgHtml(src, 52)).join('&nbsp;&nbsp;&nbsp;')}</p>`
             : '';
           /* Annex 3 cause + intervention — computed from the same results the
              report shows, so the columns are never left blank. */
@@ -3384,6 +3401,30 @@ ${signTable([
                   </div>
                 </div>
                 <div className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Logos (optional)</h3>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {[['schoolLogo1','School Logo'],['schoolLogo2','Division / District Logo']].map(([field,label])=>(
+                      <div key={field} className="space-y-2">
+                        <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider">{label}</label>
+                        {schoolInfo[field]?(
+                          <div className="relative">
+                            <div className="w-full h-32 rounded-xl ring-1 ring-black/10 overflow-hidden bg-white flex items-center justify-center p-2">
+                              <img src={schoolInfo[field]} alt={label} className="max-h-full max-w-full object-contain"/></div>
+                            <button type="button" aria-label={"Remove " + label} onClick={()=>removeLogo(field)} className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600">&times;</button>
+                          </div>
+                        ):(
+                          <label className="flex flex-col items-center justify-center w-full h-32 rounded-xl ring-1 ring-black/10 hover:bg-iris-50/50 hover:ring-iris-300 cursor-pointer transition-all">
+                            <LucideIcon name="UploadCloud" className="w-6 h-6 text-ink/25 mb-1"/>
+                            <span className="text-[11px] font-medium text-ink/40">Upload {label}</span>
+                            <span className="text-[10px] text-ink/30">Max 500 KB</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={(e)=>handleLogoUpload(e,field)}/>
+                          </label>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-4">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Personal Details</h3>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Teacher / Author Name</label>
@@ -3464,6 +3505,9 @@ ${signTable([
                 <div className="border-t border-black/5 pt-6">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40 mb-3">Document Header Preview</h3>
                   <div className="bg-white rounded-xl ring-1 ring-black/10 p-6 text-center space-y-2">
+                    {(schoolInfo.schoolLogo1||schoolInfo.schoolLogo2)&&<div className="flex items-center justify-center gap-4 mb-2">{schoolInfo.schoolLogo1&&<img src={schoolInfo.schoolLogo1} alt="Logo 1" className="h-16 object-contain"/>}{schoolInfo.schoolLogo2&&<img src={schoolInfo.schoolLogo2} alt="Logo 2" className="h-16 object-contain"/>}</div>}
+                    <p className="text-[11px]">Republic of the Philippines</p>
+                    <p className="text-[13px] font-serif font-bold">Department of Education</p>
                     {(schoolInfo.regionNo||schoolInfo.regionName)&&<p className="text-[11px] font-bold uppercase tracking-wide">REGION {schoolInfo.regionNo}{schoolInfo.regionNo&&schoolInfo.regionName?' – ':''}{schoolInfo.regionName} REGION</p>}
                     {schoolInfo.division&&<p className="text-[11px] font-bold uppercase tracking-wide">SCHOOLS DIVISION OFFICE OF {schoolInfo.division}</p>}
                     {schoolInfo.district&&<p className="text-[11px] font-bold uppercase tracking-wide">{/district/i.test(schoolInfo.district)?schoolInfo.district:`${schoolInfo.district} District`}</p>}

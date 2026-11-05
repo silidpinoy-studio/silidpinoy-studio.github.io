@@ -1144,14 +1144,18 @@
             if (logos.schoolLogo2) si.schoolLogo2 = logos.schoolLogo2;
         }
         var h = '';
-        if (si.schoolLogo1 || si.schoolLogo2 || si.schoolName || si.regionNo || si.regionName || si.division) {
+        if (si.schoolLogo1 || si.schoolLogo2 || si.schoolName || si.regionNo || si.regionName || si.division || si.schoolAddress || si.department) {
             h += '<div style="text-align:center;margin-bottom:10px;">';
             if (si.schoolLogo1 || si.schoolLogo2) {
                 h += '<div style="margin-bottom:6px;">';
-                if (si.schoolLogo1) h += '<img src="' + si.schoolLogo1 + '" style="height:64px;margin:0 10px;vertical-align:middle;">';
-                if (si.schoolLogo2) h += '<img src="' + si.schoolLogo2 + '" style="height:64px;margin:0 10px;vertical-align:middle;">';
+                if (si.schoolLogo1) h += window.SilidAssets.logoImgHtml(si.schoolLogo1, 64);
+                if (si.schoolLogo2) h += window.SilidAssets.logoImgHtml(si.schoolLogo2, 64);
                 h += '</div>';
             }
+            /* The generic DepEd letterhead — the same two lines the lesson
+               plan, Test Maker and Item Analysis print above the school block. */
+            h += '<p style="font-size:12px;margin:0;">Republic of the Philippines</p>';
+            h += '<p style="font-family:\'Times New Roman\',serif;font-size:15px;font-weight:bold;margin:0;">Department of Education</p>';
             /* Shared DepEd header lines from Settings — same wording as the lesson
                plan, Test Maker, TOS and Item Analysis: "REGION XI \u2013 DAVAO REGION" */
             var regionLine = '';

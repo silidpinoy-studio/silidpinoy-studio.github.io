@@ -743,7 +743,7 @@
             if (!logos.length) return '';
             return '<p style="text-align:center;margin:0 0 10px;line-height:1;">' +
                 logos.map(function (src) {
-                    return '<img src="' + src + '" alt="" style="height:52px;margin:0 12px;vertical-align:middle;">';
+                    return window.SilidAssets.logoImgHtml(src, 52, '0 12px');
                 }).join('') + '</p>';
         }
         document.addEventListener('DOMContentLoaded', () => {

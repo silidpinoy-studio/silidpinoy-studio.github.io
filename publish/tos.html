@@ -391,10 +391,14 @@
         let h = '<div style="text-align:center;margin-bottom:12pt;">';
         if (si.schoolLogo1 || si.schoolLogo2) {
           h += '<div style="margin-bottom:6pt;">';
-          if (si.schoolLogo1) h += `<img src="${si.schoolLogo1}" style="height:64pt;margin:0 12pt;vertical-align:middle;">`;
-          if (si.schoolLogo2) h += `<img src="${si.schoolLogo2}" style="height:64pt;margin:0 12pt;vertical-align:middle;">`;
+          if (si.schoolLogo1) h += window.SilidAssets.logoImgHtml(si.schoolLogo1, 85, '0 12px');
+          if (si.schoolLogo2) h += window.SilidAssets.logoImgHtml(si.schoolLogo2, 85, '0 12px');
           h += '</div>';
         }
+        /* The generic DepEd letterhead — the same two lines the lesson plan,
+           Test Maker, Item Analysis and Activity Sheet print above the school block. */
+        h += '<p style="font-size:11pt;margin:0;">Republic of the Philippines</p>';
+        h += '<p style="font-size:13pt;font-weight:bold;font-family:\'Times New Roman\',serif;margin:0;">Department of Education</p>';
         const region = sharedRegionLine(si);
         const division = sharedDivisionLine(si);
         if (region) h += `<p style="font-size:11pt;font-weight:bold;margin:0;">${region}</p>`;
@@ -860,6 +864,8 @@
                         {schoolInfo.schoolLogo2 && <img src={schoolInfo.schoolLogo2} alt="" className="h-16 object-contain" />}
                       </div>
                     )}
+                    <p className="text-xs">Republic of the Philippines</p>
+                    <p className="text-[13px] font-bold font-serif">Department of Education</p>
                     {sharedRegionLine(schoolInfo) && <p className="text-xs font-bold">{sharedRegionLine(schoolInfo)}</p>}
                     {sharedDivisionLine(schoolInfo) && <p className="text-xs font-bold">{sharedDivisionLine(schoolInfo)}</p>}
                     {schoolInfo.schoolName && <p className="text-sm font-bold uppercase tracking-wide">{schoolInfo.schoolName}</p>}
@@ -1424,10 +1430,13 @@
           sh = '<div style="text-align:center;margin-bottom:16pt;">';
           if (schoolInfo.schoolLogo1 || schoolInfo.schoolLogo2) {
             sh += '<div style="margin-bottom:8pt;">';
-            if (schoolInfo.schoolLogo1) sh += `<img src="${schoolInfo.schoolLogo1}" style="height:72pt;margin:0 12pt;vertical-align:middle;">`;
-            if (schoolInfo.schoolLogo2) sh += `<img src="${schoolInfo.schoolLogo2}" style="height:72pt;margin:0 12pt;vertical-align:middle;">`;
+            if (schoolInfo.schoolLogo1) sh += window.SilidAssets.logoImgHtml(schoolInfo.schoolLogo1, 96, '0 12px');
+            if (schoolInfo.schoolLogo2) sh += window.SilidAssets.logoImgHtml(schoolInfo.schoolLogo2, 96, '0 12px');
             sh += '</div>';
           }
+          /* Same DepEd letterhead as the on-screen sheet and every other document. */
+          sh += '<p style="font-size:11pt;margin:0;">Republic of the Philippines</p>';
+          sh += '<p style="font-size:13pt;font-weight:bold;font-family:\'Times New Roman\',serif;margin:0;">Department of Education</p>';
           const shRegion = sharedRegionLine(schoolInfo);
           const shDivision = sharedDivisionLine(schoolInfo);
           if (shRegion) sh += `<p style="font-size:11pt;font-weight:bold;margin:0;">${shRegion}</p>`;
@@ -1970,6 +1979,8 @@
                           {schoolInfo.schoolLogo2 && <img src={schoolInfo.schoolLogo2} alt="" className="h-16 object-contain" />}
                         </div>
                       )}
+                      <p className="text-xs">Republic of the Philippines</p>
+                      <p className="text-[13px] font-bold font-serif">Department of Education</p>
                       {sharedRegionLine(schoolInfo) && <p className="text-xs font-bold">{sharedRegionLine(schoolInfo)}</p>}
                       {sharedDivisionLine(schoolInfo) && <p className="text-xs font-bold">{sharedDivisionLine(schoolInfo)}</p>}
                       {schoolInfo.schoolName && <p className="text-sm font-bold uppercase tracking-wide">{schoolInfo.schoolName}</p>}

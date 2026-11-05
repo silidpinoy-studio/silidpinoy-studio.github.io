@@ -1751,6 +1751,10 @@ test('the Activity Sheet Maker gets the K-3 rules when the sheet is for early le
 
     // the shared Settings header (Region/Division) rides above the sheet, and travels with the .doc
     const sheetText = await page.locator('#output-content').innerText();
+    assert.match(sheetText, /Republic of the Philippines/,
+      'the activity sheet must carry the same DepEd preamble as the other documents');
+    assert.match(sheetText, /Department of Education/,
+      'the activity sheet must carry the Department of Education line');
     assert.match(sheetText, /REGION 04 – NCR REGION/,
       'the activity sheet must carry the shared Region line from Settings');
     assert.match(sheetText, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
@@ -2109,6 +2113,10 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
       'the sheet must carry the shared Region line from Settings');
     assert.match(soloSheetText, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
       'the sheet must carry the shared Division line from Settings');
+    assert.match(soloSheetText, /Republic of the Philippines/,
+      'the TOS sheet must carry the same DepEd preamble as the other documents');
+    assert.match(soloSheetText, /Department of Education/,
+      'the TOS sheet must carry the Department of Education line');
 
     // the standards carry their DepEd preamble
     const english = await page.evaluate(() => document.body.innerText);
@@ -2164,6 +2172,8 @@ test('the TOS Maker offers both a .doc and a real .docx export', { timeout: LONG
     ]).then(([d]) => d);
     if (docDownload) {
       const docHtml = fs.readFileSync(await docDownload.path(), 'utf8');
+      assert.match(docHtml, /Republic of the Philippines/, 'the Word export must carry the DepEd preamble');
+      assert.match(docHtml, /Department of Education/, 'the Word export must carry the Department of Education line');
       assert.match(docHtml, /able to…<\/i><\/b><br>The learners investigate forces\.<br>The learners design a simple machine\./, 'the Word export must put the preamble and each performance standard on its own line');
       assert.match(docHtml, /SCHOOLS DIVISION OFFICE OF PASIG CITY/,
         'the Word export must carry the shared Division line from Settings');
@@ -4111,6 +4121,162 @@ test('the Any Topic deck keeps every box on the slide and one paragraph per bull
     assert.ok(!deck.texts.includes('None'), 'the literal "None" must never be printed on a slide');
 
     assert.deepEqual(errors, [], 'building the deck must not raise page errors');
+
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
+   32. the TOS letterhead carries its school logos into the Word download
+   =============================================================== */
+
+test('the TOS letterhead carries both school logos into the Word download', { timeout: LONG_TIMEOUT }, async (t) => {
+  const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const { context, page, errors } = await openPage('tos.html');
+  try {
+    const silidCard = page.locator('button:has-text("SOLO TAXONOMY")').first();
+    if (!(await silidCard.count())) {
+      t.skip('tos.html did not render its format chooser (CDN unavailable?)');
+      return;
+    }
+    // logos come from Settings; seed the same values a teacher would have saved
+    await page.evaluate((logo) => {
+      localStorage.setItem('school_info', JSON.stringify({
+        schoolName: 'Rizal High School', schoolAddress: 'Pasig City',
+        regionNo: '04', regionName: 'NCR', division: 'Pasig City',
+        schoolLogo1: logo, schoolLogo2: logo
+      }));
+    }, LOGO);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(WAIT_MS);
+    await page.locator('button:has-text("SOLO TAXONOMY")').first().click();
+    await page.waitForTimeout(600);
+
+    const shown = await page.evaluate(() => Array.from(document.querySelectorAll('img'))
+      .filter((img) => (img.getAttribute('src') || '').startsWith('data:image'))
+      .map((img) => Math.round(img.getBoundingClientRect().height)));
+    assert.equal(shown.length, 2, 'the TOS header must show both school logos on screen');
+    assert.ok(shown.every((h) => h > 0), 'both logos must be visibly sized');
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 20000 }),
+      page.getByRole('button', { name: /Export Word \(\.doc\)/ }).click()
+    ]);
+    const raw = fs.readFileSync(await download.path(), 'utf8');
+
+    // The .doc stayed plain HTML: Word and LibreOffice both import it, but a
+    // relative src would not resolve, so the logos must ride inside as data URIs.
+    assert.ok(!raw.startsWith('PK'), 'the Word download must not be a zip archive');
+    assert.ok(!/^MIME-Version:/i.test(raw), 'the Word download must stay plain HTML, not an MHTML archive');
+    const srcs = [...raw.matchAll(/<img[^>]+src="([^"]+)"/g)]
+      .map((m) => m[1]).filter((src) => src.startsWith('data:image/png;base64,'));
+    assert.equal(srcs.length, 2, 'both school logos must ride inside the .doc as data URIs');
+
+    // Word draws an imported image at its intrinsic size and ignores the CSS
+    // height, so a 1400px logo used to fill a page. The width/height attributes
+    // are what keeps the letterhead logos letterhead-sized.
+    const logoTags = [...raw.matchAll(/<img[^>]+src="data:image\/png;base64,[^"]*"[^>]*>/g)].map((m) => m[0]);
+    assert.equal(logoTags.length, 2, 'both logos must be found in the Word download');
+    for (const tag of logoTags) {
+      assert.match(tag, /\sheight="\d+"/, 'each logo needs a height attribute for Word');
+      assert.match(tag, /\swidth="\d+"/, 'each logo needs a width attribute, or Word keeps its pixel width');
+    }
+    assert.match(raw, /Republic of the Philippines/, 'the letterhead text must ride along');
+    assert.match(raw, /Department of Education/, 'the Department of Education line must ride along');
+
+    assert.deepEqual(errors, [], 'exporting the TOS must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
+   33. the Settings screen uploads school logos into IndexedDB
+   =============================================================== */
+
+test('the Settings screen uploads a school logo into IndexedDB, not localStorage', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors } = await openPage('index.html#settings');
+  try {
+    const inputs = page.locator('input[type="file"][accept="image/*"]');
+    if (!(await inputs.count())) {
+      t.skip('index.html did not render its Settings screen (CDN unavailable?)');
+      return;
+    }
+    assert.equal(await inputs.count(), 2, 'Settings must offer a School Logo and a Division / District Logo upload');
+
+    const logo = path.join(os.tmpdir(), 'silid-logo-' + Date.now() + '.png');
+    fs.writeFileSync(logo, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+    try {
+      await inputs.first().setInputFiles(logo);
+      await page.waitForTimeout(1000);
+      const after = await page.evaluate(() => ({
+        logos: window.SilidAssets ? window.SilidAssets.getLogos() : null,
+        previews: Array.from(document.querySelectorAll('img'))
+          .filter((img) => (img.getAttribute('src') || '').startsWith('data:image')).length,
+        storedHasImage: /data:image/.test(localStorage.getItem('school_info') || '')
+      }));
+      assert.ok(after.logos && after.logos.schoolLogo1.startsWith('data:image/png;base64,'),
+        'the uploaded logo must land in the IndexedDB logo store');
+      assert.ok(after.previews >= 1, 'the Settings screen must preview the uploaded logo');
+      assert.equal(after.storedHasImage, false, 'the logo must stay out of localStorage');
+
+      // a fresh visit must find it again — the stored logo lives in IndexedDB
+      const second = await context.newPage();
+      await second.goto(server.url + 'index.html#settings', { waitUntil: 'load', timeout: NAV_TIMEOUT });
+      await second.waitForFunction(() => window.SilidAssets && window.SilidAssets.getLogos().schoolLogo1,
+        null, { timeout: 15000 });
+      const reopened = await second.evaluate(() => ({
+        logo1: window.SilidAssets.getLogos().schoolLogo1,
+        previews: Array.from(document.querySelectorAll('img'))
+          .filter((img) => (img.getAttribute('src') || '').startsWith('data:image')).length
+      }));
+      assert.ok(reopened.logo1.startsWith('data:image/png;base64,'), 'the logo must come back on a fresh visit');
+      assert.ok(reopened.previews >= 1, 'the Settings preview must show the stored logo');
+
+      await second.locator('button[aria-label="Remove School Logo"]').click();
+      await second.waitForTimeout(600);
+      assert.equal(await second.evaluate(() => window.SilidAssets.getLogos().schoolLogo1), '',
+        'Remove must clear the stored logo');
+      await second.close();
+
+      assert.deepEqual(errors, [], 'the logo upload must not raise page errors');
+    } finally {
+      fs.unlinkSync(logo);
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
+   34. exported logos carry attribute sizes that keep the aspect ratio
+   =============================================================== */
+
+test('exported logos carry width and height attributes at their real aspect ratio', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors } = await openPage('index.html');
+  try {
+    if (!(await page.evaluate(() => !!(window.SilidAssets && window.SilidAssets.logoImgHtml)))) {
+      t.skip('shared-assets.js did not load (CDN unavailable?)');
+      return;
+    }
+    const tags = await page.evaluate(() => {
+      const make = (w, h) => {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const x = c.getContext('2d');
+        x.fillStyle = '#123456'; x.fillRect(0, 0, w, h);
+        return c.toDataURL('image/png');
+      };
+      return [
+        window.SilidAssets.logoImgHtml(make(300, 100), 60),
+        window.SilidAssets.logoImgHtml(make(100, 300), 60)
+      ];
+    });
+    assert.match(tags[0], /height="60"/);
+    assert.match(tags[0], /width="180"/, 'a 3:1 logo must be three times as wide as it is tall');
+    assert.match(tags[1], /width="20"/, 'a 1:3 logo must stay narrow instead of being squared off');
+    assert.deepEqual(errors, [], 'building a logo tag must not raise page errors');
   } finally {
     await context.close();
   }

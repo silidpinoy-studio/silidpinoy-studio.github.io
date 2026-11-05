@@ -153,11 +153,59 @@
 
   function removeLogo(field) { return setLogo(field, ''); }
 
+  /* ---- export <img> tags -------------------------------------------------
+     Word ignores CSS sizing when it imports an exported document (the .docx
+     carries the HTML as an altChunk), so a 1400px logo is drawn at 1050pt and
+     each logo lands on a page of its own. Word does honour the width/height
+     *attributes*, so measure the data URL and emit both, keeping the aspect
+     ratio. Formats we cannot measure fall back to the height attribute alone. */
+  function dataUrlSize(src) {
+    try {
+      var m = /^data:image\/([a-z0-9.+-]+);base64,([\s\S]+)$/i.exec(src);
+      if (!m) return null;
+      var kind = m[1].toLowerCase();
+      var bin = atob(m[2].replace(/\s+/g, ''));
+      function u8(i) { return bin.charCodeAt(i) & 0xff; }
+      function be16(i) { return (u8(i) << 8) | u8(i + 1); }
+      function be32(i) { return ((u8(i) << 24) | (u8(i + 1) << 16) | (u8(i + 2) << 8) | u8(i + 3)) >>> 0; }
+      function le16(i) { return u8(i) | (u8(i + 1) << 8); }
+      if (kind === 'png' && bin.length > 24) return { width: be32(16), height: be32(20) };
+      if (kind === 'gif' && bin.length > 10) return { width: le16(6), height: le16(8) };
+      if (kind === 'jpg' || kind === 'jpeg') {
+        var i = 2;
+        while (i + 9 < bin.length) {
+          if (u8(i) !== 0xff) { i++; continue; }
+          var marker = u8(i + 1);
+          if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }
+          if (marker === 0xd9 || marker === 0xda) break;
+          if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+            return { width: be16(i + 7), height: be16(i + 5) };
+          }
+          i += 2 + be16(i + 2);
+        }
+        return null;
+      }
+      return null;
+    } catch (e) { return null; }
+  }
+
+  function logoImgHtml(src, heightPx, margin) {
+    if (!src) return '';
+    var h = Math.max(1, Math.round(heightPx));
+    var size = dataUrlSize(src);
+    var w = size && size.height > 0 ? Math.max(1, Math.round(h * size.width / size.height)) : 0;
+    var m = margin || '0 10px';
+    return '<img src="' + src + '" alt="" height="' + h + '"' + (w ? ' width="' + w + '"' : '') +
+      ' style="height:' + h + 'px;' + (w ? 'width:' + w + 'px;' : '') +
+      'margin:' + m + ';vertical-align:middle;">';
+  }
+
   window.SilidAssets = {
     load: start,
     ready: start(),
     getLogos: getLogos,
     setLogo: setLogo,
-    removeLogo: removeLogo
+    removeLogo: removeLogo,
+    logoImgHtml: logoImgHtml
   };
 })();
