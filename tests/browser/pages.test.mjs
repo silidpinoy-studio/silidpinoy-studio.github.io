@@ -887,7 +887,9 @@ test('a lesson plan always ends with the Prepared by / Checked by block', { time
       try {
         localStorage.setItem('school_info', JSON.stringify({
           teacherName: 'JUAN DELA CRUZ', teacherTitle: 'Teacher I',
-          checkedBy: 'MARIA CLARA', checkedByPosition: 'Department Head'
+          checkedBy: 'MARIA CLARA', checkedByPosition: 'Department Head',
+          regionNo: 'IV-A', regionName: 'CALABARZON', division: 'PASIG CITY',
+          schoolName: 'RIZAL NATIONAL HIGH SCHOOL', schoolAddress: 'Pasig City'
         }));
       } catch { /* storage unavailable */ }
     }
@@ -895,8 +897,10 @@ test('a lesson plan always ends with the Prepared by / Checked by block', { time
   try {
     if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
 
-    // the model is a stub, and this first reply forgets the signature block
-    let reply = '<div><h1>Weekly Lesson Plan</h1><table>' +
+    // the model is a stub, and this first reply forgets the signature block and
+    // trims the header down to the two generic DepEd lines
+    let reply = '<div><p>Republic of the Philippines</p><p>Department of Education</p></div>' +
+      '<div><h1>Weekly Lesson Plan</h1><table>' +
       '<tr><td>Learning Objectives</td><td>Describe the water cycle.</td></tr></table></div>';
     await page.route('**/generativelanguage.googleapis.com/**', (route) => route.fulfill({
       status: 200,
@@ -934,6 +938,24 @@ test('a lesson plan always ends with the Prepared by / Checked by block', { time
     assert.ok(sheet.text.lastIndexOf('Checked by') > sheet.text.lastIndexOf('Learning Objectives'),
       'the signatures must sit below the plan body');
 
+    // the school block from Settings must survive the model's trimmed header
+    const header = await page.evaluate(() => {
+      const text = document.getElementById('output-content').innerText;
+      const count = (needle) => text.split(needle).length - 1;
+      return {
+        school: count('RIZAL NATIONAL HIGH SCHOOL'),
+        division: count('SCHOOLS DIVISION OFFICE OF PASIG CITY'),
+        region: count('REGION IV-A'),
+        address: count('Pasig City'),
+        deped: count('Department of Education')
+      };
+    });
+    assert.equal(header.school, 1, 'the school name must come from Settings');
+    assert.equal(header.division, 1, 'and the schools division office line');
+    assert.equal(header.region, 1, 'and the region line');
+    assert.equal(header.address, 1, 'and the school address');
+    assert.equal(header.deped, 1, 'the header must not be printed twice');
+
     // the Word export must carry the same block, on the last page
     const doc = await page.evaluate(() => window.buildLessonWordHtml());
     assert.match(doc, /Prepared by:/, 'the Word export must keep Prepared by');
@@ -954,7 +976,12 @@ test('a lesson plan always ends with the Prepared by / Checked by block', { time
       'the signature block must be the last block of the exported plan, found ' + body.lastTag);
     assert.ok(body.bodyTables >= 2, 'the export must still contain the plan tables');
     // a reply that already signs the plan must not be signed twice
-    reply = '<div><h1>Weekly Lesson Plan</h1><table><tr><td>Content</td><td>Demo.</td></tr></table>' +
+    reply = '<div style="text-align:center;"><p>Republic of the Philippines</p>' +
+      '<p>Department of Education</p>' +
+      '<p>REGION IV-A - CALABARZON REGION</p>' +
+      '<p>SCHOOLS DIVISION OFFICE OF PASIG CITY</p>' +
+      '<p>RIZAL NATIONAL HIGH SCHOOL</p><p>Pasig City</p></div>' +
+      '<div><h1>Weekly Lesson Plan</h1><table><tr><td>Content</td><td>Demo.</td></tr></table>' +
       '<table class="signature-table"><tr><td><p>Prepared by:</p><p>ORIGINAL SIGNER</p>' +
       '<p>Checked by:</p><p>ORIGINAL CHECKER</p></td></tr></table></div>';
     await page.locator('#generate-btn').click();
@@ -969,6 +996,8 @@ test('a lesson plan always ends with the Prepared by / Checked by block', { time
       };
     });
     assert.equal(again.blocks, 1, 'an already-signed reply must not gain a second block');
+    assert.equal(again.text.split('RIZAL NATIONAL HIGH SCHOOL').length - 1, 1,
+      'a header the model already printed must not be printed twice');
     assert.match(again.text, /ORIGINAL CHECKER/, 'the model signature must be kept as-is');
     assert.doesNotMatch(again.text, /JUAN DELA CRUZ/, 'and not replaced by Settings');
     assert.deepEqual(errors, [], 'the signature fallback must not raise page errors');

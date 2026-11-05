@@ -3399,30 +3399,6 @@ ${signTable([
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Logos (optional)</h3>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {[['schoolLogo1','School Logo'],['schoolLogo2','Division / District Logo']].map(([field,label])=>(
-                      <div key={field} className="space-y-2">
-                        <label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider">{label}</label>
-                        {schoolInfo[field]?(
-                          <div className="relative group">
-                            <div className="w-full h-32 rounded-xl ring-1 ring-black/10 overflow-hidden bg-white flex items-center justify-center p-2">
-                              <img src={schoolInfo[field]} alt={label} className="max-h-full max-w-full object-contain"/></div>
-                            <button onClick={()=>removeLogo(field)} className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">&times;</button>
-                          </div>
-                        ):(
-                          <label className="flex flex-col items-center justify-center w-full h-32 rounded-xl ring-1 ring-black/10 hover:bg-iris-50/50 hover:ring-iris-300 cursor-pointer transition-all">
-                            <LucideIcon name="UploadCloud" className="w-6 h-6 text-ink/25 mb-1"/>
-                            <span className="text-[11px] font-medium text-ink/40">Upload {label}</span>
-                            <span className="text-[10px] text-ink/30">Max 500 KB</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={(e)=>handleLogoUpload(e,field)}/>
-                          </label>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-4">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Personal Details</h3>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div><label className="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Teacher / Author Name</label>
@@ -3503,7 +3479,6 @@ ${signTable([
                 <div className="border-t border-black/5 pt-6">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40 mb-3">Document Header Preview</h3>
                   <div className="bg-white rounded-xl ring-1 ring-black/10 p-6 text-center space-y-2">
-                    {(schoolInfo.schoolLogo1||schoolInfo.schoolLogo2)&&(<div className="flex items-center justify-center gap-4 mb-4">{schoolInfo.schoolLogo1&&<img src={schoolInfo.schoolLogo1} alt="Logo 1" className="h-16 object-contain"/>}{schoolInfo.schoolLogo2&&<img src={schoolInfo.schoolLogo2} alt="Logo 2" className="h-16 object-contain"/>}</div>)}
                     {(schoolInfo.regionNo||schoolInfo.regionName)&&<p className="text-[11px] font-bold uppercase tracking-wide">REGION {schoolInfo.regionNo}{schoolInfo.regionNo&&schoolInfo.regionName?' – ':''}{schoolInfo.regionName} REGION</p>}
                     {schoolInfo.division&&<p className="text-[11px] font-bold uppercase tracking-wide">SCHOOLS DIVISION OFFICE OF {schoolInfo.division}</p>}
                     {schoolInfo.district&&<p className="text-[11px] font-bold uppercase tracking-wide">{/district/i.test(schoolInfo.district)?schoolInfo.district:`${schoolInfo.district} District`}</p>}
