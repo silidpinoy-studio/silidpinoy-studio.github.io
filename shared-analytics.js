@@ -2,9 +2,9 @@
  * shared-analytics.js — loads the visitor tracker when analytics-config.js has
  * a website ID.
  *
- * Exposes window.SilidAnalytics with { enabled, websiteId, config } so the
- * owner's local insights page can tell whether tracking is switched on. With
- * no website ID configured nothing is fetched and nothing is sent.
+ * Exposes window.SilidAnalytics with { enabled, websiteId, config } so any
+ * page can tell whether tracking is switched on. With no website ID
+ * configured nothing is fetched and nothing is sent.
  *
  * Version: v1 (2026-11-06)
  */

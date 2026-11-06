@@ -22,8 +22,6 @@ export const PAYLOAD = PAGES.concat([
   'shared-store.js',
   'shared-analytics.js',
   'analytics-config.js',
-  /* insights-4f9c2a.html is deliberately NOT deployed: it reads the owner's own
-     Umami account, so it only ever lives in the repo and on their machine. */
   'shared-api.js',
   'shared-keys.js',
   'shared-backup.js',
