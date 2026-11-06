@@ -10,14 +10,16 @@ import { startServer } from '../helpers/server.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const PAGES = [
-  { file: 'index.html', tool: 'test-maker', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-backup.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'lesson.html', tool: 'lesson-plan', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'activity.html', tool: 'activity-sheet', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'powerpoint.html', tool: 'ppt-maker', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'tos.html', tool: 'tos', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] }
+  { file: 'index.html', tool: 'test-maker', modules: ['analytics-config.js', 'shared-analytics.js', 'shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-backup.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'lesson.html', tool: 'lesson-plan', modules: ['analytics-config.js', 'shared-analytics.js', 'shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'activity.html', tool: 'activity-sheet', modules: ['analytics-config.js', 'shared-analytics.js', 'shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'powerpoint.html', tool: 'ppt-maker', modules: ['analytics-config.js', 'shared-analytics.js', 'shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'tos.html', tool: 'tos', modules: ['analytics-config.js', 'shared-analytics.js', 'shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] }
 ];
 
 const GLOBALS = {
+  'analytics-config.js': ['SILID_ANALYTICS'],
+  'shared-analytics.js': ['SilidAnalytics'],
   'shared-store.js': ['SilidStore', 'getItem', 'setItem', 'removeItem', 'keys', 'sizeBytes', 'isManaged'],
   'shared-api.js': ['SilidAPI', 'callGemini', 'callGeminiJSON', 'pingKey'],
   'shared-keys.js': ['SilidKeys', 'get', 'set', 'clear', 'isRemembered', 'setRemembered', 'describe', 'rememberHint'],
