@@ -78,6 +78,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="deped-options.js"></script>
   <script src="shared-assets.js"></script>
+  <script src="shared-store.js"></script>
   <script src="shared-api.js"></script>
   <script src="shared-keys.js"></script>
   <script src="shared-validate.js"></script>
@@ -323,7 +324,7 @@
 
     function SchoolTos({ onBack, openConfig, onOpenConsumed }) {
       const [meta, setMeta] = useState(() => {
-        try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.meta || { gradeLevel:'', learningArea:'', totalItems:30 }; }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current_school')); return s?.meta || { gradeLevel:'', learningArea:'', totalItems:30 }; }
         catch { return { gradeLevel:'', learningArea:'', totalItems:30 }; }
       });
       const [cognitiveLevels, setCognitiveLevels] = useState(() => {
@@ -331,18 +332,18 @@
           { name:'Remembering', pct:35 }, { name:'Understanding', pct:10 }, { name:'Applying', pct:5 },
           { name:'Analyzing', pct:35 }, { name:'Evaluating', pct:10 }, { name:'Creating', pct:5 },
         ];
-        try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.cognitiveLevels || fallback; }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current_school')); return s?.cognitiveLevels || fallback; }
         catch { return fallback; }
       });
       const [competencies, setCompetencies] = useState(() => {
         const fallback = [{ id:1, name:'', hours:'' }, { id:2, name:'', hours:'' }, { id:3, name:'', hours:'' }];
-        try { const s = JSON.parse(localStorage.getItem('tos_current_school')); return s?.competencies || fallback; }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current_school')); return s?.competencies || fallback; }
         catch { return fallback; }
       });
       const [groupNames, setGroupNames] = useState(() => {
         const fallback = ['Lower Order Thinking Skills', 'Higher Order Thinking Skills'];
         try {
-          const s = JSON.parse(localStorage.getItem('tos_current_school'));
+          const s = JSON.parse(window.SilidStore.getItem('tos_current_school'));
           if (Array.isArray(s?.groupNames) && s.groupNames.length >= 2) return s.groupNames;
         } catch { /* fall through to defaults */ }
         return fallback;
@@ -353,7 +354,7 @@
 
       /* Auto-save the school-template work so a reload does not lose it */
       useEffect(() => {
-        try { localStorage.setItem('tos_current_school', JSON.stringify({ meta, cognitiveLevels, competencies, groupNames })); }
+        try { window.SilidStore.setItem('tos_current_school', JSON.stringify({ meta, cognitiveLevels, competencies, groupNames })); }
         catch { /* storage unavailable */ }
       }, [meta, cognitiveLevels, competencies, groupNames]);
 
@@ -662,7 +663,7 @@
           competencyDistributions,
           allocationMode: 'hours',
         };
-        localStorage.setItem('tos_make_test', JSON.stringify(tosData));
+        window.SilidStore.setItem('tos_make_test', JSON.stringify(tosData));
         window.location.href = 'index.html';
       };
 
@@ -973,23 +974,23 @@
 
     function App() {
       const [meta, setMeta] = useState(() => {
-        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.meta || { title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }; } catch { return { title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }; }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current')); return s?.meta || { title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }; } catch { return { title:'', gradeLevel:'', learningArea:'', term:'', performanceStandard:'', contentStandard:'', totalItems:30 }; }
       });
       const [allocationMode, setAllocationMode] = useState(() => {
-        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.allocationMode || 'manual'; } catch { return 'manual'; }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current')); return s?.allocationMode || 'manual'; } catch { return 'manual'; }
       });
       const [cognitiveLevels, setCognitiveLevels] = useState(() => {
-        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.cognitiveLevels || [{ name:'Unistructural', pct:50 },
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current')); return s?.cognitiveLevels || [{ name:'Unistructural', pct:50 },
         { name: 'Multi-structural', pct: 30 },
         { name: 'Relational', pct: 20 },
         { name: 'Extended Abstract', pct: 0 },
       ]; } catch { return [{ name:'Unistructural', pct:50 },{ name:'Multi-structural', pct:30 },{ name:'Relational', pct:20 },{ name:'Extended Abstract', pct:0 }]; }
       });
       const [competencies, setCompetencies] = useState(() => {
-        try { const s = JSON.parse(localStorage.getItem('tos_current')); return s?.competencies || [{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]; } catch { return [{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]; }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current')); return s?.competencies || [{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]; } catch { return [{ id:1, name:'', hours:'4', manualItems:'5' },{ id:2, name:'', hours:'3', manualItems:'5' },{ id:3, name:'', hours:'6', manualItems:'10' }]; }
       });
       const [rowLevelCaps, setRowLevelCaps] = useState(() => {
-        try { const s = JSON.parse(localStorage.getItem('tos_current')); if (Array.isArray(s?.rowLevelCaps) && s.rowLevelCaps.length) return s.rowLevelCaps; } catch { /* ignore */ }
+        try { const s = JSON.parse(window.SilidStore.getItem('tos_current')); if (Array.isArray(s?.rowLevelCaps) && s.rowLevelCaps.length) return s.rowLevelCaps; } catch { /* ignore */ }
         return [];
       });
       const [lastGeneratedTime, setLastGeneratedTime] = useState(new Date().toLocaleTimeString());
@@ -997,7 +998,7 @@
       const [schoolDoc, setSchoolDoc] = useState(null);
       const tosTableRef = useRef(null);
       const [savedConfigs, setSavedConfigs] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('tos_saved_configs')) || []; } catch { return []; }
+        try { return JSON.parse(window.SilidStore.getItem('tos_saved_configs')) || []; } catch { return []; }
       });
       const [showSaveLoad, setShowSaveLoad] = useState(false);
       const saveLoadRef = useRef(null);
@@ -1013,12 +1014,12 @@
       /* Auto-save current working state */
       useEffect(() => {
         const snapshot = { meta, allocationMode, cognitiveLevels, competencies, rowLevelCaps };
-        localStorage.setItem('tos_current', JSON.stringify(snapshot));
+        window.SilidStore.setItem('tos_current', JSON.stringify(snapshot));
       }, [meta, allocationMode, cognitiveLevels, competencies, rowLevelCaps]);
 
       /* Persist named configs */
       useEffect(() => {
-        localStorage.setItem('tos_saved_configs', JSON.stringify(savedConfigs));
+        window.SilidStore.setItem('tos_saved_configs', JSON.stringify(savedConfigs));
       }, [savedConfigs]);
 
       /* Document history drawer (shared-docs-ui.js + shared-docs.js) */
@@ -1260,7 +1261,7 @@
           competencyDistributions: competencyDistributions,
           allocationMode: allocationMode,
         };
-        localStorage.setItem('tos_make_test', JSON.stringify(tosData));
+        window.SilidStore.setItem('tos_make_test', JSON.stringify(tosData));
         if (window.SilidDocsUI) window.SilidDocsUI.save({
           name: meta.title || 'Summative Test (TOS)',
           content: JSON.stringify({ meta, allocationMode, cognitiveLevels, competencies }),
@@ -2157,7 +2158,11 @@
       );
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    /* The TOS state is read synchronously at render time, so wait for the
+       IndexedDB cache (shared-store.js) before mounting. */
+    window.SilidStore.ready.then(() => {
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    });
   </script>
   <script>
     if ('serviceWorker' in navigator) {

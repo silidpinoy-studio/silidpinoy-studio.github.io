@@ -7,7 +7,6 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>PPT Maker — SilidPinoy</title>
-    <script>/* cache-bust */ localStorage.removeItem('saved_ppt_output');</script>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -44,6 +43,7 @@
     <script src="shared-docs-ui.js"></script>
     <script src="shared-file-utils.js"></script>
     <script src="shared-toast.js"></script>
+    <script src="shared-store.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@300..800&display=swap" rel="stylesheet">
@@ -1086,21 +1086,21 @@ visuals: state.visuals,
             savedAt: Date.now()
         };
         try {
-            localStorage.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
+            window.SilidStore.setItem(SAVED_PPT_KEY, JSON.stringify(payload));
         } catch (e) {
             // storage full — give up silently
         }
     }
         function clearSavedPptState() {
-            try { localStorage.removeItem(SAVED_PPT_KEY); } catch (e) {}
+            try { window.SilidStore.removeItem(SAVED_PPT_KEY); } catch (e) {}
         }
 
         /* ── Lesson Plan hand-off (lesson.html sends a generated plan) ── */
         function importLessonForPpt() {
             var raw = null;
-            try { raw = JSON.parse(localStorage.getItem('lesson_ppt_import')); } catch (e) { raw = null; }
+            try { raw = JSON.parse(window.SilidStore.getItem('lesson_ppt_import')); } catch (e) { raw = null; }
             if (!raw || !raw.html || !String(raw.html).trim()) return;
-            try { localStorage.removeItem('lesson_ppt_import'); } catch (e) {}
+            try { window.SilidStore.removeItem('lesson_ppt_import'); } catch (e) {}
 
             // flatten the plan's HTML into readable source text for the prompt
             var html = String(raw.html)
@@ -1150,7 +1150,7 @@ visuals: state.visuals,
         }
         function restorePptState() {
             var saved = null;
-            try { saved = JSON.parse(localStorage.getItem(SAVED_PPT_KEY)); } catch (e) {}
+            try { saved = JSON.parse(window.SilidStore.getItem(SAVED_PPT_KEY)); } catch (e) {}
             if (!saved || !Array.isArray(saved.slides) || !saved.slides.length) return;
             state.slides = saved.slides;
             state.current = Math.min(parseInt(saved.current, 10) || 0, state.slides.length - 1);
@@ -2496,7 +2496,7 @@ function escapeHtml(str) {
             clearSavedPptState();
 
             /* A lesson plan handed over from lesson.html? Load it into DLL mode. */
-            importLessonForPpt();
+            window.SilidStore.ready.then(importLessonForPpt);
         });
     })();
     </script>

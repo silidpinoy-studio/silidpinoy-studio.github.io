@@ -60,9 +60,36 @@
 
   function nowISO() { return new Date().toISOString(); }
 
+  /* The big outputs live in IndexedDB (shared-store.js); the small keys stay in
+     localStorage. Backups carry both, under their original key names. */
+  function isStoredKey(key) {
+    return !!(window.SilidStore && window.SilidStore.isManaged(key));
+  }
+
+  function readRaw(key) {
+    try {
+      if (isStoredKey(key)) return window.SilidStore.getItem(key);
+      return localStorage.getItem(key);
+    } catch (_) { return null; }
+  }
+
+  function writeRaw(key, value) {
+    try {
+      if (isStoredKey(key)) { window.SilidStore.setItem(key, value); return; }
+      localStorage.setItem(key, value);
+    } catch (_) { /* storage unavailable */ }
+  }
+
+  function removeRaw(key) {
+    try {
+      if (isStoredKey(key)) { window.SilidStore.removeItem(key); return; }
+      localStorage.removeItem(key);
+    } catch (_) { /* storage unavailable */ }
+  }
+
   function safeGetJSON(key) {
     try {
-      var raw = localStorage.getItem(key);
+      var raw = readRaw(key);
       if (raw === null || raw === undefined) return undefined;
       try { return JSON.parse(raw); }
       catch (_) { return raw; } // plain-text values (e.g. markdown) are kept as-is, not dropped
@@ -173,8 +200,8 @@
     var data = payload.data;
 
     if (mode === 'replace') {
-      // clear only our known keys (don't touch unrelated localStorage)
-      DATA_KEYS.forEach(function (k) { localStorage.removeItem(k); });
+      // clear only our known keys (don't touch unrelated storage)
+      DATA_KEYS.forEach(function (k) { removeRaw(k); });
       API_KEY_KEYS.forEach(function (k) { clearApiKey(k); });
     }
 
@@ -182,7 +209,7 @@
     DATA_KEYS.forEach(function (k) {
       if (data[k] !== undefined) {
         var v = data[k];
-        localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+        writeRaw(k, typeof v === 'string' ? v : JSON.stringify(v));
       }
     });
 

@@ -38,6 +38,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="deped-options.js"></script>
     <script src="shared-assets.js"></script>
+    <script src="shared-store.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
     <script src="shared-validate.js"></script>
@@ -655,7 +656,7 @@
        ============================================================ */
     function loadFromLessonPlan() {
         var raw;
-        try { raw = JSON.parse(localStorage.getItem('lesson_activity_sheet')); } catch (e) { raw = null; }
+        try { raw = JSON.parse(window.SilidStore.getItem('lesson_activity_sheet')); } catch (e) { raw = null; }
         if (!raw || !raw.html || !raw.html.trim()) return;
         var session = raw.session || 'all';
         var total = parseInt(raw.sessions, 10) || 0;
@@ -688,7 +689,7 @@
         $('lesson-from-chip-sub').textContent = [raw.subject, raw.grade].filter(Boolean).join(' • ') || 'Weekly lesson plan';
     }
     function clearFromLesson() {
-        localStorage.removeItem('lesson_activity_sheet');
+        window.SilidStore.removeItem('lesson_activity_sheet');
         state.fromLessonPlan = false;
         state.lessonStructured = false;
         state.lessonSession = '';
@@ -1330,7 +1331,7 @@
         setLoading(false);
         /* bring back whatever was on screen before (the previous sheet, if any) */
         var saved = null;
-        try { saved = JSON.parse(localStorage.getItem(SAVED_ACTIVITY_KEY)); } catch (e) { saved = null; }
+        try { saved = JSON.parse(window.SilidStore.getItem(SAVED_ACTIVITY_KEY)); } catch (e) { saved = null; }
         if (saved && saved.sheetHtml) restoreActivityOutput();
         else $('empty-state').classList.remove('hidden');
     }
@@ -1530,7 +1531,7 @@
     function saveActivityOutput() {
         if (!state.sheetHtml) return;
         try {
-            localStorage.setItem(SAVED_ACTIVITY_KEY, JSON.stringify({
+            window.SilidStore.setItem(SAVED_ACTIVITY_KEY, JSON.stringify({
                 html: $('output-content').innerHTML,
                 sheetHtml: state.sheetHtml,
                 answerKeyHtml: state.answerKeyHtml,
@@ -1547,11 +1548,11 @@
         } catch (e) { /* storage full — ignore */ }
     }
     function clearSavedActivityOutput() {
-        try { localStorage.removeItem(SAVED_ACTIVITY_KEY); } catch (e) {}
+        try { window.SilidStore.removeItem(SAVED_ACTIVITY_KEY); } catch (e) {}
     }
     function restoreActivityOutput() {
         var saved = null;
-        try { saved = JSON.parse(localStorage.getItem(SAVED_ACTIVITY_KEY)); } catch (e) {}
+        try { saved = JSON.parse(window.SilidStore.getItem(SAVED_ACTIVITY_KEY)); } catch (e) {}
         if (!saved || !saved.sheetHtml || !saved.html) return;
         state.sheetHtml = saved.sheetHtml;
         state.answerKeyHtml = saved.answerKeyHtml || '';
@@ -1794,7 +1795,7 @@
         bindAutocomplete($('custom-grade'), $('custom-grade-list'), window.DEPED_GRADE_LEVELS || []);
         bindAutocomplete($('custom-subject'), $('custom-subject-list'), window.DEPED_SUBJECTS || []);
         bindFileInput();
-        loadFromLessonPlan();
+        window.SilidStore.ready.then(loadFromLessonPlan);
         $('lesson-from-clear').addEventListener('click', clearFromLesson);
         renderSections();
 
@@ -1820,7 +1821,7 @@
         $('btn-print').addEventListener('click', function () { window.print(); });
         $('btn-answer-key').addEventListener('click', generateAnswerKey);
         $('btn-rubric').addEventListener('click', generateRubric);
-        restoreActivityOutput();
+        window.SilidStore.ready.then(restoreActivityOutput);
 
         /* Logos arrive asynchronously from IndexedDB; when a restored sheet is
            already on screen, rebuild its header so the logos appear. */

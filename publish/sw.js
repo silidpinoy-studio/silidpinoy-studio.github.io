@@ -1,4 +1,4 @@
-const CACHE_NAME = 'silidpinoy-v5';
+const CACHE_NAME = 'silidpinoy-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
   '/icon-maskable-512.png',
   '/apple-touch-icon.png',
   '/shared-assets.js',
+  '/shared-store.js',
   '/shared-api.js',
   '/shared-keys.js',
   '/shared-backup.js',

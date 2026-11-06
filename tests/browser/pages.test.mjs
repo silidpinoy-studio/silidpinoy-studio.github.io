@@ -10,14 +10,15 @@ import { startServer } from '../helpers/server.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const PAGES = [
-  { file: 'index.html', tool: 'test-maker', modules: ['shared-api.js', 'shared-keys.js', 'shared-backup.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'lesson.html', tool: 'lesson-plan', modules: ['shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'activity.html', tool: 'activity-sheet', modules: ['shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'powerpoint.html', tool: 'ppt-maker', modules: ['shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
-  { file: 'tos.html', tool: 'tos', modules: ['shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] }
+  { file: 'index.html', tool: 'test-maker', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-backup.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'lesson.html', tool: 'lesson-plan', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'activity.html', tool: 'activity-sheet', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'powerpoint.html', tool: 'ppt-maker', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] },
+  { file: 'tos.html', tool: 'tos', modules: ['shared-store.js', 'shared-api.js', 'shared-keys.js', 'shared-validate.js', 'shared-docs.js', 'shared-file-utils.js', 'shared-toast.js', 'shared-docs-ui.js'] }
 ];
 
 const GLOBALS = {
+  'shared-store.js': ['SilidStore', 'getItem', 'setItem', 'removeItem', 'keys', 'sizeBytes', 'isManaged'],
   'shared-api.js': ['SilidAPI', 'callGemini', 'callGeminiJSON', 'pingKey'],
   'shared-keys.js': ['SilidKeys', 'get', 'set', 'clear', 'isRemembered', 'setRemembered', 'describe', 'rememberHint'],
   'shared-backup.js': ['SilidBackup', 'exportBackup', 'importBackup', 'applyImport'],
@@ -85,6 +86,24 @@ async function openPage(file, { waitMs = WAIT_MS, initScript } = {}) {
 
   const cdnBlocked = failedRequests.some((u) => CDN_HOSTS.some((h) => u.includes(h)));
   return { context, page, errors, failedRequests, cdnBlocked };
+}
+
+/**
+ * Read a key the app keeps in IndexedDB (shared-store.js) rather than in
+ * localStorage. Resolves null when the store or the key does not exist.
+ */
+async function readStoreKey(page, key) {
+  return page.evaluate((k) => new Promise((resolve) => {
+    const req = indexedDB.open('silidpinoy_store', 1);
+    req.onerror = () => resolve(null);
+    req.onsuccess = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('kv')) { resolve(null); return; }
+      const get = db.transaction('kv', 'readonly').objectStore('kv').get(k);
+      get.onsuccess = () => resolve(get.result === undefined ? null : get.result);
+      get.onerror = () => resolve(null);
+    };
+  }), key);
 }
 
 /* ===============================================================
@@ -757,7 +776,7 @@ test('a generated lesson plan can be turned into a presentation', { timeout: LON
         .contains('active'),
       exemplarActive: !!(document.querySelector('#dll-source-pills .dllsrc-toggle[data-dllsrc="exemplar"]') || {})
         .classList.contains('active'),
-      leftover: localStorage.getItem('lesson_ppt_import')
+      leftoverLocal: localStorage.getItem('lesson_ppt_import')
     }));
 
     assert.ok(info.cardOpen, 'the DLL card should be open after the hand-off');
@@ -766,7 +785,8 @@ test('a generated lesson plan can be turned into a presentation', { timeout: LON
     assert.ok(info.paste.includes('The Water Cycle'), 'the lesson text should be prefilled');
     assert.ok(info.paste.includes('LESSON SOURCE'), 'the header should explain where the text came from');
     assert.ok(info.paste.includes('Session 1'), 'table cells should survive the HTML-to-text conversion');
-    assert.equal(info.leftover, null, 'the hand-off key must be cleared after import');
+    assert.equal(info.leftoverLocal, null, 'the hand-off key must never fall back to localStorage');
+    assert.equal(await readStoreKey(page, 'lesson_ppt_import'), null, 'the hand-off key must be cleared after import');
     assert.deepEqual(errors, [], 'the hand-off must not raise page errors');
   } finally {
     await context.close();
@@ -1177,7 +1197,7 @@ test('Test Maker shows the generated test instead of an error', { timeout: LONG_
       output: (document.querySelector('.prose.prose-slate') || {}).innerText || '',
       errorBox: (document.querySelector('.bg-red-50') || {}).innerText || null,
       warnings: (document.querySelector('[data-testid="validation-warnings"]') || {}).innerText || null,
-      saved: localStorage.getItem('saved_test_output') || '',
+
       body: document.body.innerText
     }));
 
@@ -1214,7 +1234,8 @@ test('Test Maker shows the generated test instead of an error', { timeout: LONG_
     assert.ok(nameLine.blankWidths[1] > nameLine.blankWidths[2], 'GRADE/SECTION must be wider than SCORE');
     assert.ok(!/^\s*#+\s*summative test/im.test(shown.output), 'the AI\'s own title block should be dropped');
     assert.ok(shown.output.includes('What is the water cycle?'), 'the body of the test should be shown');
-    assert.ok(shown.saved.includes('Answer Key'), 'the test should be remembered for the next visit');
+    assert.ok((await readStoreKey(page, 'saved_test_output') || '').includes('Answer Key'),
+      'the test should be remembered in the browser database for the next visit');
 
     // 13. each question is a two-column grid: the item number on the left, the stem and
     // its choices on the right, so the choices sit under the first word of the question
@@ -2027,7 +2048,7 @@ test('the Test Maker exports a real .docx and a Word .doc, re-imports its .docx 
       topic: (document.querySelector('textarea') || {}).value,
       checked: document.querySelectorAll('input[type="checkbox"]:checked').length,
       preview: !!document.querySelector('.prose.prose-slate'),
-      saved: localStorage.getItem('saved_test_output'),
+
       toasts: Array.from(document.querySelectorAll('#silid-toast-container > div')).map((n) => n.innerText).join(' | ')
     }));
     assert.equal(after.grade, '', 'the grade level must be cleared');
@@ -2036,7 +2057,7 @@ test('the Test Maker exports a real .docx and a Word .doc, re-imports its .docx 
     assert.equal(after.topic, '', 'the topic must be cleared');
     assert.equal(after.checked, 0, 'no test type may stay selected');
     assert.ok(!after.preview, 'the previous test must be gone from the preview');
-    assert.equal(after.saved, null, 'the stored test must be forgotten');
+    assert.equal(await readStoreKey(page, 'saved_test_output'), null, 'the stored test must be forgotten');
     assert.match(after.toasts, /Started fresh/i, 'the teacher should be told the form was cleared');
     assert.deepEqual(errors, [], 'exporting, printing and starting fresh must not raise page errors');
   } finally {
@@ -3687,12 +3708,11 @@ test('the PPT Maker images only the title and discussion slides', { timeout: LON
     assert.ok(fs.statSync(pptxPath).size > 1000, 'the .pptx must be a real file');
 
     // generated images are session-only — localStorage must stay lean
-    const saved = await page.evaluate(() => {
-      try { return JSON.parse(localStorage.getItem('saved_ppt_output')); } catch { return null; }
-    });
+    const savedRaw = await readStoreKey(page, 'saved_ppt_output');
+    const saved = (() => { try { return JSON.parse(savedRaw); } catch { return null; } })();
     if (saved && Array.isArray(saved.slides)) {
       assert.ok(saved.slides.every((s) => !('aiImage' in s)),
-        'base64 images must never be written to localStorage');
+        'base64 images must never be written to the saved output');
     }
 
     assert.deepEqual(errors, [], 'the image pass must not raise page errors');
@@ -3884,13 +3904,12 @@ test('the lesson deck images its title and discussion slides', { timeout: LONG_T
 
 
     // DLL saves its state — base64 images must not ride along
-    const saved = await page.evaluate(() => {
-      try { return JSON.parse(localStorage.getItem('saved_ppt_output')); } catch { return null; }
-    });
+    const savedRaw = await readStoreKey(page, 'saved_ppt_output');
+    const saved = (() => { try { return JSON.parse(savedRaw); } catch { return null; } })();
     assert.ok(saved && Array.isArray(saved.slides) && saved.slides.length === 6,
       'the lesson deck must be saved for restore');
     assert.ok(saved.slides.every((s) => !('aiImage' in s)),
-      'base64 images must never be written to localStorage');
+      'base64 images must never be written to the saved output');
 
     assert.deepEqual(errors, [], 'the lesson image pass must not raise page errors');
   } finally {
@@ -3966,6 +3985,71 @@ test('school logos migrate from localStorage into IndexedDB and keep rendering',
     await context.close();
   }
 });
+/* ===============================================================
+   30b. saved outputs live in IndexedDB, not in the ~5 MB localStorage budget
+   =============================================================== */
+
+test('a saved plan moves into IndexedDB, survives a reload and keeps localStorage lean', { timeout: LONG_TIMEOUT }, async (t) => {
+  // seed one plan the way an older version stored it: in localStorage
+  const { context, page, errors } = await openPage('lesson.html', {
+    initScript: () => {
+      try {
+        if (sessionStorage.getItem('__store_seeded')) return;
+        sessionStorage.setItem('__store_seeded', '1');
+        localStorage.setItem('saved_lesson_output', JSON.stringify({
+          html: '<h1>Week 2: Photosynthesis</h1>'
+            + '<p>Chlorophyll captures light energy and turns it into food.</p>'.repeat(300)
+        }));
+      } catch { /* storage unavailable */ }
+    }
+  });
+  try {
+    if (!(await page.locator('#lesson-logo-strip').count())) {
+      t.skip('lesson.html did not render (CDN unavailable?)');
+      return;
+    }
+
+    // the plan is read back out of IndexedDB and rendered
+    await page.waitForFunction(
+      () => !document.getElementById('output-content').classList.contains('hidden'),
+      null, { timeout: 15000 }
+    );
+
+    const moved = await page.evaluate(() => {
+      const leaked = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if ((localStorage.getItem(key) || '').indexOf('Chlorophyll') !== -1) leaked.push(key);
+      }
+      return {
+        legacy: localStorage.getItem('saved_lesson_output'),
+        leaked,
+        rendered: document.getElementById('output-content').innerText.includes('Photosynthesis')
+      };
+    });
+    assert.equal(moved.legacy, null, 'the localStorage copy must be deleted once the write committed');
+    assert.deepEqual(moved.leaked, [], 'no localStorage key may keep the payload');
+    assert.ok(moved.rendered, 'the saved plan must still render after the move');
+
+    const stored = await readStoreKey(page, 'saved_lesson_output');
+    assert.ok(stored && stored.length > 10000, 'the payload must be in IndexedDB');
+    assert.ok(stored.includes('Photosynthesis'), 'the whole plan must be there');
+
+    // still there on the next visit, with no legacy copy left to fall back on
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(WAIT_MS);
+    assert.equal(await readStoreKey(page, 'saved_lesson_output'), stored, 'the payload must survive a reload');
+    assert.equal(await page.evaluate(() => localStorage.getItem('saved_lesson_output')), null,
+      'a reload must not recreate the localStorage copy');
+    assert.ok(await page.evaluate(() => document.getElementById('output-content').innerText.includes('Photosynthesis')),
+      'the restored plan must come back from IndexedDB after a reload');
+
+    assert.deepEqual(errors, [], 'the migration must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
 /* ===============================================================
    31. the Any Topic deck fits the slide, one paragraph per bullet
    =============================================================== */

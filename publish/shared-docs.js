@@ -160,7 +160,9 @@
 
     var toMigrate = [];
     mappings.forEach(function (m) {
-      var raw = localStorage.getItem(m.key);
+      /* The last output may already live in IndexedDB (shared-store.js); the
+         store hands back the legacy copy until its own migration runs. */
+      var raw = window.SilidStore ? window.SilidStore.getItem(m.key) : localStorage.getItem(m.key);
       if (raw && raw.trim().length > 0) {
         toMigrate.push({ tool: m.tool, name: m.name, content: raw });
       }

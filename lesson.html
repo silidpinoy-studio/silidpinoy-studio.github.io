@@ -39,6 +39,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="deped-options.js"></script>
     <script src="shared-assets.js"></script>
+    <script src="shared-store.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
     <script src="shared-validate.js"></script>
@@ -1609,14 +1610,14 @@
 
         function loadCustomFlow() {
             try {
-                const saved = localStorage.getItem(getCustomFlowKey());
+                const saved = window.SilidStore.getItem(getCustomFlowKey());
                 if (saved) return JSON.parse(saved);
             } catch (e) { /* ignore */ }
             return null;
         }
 
         function saveCustomFlow(flow) {
-            localStorage.setItem(getCustomFlowKey(), JSON.stringify(flow));
+            window.SilidStore.setItem(getCustomFlowKey(), JSON.stringify(flow));
         }
 
         function getDefaultCustomFlow() {
@@ -1828,7 +1829,7 @@
 
         cfLoadDefault.addEventListener('click', () => {
             if (!confirm(i18n[currentLang] === 'ph' ? 'Ibabalik ang default template? Ang iyong custom flow ay mawawala.' : 'Load default template? Your custom flow will be lost.')) return;
-            localStorage.removeItem(getCustomFlowKey());
+            window.SilidStore.removeItem(getCustomFlowKey());
             renderCustomFlowSteps();
         });
 
@@ -3923,7 +3924,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 sessions: total
             };
             try {
-                localStorage.setItem('lesson_activity_sheet', JSON.stringify(payload));
+                window.SilidStore.setItem('lesson_activity_sheet', JSON.stringify(payload));
             } catch (err) {
                 console.error('Could not hand the lesson plan to the Activity Sheet Maker:', err);
                 showError('Could not hand the lesson plan to the Activity Sheet Maker: ' + ((err && err.message) || 'unknown error') + '. Please try again.');
@@ -3945,7 +3946,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 sessions: parseInt(sessionsSelect.value, 10) || 4
             };
             try {
-                localStorage.setItem('lesson_ppt_import', JSON.stringify(payload));
+                window.SilidStore.setItem('lesson_ppt_import', JSON.stringify(payload));
             } catch (err) {
                 console.error('Could not hand the lesson plan to the PPT Maker:', err);
                 showError('Could not hand the lesson plan to the PPT Maker: ' + ((err && err.message) || 'unknown error') + '. Please try again.');
@@ -3959,7 +3960,7 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
         function saveLessonOutput() {
             if (!outputContent || outputContent.classList.contains('hidden') || !outputContent.innerHTML.trim()) return;
             try {
-                localStorage.setItem(SAVED_LESSON_KEY, JSON.stringify({
+                window.SilidStore.setItem(SAVED_LESSON_KEY, JSON.stringify({
                     html: outputContent.innerHTML,
                     lang: currentLang,
                     sessions: sessionsSelect.value,
@@ -3970,11 +3971,11 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
             } catch (e) { /* storage full — ignore */ }
         }
         function clearSavedLessonOutput() {
-            try { localStorage.removeItem(SAVED_LESSON_KEY); } catch (e) {}
+            try { window.SilidStore.removeItem(SAVED_LESSON_KEY); } catch (e) {}
         }
         function restoreLessonOutput() {
             let saved = null;
-            try { saved = JSON.parse(localStorage.getItem(SAVED_LESSON_KEY)); } catch (e) {}
+            try { saved = JSON.parse(window.SilidStore.getItem(SAVED_LESSON_KEY)); } catch (e) {}
             if (!saved || !saved.html || !saved.html.trim()) return;
             outputContent.innerHTML = saved.html;
             ensureSchoolHeader();
@@ -3990,7 +3991,9 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
             activityBtn.classList.remove('hidden');
             pptBtn.classList.remove('hidden');
         }
-        restoreLessonOutput();
+        /* The saved plan lives in IndexedDB (shared-store.js), so restore it
+           once the store cache is hydrated. */
+        window.SilidStore.ready.then(restoreLessonOutput);
 
         /* Logos come from IndexedDB (shared-assets.js), so hydrate them once the
            store is ready and re-render the strip if a plan is already on screen. */

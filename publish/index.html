@@ -138,6 +138,7 @@
   </script>
   <script src="deped-options.js"></script>
   <script src="shared-assets.js"></script>
+  <script src="shared-store.js"></script>
   <script src="shared-api.js"></script>
   <script src="shared-keys.js"></script>
   <script src="shared-backup.js"></script>
@@ -400,10 +401,10 @@
       /* Auto-load TOS data from TOS Maker */
       useEffect(() => {
         try {
-          const raw = localStorage.getItem('tos_make_test');
+          const raw = window.SilidStore.getItem('tos_make_test');
           if (!raw) return;
           const tos = JSON.parse(raw);
-          localStorage.removeItem('tos_make_test');
+          window.SilidStore.removeItem('tos_make_test');
           setConfig({ gradeLevel: tos.gradeLevel || '', subject: tos.subject || '', testName: tos.testName || '' });
           setTopic(tos.competencies || '');
           setMode('topic');
@@ -415,11 +416,11 @@
       /* Restore the last generated test when coming back to this page */
       useEffect(() => {
         try {
-          const saved = localStorage.getItem('saved_test_output');
+          const saved = window.SilidStore.getItem('saved_test_output');
           if (saved && saved.trim()) {
             /* the stored details bring back the subject and test name for the header */
             try {
-              const savedCfg = JSON.parse(localStorage.getItem('saved_test_config') || 'null');
+              const savedCfg = JSON.parse(window.SilidStore.getItem('saved_test_config') || 'null');
               if (savedCfg) applySavedConfig(savedCfg);
             } catch {}
             setGeneratedTest(stripTestTitleBlock(saved));
@@ -527,16 +528,18 @@
       };
 
       /* ── Storage meter (Settings) ─────────────────────────────────────
-         localStorage holds the school info + logos and each tool's last
-         output. Document history lives in IndexedDB (shared-docs.js) and is
-         deliberately not counted here. Chrome's per-origin budget is about
-         5 MB of UTF-16 code units, so sizes are measured the same way. */
+         The bar counts localStorage only — school info and settings. Logos,
+         saved outputs (shared-store.js) and document history (shared-docs.js)
+         live in IndexedDB and are reported in their own rows. Chrome's
+         per-origin budget for localStorage is about 5 MB of UTF-16 code
+         units, so sizes are measured the same way. */
       const storageStats = (() => {
         const empty = { total: 0, logos: 0, saved: 0, other: 0, percent: 0 };
         let ls = null;
         try { ls = window.localStorage; } catch (e) { return empty; }
         if (!ls) return empty;
         const stats = { total: 0, logos: 0, saved: 0, other: 0, percent: 0 };
+        let savedLocal = 0;
         try {
           for (let i = 0; i < ls.length; i++) {
             const key = ls.key(i) || '';
@@ -548,14 +551,17 @@
               try { si = JSON.parse(value) || {}; } catch (e) { si = {}; }
               stats.logos += String(si.schoolLogo1 || '').length + String(si.schoolLogo2 || '').length;
             }
-            if (/^(saved_|lesson_activity_sheet$|lesson_ppt_import$|tos_make_test$)/.test(key)) stats.saved += size;
+            if (/^(saved_|lesson_activity_sheet$|lesson_ppt_import$|tos_make_test$)/.test(key)) savedLocal += size;
           }
         } catch (e) { /* storage unreadable — show what we have */ }
         /* Logos moved to IndexedDB — report their real size, but keep the bar
            and total measured against the localStorage budget they no longer use. */
         const idbLogos = (window.SilidAssets && window.SilidAssets.getLogos()) || {};
         stats.logos = String(idbLogos.schoolLogo1 || '').length + String(idbLogos.schoolLogo2 || '').length;
-        stats.other = Math.max(0, stats.total - stats.saved);
+        /* Saved outputs moved to IndexedDB too (shared-store.js): their bytes get
+           their own row and stay out of the localStorage bar. */
+        stats.saved = savedLocal + (window.SilidStore ? window.SilidStore.sizeBytes() : 0);
+        stats.other = Math.max(0, stats.total - savedLocal);
         stats.percent = Math.min(100, (stats.total / (5 * 1024 * 1024)) * 100);
         return stats;
       })();
@@ -732,7 +738,7 @@
         setErrorMsg('');
         setTosDistributions(null);
         if (fileInputRef.current) fileInputRef.current.value='';
-        try { localStorage.removeItem('saved_test_output'); localStorage.removeItem('saved_test_config'); } catch {}
+        try { window.SilidStore.removeItem('saved_test_output'); window.SilidStore.removeItem('saved_test_config'); } catch {}
         const m='Started fresh — the form is blank again.';
         if (window.SilidToast) window.SilidToast.info(m); else alert(m);
         window.scrollTo({ top:0, behavior:'smooth' });
@@ -885,9 +891,9 @@
         const sysPrompt = "You are an expert educator and curriculum developer. Create rigorous, well-formatted summative tests with clear answer keys based on the parameters provided. Output only the test and answer key in Markdown format, beginning with the first section header — no school header, no title block, no name/date/score lines." + (k3Mode ? " You are also an early-childhood (K-3) assessment specialist: emoji-driven visuals instead of image placeholders, sight words, one idea per item, and encouraging but clear section headers." : "") + (mathMode ? " You are also a mathematics assessment specialist: every formula is LaTeX between single dollar signs, diagrams are inline <svg>, and every answer is computed and verified before it is written." : "");
         const prompt=`\nCreate a Summative Test.\n\n**Test Metadata:**\n- Name: ${config.testName}\n- Subject: ${config.subject}\n- Grade: ${config.gradeLevel}\n\n**Structure:**\n${struct}\n\n**Source Material:**\n${src}\n\n**Instructions:**\n1. Exact items requested per section.\n2. Separate sections with clear headers.\n3. Age-appropriate for the grade level.\n4. ANSWER KEY at end.\n5. Clean Markdown format.\n6. CRITICAL: If cognitive level distribution is provided above, you MUST follow it exactly — do NOT deviate from the item counts per level.\n${add}\n`;
         /* A new generation replaces any previously saved test */
-        try { localStorage.removeItem('saved_test_output'); localStorage.removeItem('saved_test_config'); } catch {}
+        try { window.SilidStore.removeItem('saved_test_output'); window.SilidStore.removeItem('saved_test_config'); } catch {}
         setIsGenerating(true);
-        try { const raw=await window.SilidAPI.callGemini({ prompt, systemPrompt: sysPrompt, temperature: mathMode ? 0.35 : undefined }); const r=stripTestTitleBlock(raw); setGeneratedTest(r); try { localStorage.setItem('saved_test_output', r); localStorage.setItem('saved_test_config', JSON.stringify(config)); } catch {} try { const v=window.SilidValidate.validateTestOutput(r, {types: sel.map(t=>t.id), math: mathMode}); setValidationWarnings(v.warnings); setMathWarnDetails(v.details || []); } catch(err) { console.warn("Test validation skipped:", err); setValidationWarnings([]); setMathWarnDetails([]); } if (window.SilidDocsUI) window.SilidDocsUI.save({ name: config.testName || 'Summative Test', content: r, summary: [config.subject, config.gradeLevel].filter(Boolean).join(' · '), meta: { gradeLevel: config.gradeLevel, subject: config.subject, config: config } }); window.scrollTo({top:0,behavior:'smooth'}); }
+        try { const raw=await window.SilidAPI.callGemini({ prompt, systemPrompt: sysPrompt, temperature: mathMode ? 0.35 : undefined }); const r=stripTestTitleBlock(raw); setGeneratedTest(r); try { window.SilidStore.setItem('saved_test_output', r); window.SilidStore.setItem('saved_test_config', JSON.stringify(config)); } catch {} try { const v=window.SilidValidate.validateTestOutput(r, {types: sel.map(t=>t.id), math: mathMode}); setValidationWarnings(v.warnings); setMathWarnDetails(v.details || []); } catch(err) { console.warn("Test validation skipped:", err); setValidationWarnings([]); setMathWarnDetails([]); } if (window.SilidDocsUI) window.SilidDocsUI.save({ name: config.testName || 'Summative Test', content: r, summary: [config.subject, config.gradeLevel].filter(Boolean).join(' · '), meta: { gradeLevel: config.gradeLevel, subject: config.subject, config: config } }); window.scrollTo({top:0,behavior:'smooth'}); }
         catch (e) { console.error("Test generation failed:", e); setErrorMsg((e && e.message) || "Error generating test. Check connection and try again."); }
         finally { setIsGenerating(false); }
       };
@@ -3482,7 +3488,7 @@ ${signTable([
                   {backupMsg&&<p className="text-[11px] text-iris-600 font-medium">{backupMsg}</p>}
                   {backupWarnings.length>0&&<ul className="text-[11px] text-amber-600 space-y-0.5">{backupWarnings.map((w,i)=><li key={i}>{w}</li>)}</ul>}
                 </div>
-                {/* Storage meter — logos and saved outputs share the ~5 MB localStorage budget */}
+                {/* Storage meter — the bar counts localStorage; saved outputs live in IndexedDB */}
                 <div className="border-t border-black/5 pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">Storage</h3>
@@ -3494,13 +3500,13 @@ ${signTable([
                   </div>
                   <div className="mt-2 grid sm:grid-cols-3 gap-1 text-[11px] text-ink/55">
                     <span>Logos (browser database): <b className="text-ink/75">{formatStorage(storageStats.logos)}</b></span>
-                    <span>Saved plans &amp; tests: <b className="text-ink/75">{formatStorage(storageStats.saved)}</b></span>
-                    <span>Other: <b className="text-ink/75">{formatStorage(storageStats.other)}</b></span>
+                    <span>Saved plans &amp; tests (browser database): <b className="text-ink/75">{formatStorage(storageStats.saved)}</b></span>
+                    <span>Other (localStorage): <b className="text-ink/75">{formatStorage(storageStats.other)}</b></span>
                   </div>
                   {storageStats.percent >= 80 && (
                     <p className="mt-2 text-[11px] text-rose-600 font-medium">localStorage is nearly full — export a backup, then remove an old saved output.</p>
                   )}
-                  <p className="mt-1.5 text-[10px] text-ink/35">Logos and document history are kept in the browser database and are not counted in the bar.</p>
+                  <p className="mt-1.5 text-[10px] text-ink/35">Logos, saved plans and document history are kept in the browser database and are not counted in the bar.</p>
                 </div>
                 <div className="border-t border-black/5 pt-6">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40 mb-3">Document Header Preview</h3>
@@ -3714,8 +3720,12 @@ ${signTable([
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    /* The app reads its saved outputs synchronously, so wait for the IndexedDB
+       cache (shared-store.js) before the first render. */
+    window.SilidStore.ready.then(() => {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    });
   </script>
   <script>
     if ('serviceWorker' in navigator) {
