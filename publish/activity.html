@@ -76,6 +76,12 @@
         .style-toggle, .diff-toggle { padding:7px 12px; border-radius:10px; font-size:12px; font-weight:600; background:white; color:rgba(11,10,18,0.6); transition:all .2s; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06); }
         .style-toggle:hover, .diff-toggle:hover { color:#0B0A12; }
         .style-toggle.active, .diff-toggle.active { background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3); }
+        .mini-opt { cursor:pointer; display:block; }
+        .mini-opt input { position:absolute; width:1px; height:1px; opacity:0; }
+        .mini-opt span { display:block; padding:7px 12px; border-radius:10px; font-size:12px; font-weight:600; background:white; color:rgba(11,10,18,0.6); box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06); transition:all .2s; }
+        .mini-opt:hover span { color:#0B0A12; }
+        .mini-opt input:checked + span { background:#5B46E8; color:white; box-shadow:0 2px 8px rgba(91,70,232,0.3); }
+        .mini-opt input:focus-visible + span { outline:2px solid #5B46E8; outline-offset:2px; }
         .autocomplete-wrap { position:relative; }
         .autocomplete-list {
           position:absolute; top:100%; left:0; right:0; z-index:50;
@@ -251,6 +257,11 @@
                                     <input type="text" id="lesson-subject" placeholder="Detected from file…" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
                                 </div>
                             </div>
+                            <div id="lesson-session-wrap" class="hidden">
+                                <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Session / Day <span class="text-ink/25">(from the plan)</span></label>
+                                <select id="lesson-session" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"></select>
+                                <p class="text-[10px] text-ink/40 mt-1.5">Detected from the lesson plan — pick one session to make a sheet for that day, or keep the whole week.</p>
+                            </div>
                             <div>
                                 <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Extra Instructions <span class="text-ink/25">(optional)</span></label>
                                 <textarea id="lesson-extra" rows="2" placeholder="e.g. Focus on the group activity, make it fun for Grade 3…" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin"></textarea>
@@ -259,6 +270,22 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
                                 Generate Activity Sheet
                             </button>
+                        </div>
+                    </div></div>
+
+                    <!-- Card: Mini Lesson (shared by both modes) -->
+                    <div class="card-bezel"><div class="card-inner p-5 rounded-[calc(1.75rem-6px)]">
+                        <div class="section-header">
+                            <span class="icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+                            <h3>Mini Lesson</h3>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex gap-2" id="mini-lesson-group" role="radiogroup" aria-label="Mini lesson length">
+                                <label class="mini-opt"><input type="radio" name="mini-lesson" value="none"><span>None</span></label>
+                                <label class="mini-opt"><input type="radio" name="mini-lesson" value="short" checked><span>Short</span></label>
+                                <label class="mini-opt"><input type="radio" name="mini-lesson" value="detailed"><span>Detailed</span></label>
+                            </div>
+                            <p class="text-[10px] text-ink/40 leading-relaxed">Prints a short concept recap above the activities. <strong>Short</strong>: 2–3 sentences. <strong>Detailed</strong>: recap + key terms + one worked example.</p>
                         </div>
                     </div></div>
 
@@ -272,6 +299,15 @@
                             <div>
                                 <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Topic / Lesson Title <span class="text-red-500">*</span></label>
                                 <input type="text" id="custom-topic" placeholder="e.g. Photosynthesis, Mga Bahagi ng Katawan, Fractions" class="w-full rounded-xl bg-white ring-1 ring-black/5 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">
+                                <div class="mt-4">
+                                    <label class="block text-[11px] font-semibold text-ink/45 uppercase tracking-wider mb-1.5">Learning Competency/ies <span class="text-ink/25">(optional reference)</span></label>
+                                    <div id="competency-list" class="space-y-2"></div>
+                                    <button type="button" id="btn-add-competency" class="w-full mt-2 py-2 rounded-xl text-xs font-semibold text-iris-700 bg-iris-50 ring-1 ring-iris-200 hover:bg-iris-100 transition flex items-center justify-center gap-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                        Add Competency
+                                    </button>
+                                    <p class="text-[10px] text-ink/40 mt-1.5">Paste the MELC/learning competency code and text so the items stay aligned with it.</p>
+                                </div>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="autocomplete-wrap">
@@ -417,9 +453,12 @@
         apiKey: window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || ''),
         apiKey2: window.SilidKeys ? window.SilidKeys.get('backup') : (localStorage.getItem('gemini_api_key_2') || ''),
         difficulty: 'Moderate',
+        miniLesson: 'short',          /* 'none' | 'short' | 'detailed' — recap box above the activities */
+        competencies: [''],          /* custom mode: optional competency references (one or more) */
         sections: [{ type: 'Scrambled Words', count: 5, instruction: '' }],
         lessonText: '',
-        lessonSession: '',   /* '1'..'5' or 'all' — set when coming from the Lesson Plan tool */
+        lessonSession: '',   /* '1'..'5' or 'all' — session/day chosen in the picker */
+        sessionNames: [],    /* detected session/day labels, e.g. ['Sesyon 1', 'Sesyon 2'] */
         lessonSessions: 0,
         sheetLang: '',        /* 'filipino' | 'english' — auto-detected from the lesson plan */
         fromLessonPlan: false,
@@ -566,8 +605,60 @@
     }
 
     /* ============================================================
-       Mode switching
+       Competencies (custom mode) — optional reference rows
        ============================================================ */
+    function renderCompetencies() {
+        var wrap = $('competency-list');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        if (!state.competencies.length) state.competencies.push('');
+        state.competencies.forEach(function (val, idx) {
+            var row = document.createElement('div');
+            row.className = 'flex gap-2 items-start animate-fade-in';
+            var ta = document.createElement('textarea');
+            ta.rows = 2;
+            ta.value = val || '';
+            ta.placeholder = idx === 0
+                ? 'e.g. Simplify radical expressions using the laws of radicals. (M9AL-IIg-1)'
+                : 'Another competency…';
+            ta.className = 'comp-input w-full rounded-xl bg-white ring-1 ring-black/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 resize-none scroll-thin';
+            ta.addEventListener('input', function () { state.competencies[idx] = ta.value; });
+            row.appendChild(ta);
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'shrink-0 mt-1 text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition';
+            del.title = 'Remove competency';
+            del.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+            del.addEventListener('click', function () {
+                state.competencies.splice(idx, 1);
+                if (!state.competencies.length) state.competencies.push('');
+                renderCompetencies();
+            });
+            row.appendChild(del);
+            wrap.appendChild(row);
+        });
+    }
+    function addCompetency() {
+        state.competencies.push('');
+        renderCompetencies();
+        var wrap = $('competency-list');
+        var last = wrap && wrap.lastElementChild && wrap.lastElementChild.querySelector('textarea');
+        if (last) last.focus();
+    }
+
+    /* ============================================================
+       Mini lesson — one radio control shared by both modes
+       ============================================================ */
+    function bindMiniLesson() {
+        document.querySelectorAll('input[name="mini-lesson"]').forEach(function (r) {
+            r.checked = r.value === state.miniLesson;
+            r.addEventListener('change', function () {
+                if (!r.checked) return;
+                state.miniLesson = r.value;
+            });
+        });
+    }
+
     function setMode(mode) {
         state.mode = mode;
         document.querySelectorAll('#mode-tabs button').forEach(function (b) {
@@ -614,7 +705,12 @@
                     state.lessonStructured = true;
                     state.lessonText = parsed.structuredText;
                     state.lessonSessions = parsed.numSessions;
+                    state.sessionNames = parsed.sessionNames || [];
+                } else {
+                    state.sessionNames = detectSessionNamesFromText(state.lessonText);
+                    state.lessonSessions = state.sessionNames.length;
                 }
+                renderSessionPicker('all');
                 var meta = parsed ? parsed.meta : detectMetaFromText(state.lessonText);
                 state.sheetLang = detectLanguage(state.lessonText);
                 // Only auto-fill a field when the detected value actually looks valid —
@@ -631,6 +727,8 @@
                 var lines = ['✓ Loaded ' + words + ' words — ready to generate.'];
                 if (parsed && parsed.numSessions) {
                     lines.push('✓ Parsed the lesson-plan table — ' + parsed.numSessions + ' session' + (parsed.numSessions === 1 ? '' : 's') + ' (' + parsed.sessionNames.join(', ') + ').');
+                } else if (state.lessonSessions > 1) {
+                    lines.push('✓ Detected ' + state.lessonSessions + ' sessions/days — pick one in the Session / Day dropdown, or keep the whole week.');
                 }
                 if (det) {
                     lines.push('Detected: ' + det + ' · Language: ' + langName + ' — auto-filled above, you can edit.');
@@ -652,6 +750,72 @@
     }
 
     /* ============================================================
+       Session / day picker — detected from the lesson plan
+       ============================================================ */
+    function selectedSessionLabel() {
+        var idx = parseInt(state.lessonSession, 10);
+        if (idx > 0 && state.sessionNames && state.sessionNames[idx - 1]) return state.sessionNames[idx - 1];
+        return idx > 0 ? 'Session ' + idx : 'the selected session';
+    }
+    /* Fallback for lesson plans that arrive as flat text (no parsed table):
+       find headings like "Sesyon 2", "Session 2", "Araw 2" or "Day 2". */
+    function detectSessionNamesFromText(text) {
+        var plain = String(text || '');
+        var names = [];
+        var seen = {};
+        var re = /(?:^|\n)\s*(?:---\s*)?((?:sesyon|session|araw|day)\s*[#:]?\s*([0-9]{1,2}|[IVX]{1,4}))\b/gi;
+        var m;
+        while ((m = re.exec(plain)) !== null) {
+            var label = m[1].replace(/\s+/g, ' ').trim();
+            var key = label.toLowerCase();
+            if (seen[key]) continue;
+            seen[key] = true;
+            names.push(label);
+            if (names.length >= 12) break;
+        }
+        return names;
+    }
+    function renderSessionPicker(preferred) {
+        var wrap = $('lesson-session-wrap');
+        var sel = $('lesson-session');
+        if (!wrap || !sel) return;
+        var names = state.sessionNames || [];
+        var total = Math.max(state.lessonSessions || 0, names.length);
+        if (total < 2) {
+            wrap.classList.add('hidden');
+            sel.innerHTML = '';
+            state.lessonSession = total === 1 ? 'all' : '';
+            return;
+        }
+        var chosen = String(preferred || state.lessonSession || 'all');
+        var opts = ['<option value="all">Whole Week — all ' + total + ' sessions</option>'];
+        for (var i = 0; i < total; i++) {
+            var label = names[i] || ('Session ' + (i + 1));
+            opts.push('<option value="' + (i + 1) + '">' + esc(label) + '</option>');
+        }
+        sel.innerHTML = opts.join('');
+        var valid = false;
+        for (var j = 0; j < sel.options.length; j++) {
+            if (sel.options[j].value === chosen) { valid = true; break; }
+        }
+        sel.value = valid ? chosen : 'all';
+        state.lessonSession = sel.value;
+        wrap.classList.remove('hidden');
+    }
+    function sessionScopeNote() {
+        if (!state.lessonSession || state.lessonSession === 'all') return '';
+        return 'Use ONLY the activities, objectives, and assessments of ' + selectedSessionLabel() +
+            ' (that session/day only) — ignore the other sessions. ';
+    }
+    function updateLessonFromChip() {
+        if (!state.fromLessonPlan) return;
+        var title = $('lesson-from-chip-title');
+        if (!title) return;
+        var scope = state.lessonSession === 'all' ? 'Whole Week' : selectedSessionLabel();
+        title.textContent = 'Loaded from Lesson Plan — ' + scope + (state.lessonSessions ? ' of ' + state.lessonSessions : '');
+    }
+
+    /* ============================================================
        Prefill from the Lesson Plan tool ("Turn into Activity Sheet")
        ============================================================ */
     function loadFromLessonPlan() {
@@ -664,28 +828,32 @@
         state.lessonSession = session;
         state.lessonSessions = total;
         var header = '<<< ACTIVITY SHEET SOURCE — sent from the Lesson Plan tool >>>\n' +
-            (session === 'all'
-                ? 'This is a weekly lesson plan with ' + total + ' sessions. Build the activity sheet from the activities of ALL sessions (the whole week).\n'
-                : 'This is a weekly lesson plan with ' + total + ' sessions. Build the activity sheet ONLY from the activities of SESSION ' + session + ' (the column labeled "Sesyon ' + session + '" / "Session ' + session + '" in the table below). Ignore the other sessions.\n') +
+            'This is a weekly lesson plan with ' + (total || 'several') + ' sessions. Use the session chosen in the Session / Day picker below.\n' +
             '\n' + raw.html;
         var parsed = parseLessonPlanHtml(raw.html);
         if (parsed) {
             state.lessonStructured = true;
             state.lessonSessions = parsed.numSessions || total;
+            state.sessionNames = parsed.sessionNames || [];
             header += '\n\n' + parsed.structuredText;
+        } else {
+            state.sessionNames = detectSessionNamesFromText(raw.html);
+            state.lessonSessions = state.lessonSessions || state.sessionNames.length;
         }
         state.lessonText = header;
         setMode('lesson');
         if (raw.grade) $('lesson-grade').value = raw.grade;
         if (raw.subject) $('lesson-subject').value = raw.subject;
         state.sheetLang = detectLanguage(raw.html);
+        renderSessionPicker(session);
+        var scopeLabel = state.lessonSession === 'all' ? 'Whole Week' : selectedSessionLabel();
         var status = $('lesson-file-status');
-        status.textContent = '✓ Loaded from Lesson Plan — ' + (session === 'all' ? 'Whole Week' : 'Session ' + session) + (total ? ' of ' + total : '') + ' — ' + (state.sheetLang === 'filipino' ? 'Filipino' : 'English') + ' · ready to generate.';
+        status.textContent = '✓ Loaded from Lesson Plan — ' + scopeLabel + (state.lessonSessions ? ' of ' + state.lessonSessions : '') + ' — ' + (state.sheetLang === 'filipino' ? 'Filipino' : 'English') + ' · ready to generate.';
         status.className = 'text-xs text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2 font-medium';
         var chip = $('lesson-from-chip');
         chip.classList.remove('hidden');
         chip.classList.add('flex');
-        $('lesson-from-chip-title').textContent = 'Loaded from Lesson Plan — ' + (session === 'all' ? 'Whole Week' : 'Session ' + session + ' of ' + total);
+        updateLessonFromChip();
         $('lesson-from-chip-sub').textContent = [raw.subject, raw.grade].filter(Boolean).join(' • ') || 'Weekly lesson plan';
     }
     function clearFromLesson() {
@@ -694,6 +862,8 @@
         state.lessonStructured = false;
         state.lessonSession = '';
         state.lessonSessions = 0;
+        state.sessionNames = [];
+        renderSessionPicker('');
         var chip = $('lesson-from-chip');
         chip.classList.add('hidden');
         chip.classList.remove('flex');
@@ -995,7 +1165,7 @@
         '- 3 Pics 1 Word: show three dashed-border picture boxes with a simple emoji or symbol inside each, then the letter tiles of the answer scrambled below (e.g. U M S N). ' +
         '- Scrambled Words: show the jumbled letters in spaced capitals (e.g. L E P P A) with a clue/definition. ' +
         '- Use tables for any two-column content. Keep item text academically accurate and age-appropriate for the grade level. ' +
-        '- Do NOT include a school header, name field, title, or "Activity Sheet" heading — only the activity sections. Keep total length sensible for one printed page (aim ~12–20 items).';
+        '- Do NOT include a school header, name field, title, or "Activity Sheet" heading — only the mini lesson (when requested) and the activity sections. Keep total length sensible for one printed page (aim ~12–20 items).';
 
     /* Early Learners (K-3): the emoji-visual rules the K-3 Test Maker was built
        around, appended for a Kindergarten–Grade 3 sheet — the same rule that
@@ -1013,6 +1183,23 @@
        the mode we are generating in. */
     function currentSheetK3() {
         return looksLikeEarlyGrade(state.mode === 'lesson' ? $('lesson-grade').value : $('custom-grade').value);
+    }
+
+    /* The mini-lesson section the teacher asked for (None / Short / Detailed).
+       Appended to every sheet prompt so both modes print the same recap box. */
+    var MINI_LESSON_LENGTH = {
+        short: '- Length: SHORT — a 2–3 sentence recap of the key concept, plus a one-line KEY TERMS list (2–4 words). Do not pre-teach everything; the activities do the practice.',
+        detailed: '- Length: DETAILED — a 4–6 sentence explanation of the key concept, a KEY TERMS list of 4–6 words with one-line meanings, and one short worked example.'
+    };
+    function miniLessonRules() {
+        var level = state.miniLesson;
+        if (!level || level === 'none' || !MINI_LESSON_LENGTH[level]) return '';
+        return '\n\nMINI LESSON — REQUIRED FIRST SECTION:\n' +
+            '- Open the sheet with a clearly labelled box titled "Mini Lesson" (for a Filipino sheet: "Maikling Aralin") with a 📘 icon, a light shaded background and a colored left border. It is a short concept review the learner reads before answering — not an activity, and its lines are not numbered.\n' +
+            MINI_LESSON_LENGTH[level] + '\n' +
+            '- Base the recap on the lesson objectives and key concept (from the lesson plan, or from the topic/source material).\n' +
+            (currentSheetK3() ? '- For early learners, keep the mini lesson to 1–2 very short sentences with emojis.\n' : '') +
+            '- Write it in the same language as the rest of the sheet.';
     }
 
     /* The system prompt for the sheet being generated — K-3 sheets also name the
@@ -1035,28 +1222,24 @@
         var extra = $('lesson-extra').value.trim();
         var gradeHint = $('lesson-grade').value.trim();
         var subjectHint = $('lesson-subject').value.trim();
-        var sessionNote = '';
-        if (state.fromLessonPlan && state.lessonSession) {
-            sessionNote = state.lessonSession === 'all'
-                ? 'The lesson plan covers ' + state.lessonSessions + ' sessions — build the activity sheet from the activities of ALL sessions (the whole week).'
-                : 'The lesson plan covers ' + state.lessonSessions + ' sessions — use ONLY the activities, objectives, and assessments of SESSION ' + state.lessonSession + ' (the column labeled "Sesyon ' + state.lessonSession + '" / "Session ' + state.lessonSession + '" in the table). IGNORE the other sessions.';
-        }
+        var scope = sessionScopeNote();
+        var intro = state.lessonStructured
+            ? 'The plan is laid out in "--- Sesyon N ---" blocks below, one per day. '
+            : 'Read it carefully. ';
         var user = 'Here is ' + (state.fromLessonPlan
             ? 'a weekly lesson plan (HTML, exported from the iLaw Lesson Plan tool)'
             : state.lessonStructured
                 ? 'an iLaw lesson plan (exported as .docx) — parsed into a structured, session-by-session breakdown below'
                 : 'the full text of an iLaw lesson plan (exported as .docx)') + '. ' +
-            (state.fromLessonPlan
-                ? 'Read it carefully. ' + sessionNote + ' Identify EVERY activity inside the selected session — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.'
-                : state.lessonStructured
-                    ? 'The plan is laid out in "--- Sesyon N ---" blocks below, one per day. Identify EVERY activity across all sessions — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.'
-                    : 'Read it carefully and identify EVERY activity inside it — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.') +
+            intro + scope +
+            'Identify EVERY activity — motivation, unlocking, discussion, group activities, application, formative assessment, etc. Then design a beautiful, module-style activity sheet that turns those lesson activities into engaging student worksheets.' +
             ' Choose the best Filipino classroom format for each activity (e.g. motivation → Scrambled Words or 3 Pics 1 Word; discussion → Identification or Multiple Choice; application → Matching Type or Fill in the Blanks; assessment → True or False / Short Answer). ' +
             'Match the subject and grade level shown in the lesson plan.' +
             ' The lesson plan is written in ' + (state.sheetLang === 'filipino' ? 'FILIPINO/TAGALOG' : 'ENGLISH') + ' — write ALL section titles, instructions, clues, and test items in ' + (state.sheetLang === 'filipino' ? 'Filipino' : 'English') + ' to match the lesson plan.' +
             (gradeHint ? '\nGrade level: ' + gradeHint : '') +
             (subjectHint ? '\nSubject: ' + subjectHint : '') +
             (extra ? '\nEXTRA INSTRUCTIONS FROM THE TEACHER: ' + extra : '') +
+            miniLessonRules() +
             (currentSheetK3() ? K3_SHEET_RULES : '') +
             '\n\nIMPORTANT FIRST LINE: Start your HTML output with an HTML comment exactly like this — <!--META: grade:Grade 7|subject:Science|quarter:1st Quarter|topic:Photosynthesis--> — filling in the actual values from the lesson plan (leave a field empty if unknown). Then output the activity sections.' +
             '\n\nLESSON PLAN TEXT:\n' + state.lessonText.slice(0, state.fromLessonPlan ? 60000 : 30000);
@@ -1064,14 +1247,14 @@
     }
 
     function buildExtractPrompt() {
-        var sessionNote = '';
-        if (state.fromLessonPlan && state.lessonSession) {
-            sessionNote = state.lessonSession === 'all'
-                ? 'The plan covers ' + state.lessonSessions + ' sessions — list the activities of ALL sessions (the whole week).'
-                : 'Use ONLY the activities of SESSION ' + state.lessonSession + ' (the column labeled "Sesyon ' + state.lessonSession + '" / "Session ' + state.lessonSession + '" in the table). IGNORE the other sessions.';
+        var scope = '';
+        if (state.lessonSession && state.lessonSession !== 'all') {
+            scope = 'Use ONLY the activities of ' + selectedSessionLabel() + ' (that session/day only). IGNORE the other sessions. ';
+        } else if (state.lessonSessions > 1) {
+            scope = 'The plan covers ' + state.lessonSessions + ' sessions — list the activities of ALL sessions (the whole week). ';
         }
-        return 'Below is a lesson plan. List every activity inside it — motivation, unlocking, discussion, group activities, application, formative assessment, evaluation, assignment — in order.' +
-            (sessionNote ? '\n' + sessionNote : '') +
+        return 'Below is a lesson plan. ' + scope +
+            'List every activity inside it — motivation, unlocking, discussion, group activities, application, formative assessment, evaluation, assignment — in order.' +
             '\n\nLESSON PLAN TEXT:\n' + state.lessonText.slice(0, state.fromLessonPlan ? 60000 : 30000);
     }
 
@@ -1109,6 +1292,7 @@
             (gradeHint ? '\nGrade level: ' + gradeHint : '') +
             (subjectHint ? '\nSubject: ' + subjectHint : '') +
             (extra ? '\nEXTRA INSTRUCTIONS FROM THE TEACHER: ' + extra : '') +
+            miniLessonRules() +
             (currentSheetK3() ? K3_SHEET_RULES : '') +
             '\n\nIMPORTANT FIRST LINE: Start your HTML output with an HTML comment exactly like this — <!--META: grade:Grade 7|subject:Science|quarter:1st Quarter|topic:Photosynthesis--> — filling in the actual values from the lesson plan (leave a field empty if unknown). Then output the activity sections.' +
             '\n\nACTIVITIES FOUND IN THE LESSON PLAN:\n' + list;
@@ -1120,11 +1304,15 @@
         var grade = $('custom-grade').value.trim();
         var subject = $('custom-subject').value.trim();
         var source = $('custom-source').value.trim();
+        var comps = state.competencies.map(function (c) { return String(c || '').trim(); }).filter(Boolean);
         var secs = state.sections.map(function (s, i) {
             return (i + 1) + '. ' + s.type + ' — ' + s.count + ' items' + (s.instruction ? ' (instruction: ' + s.instruction + ')' : '');
         }).join('\n');
         var user = 'Create an activity sheet with these exact sections and item counts. ' +
-            'Topic: ' + topic + ' | Grade: ' + grade + ' | Subject: ' + subject + ' | Difficulty: ' + state.difficulty + '.\n\nSECTIONS:\n' + secs +
+            'Topic: ' + topic + ' | Grade: ' + grade + ' | Subject: ' + subject + ' | Difficulty: ' + state.difficulty + '.' +
+            (comps.length ? '\n\nLearning Competency/ies (reference only — align the items to these; do not print them on the sheet):\n- ' + comps.join('\n- ') : '') +
+            '\n\nSECTIONS:\n' + secs +
+            miniLessonRules() +
             (source ? '\n\nUse this source material so the items match the lessons:\n' + source.slice(0, 15000) : '') +
             (currentSheetK3() ? K3_SHEET_RULES : '') +
             '\n\nMatch the exact total number of items requested. Do NOT add extra sections.';
@@ -1795,8 +1983,14 @@
         bindAutocomplete($('custom-grade'), $('custom-grade-list'), window.DEPED_GRADE_LEVELS || []);
         bindAutocomplete($('custom-subject'), $('custom-subject-list'), window.DEPED_SUBJECTS || []);
         bindFileInput();
+        renderCompetencies();
+        bindMiniLesson();
         window.SilidStore.ready.then(loadFromLessonPlan);
         $('lesson-from-clear').addEventListener('click', clearFromLesson);
+        $('lesson-session').addEventListener('change', function (e) {
+            state.lessonSession = e.target.value;
+            updateLessonFromChip();
+        });
         renderSections();
 
         document.querySelectorAll('#mode-tabs button').forEach(function (b) {
@@ -1808,6 +2002,7 @@
                 document.querySelectorAll('#diff-pills button').forEach(function (x) { x.classList.toggle('active', x === b); });
             });
         });
+        $('btn-add-competency').addEventListener('click', addCompetency);
         $('btn-add-section').addEventListener('click', function () {
             state.sections.push({ type: 'Multiple Choice', count: 5, instruction: '' });
             renderSections();
