@@ -1623,11 +1623,117 @@
         const [typedOpen, setTypedOpen] = useState(false);
         const [typedScores, setTypedScores] = useState('');
 
+        /* Framing step: the photo waits here until the tally columns are boxed.
+           Sending only the tally is faster (fewer pixels to upload, fewer image
+           tiles to look at) and leaves the model less to sift through, since
+           names, headers and running totals are not in the box at all. */
+        const [scoreCrop, setScoreCrop] = useState(null); // { file, name, dataUrl, sel, remembered }
+        const scoreCropStageRef = useRef(null);
+        const scoreCropDragRef = useRef(null);
+
+        /* Every reading is remembered against the photo it came from, so picking
+           the same photo again for a section is instant: no upload, no model
+           call, and the numbers come straight back for the same review step. */
+        const IA_SCAN_CACHE = 'silid_item_scan_cache_v1';
+        const iaScanCacheRef = useRef(null);
+        const iaCache = () => {
+          if (iaScanCacheRef.current) return iaScanCacheRef.current;
+          let data = { v: 1, reads: {}, crops: {} };
+          try {
+            const saved = JSON.parse(localStorage.getItem(IA_SCAN_CACHE) || 'null');
+            if (saved && saved.v === 1 && saved.reads && saved.crops) data = saved;
+          } catch (e) { /* corrupt or blocked storage: start clean */ }
+          iaScanCacheRef.current = data;
+          return data;
+        };
+        const iaCacheSave = () => {
+          try { localStorage.setItem(IA_SCAN_CACHE, JSON.stringify(iaCache())); } catch (e) { /* full or blocked */ }
+        };
+        // A photo is identified by its content: name plus a cheap hash of its
+        // head and tail bytes. Timestamps are deliberately left out — a share
+        // sheet or a picker can stamp a fresh lastModified on the very same
+        // photo, which would quietly turn every re-pick into a cache miss.
+        const iaFileKey = async (file) => {
+          const base = [String((file && file.name) || ''), (file && file.size) || 0].join('|');
+          try {
+            const head = await file.slice(0, 8192).arrayBuffer();
+            const tail = (file.size || 0) > 8192
+              ? await file.slice(Math.max(8192, file.size - 8192)).arrayBuffer()
+              : new ArrayBuffer(0);
+            let h = 2166136261;
+            const mix = (buf) => {
+              const bytes = new Uint8Array(buf);
+              for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 16777619); }
+            };
+            mix(head);
+            mix(tail);
+            return base + '|' + (h >>> 0).toString(36);
+          } catch (e) {
+            // No slice/arrayBuffer support: fall back to the timestamp.
+            return base + '|t' + String((file && file.lastModified) || 0);
+          }
+        };
+        const iaCropSig = (crop) => crop
+          ? [crop.x, crop.y, crop.w, crop.h].map(v => Math.round(v * 10000) / 10000).join(',')
+          : 'full';
+        const iaScanKey = (fileKey, crop) => fileKey + '#' + iaCropSig(crop);
+        const iaRememberRead = (fileKey, crop, reading) => {
+          const cache = iaCache();
+          cache.reads[iaScanKey(fileKey, crop)] = {
+            values: reading.values || {},
+            takers: reading.takers || 0,
+            notes: reading.notes || '',
+            read: reading.read || 0,
+            at: Date.now()
+          };
+          // Keep the store small: the newest 24 photos are plenty.
+          const keys = Object.keys(cache.reads);
+          if (keys.length > 24) {
+            keys.sort((a, b) => (cache.reads[a].at || 0) - (cache.reads[b].at || 0))
+              .slice(0, keys.length - 24)
+              .forEach(k => { delete cache.reads[k]; });
+          }
+          cache.crops[fileKey] = crop || 'full';
+          iaCacheSave();
+        };
+        const iaRememberedRead = (fileKey) => {
+          const cache = iaCache();
+          if (!Object.prototype.hasOwnProperty.call(cache.crops, fileKey)) return null;
+          const framing = cache.crops[fileKey];
+          const crop = framing === 'full' ? null : framing;
+          const hit = cache.reads[iaScanKey(fileKey, crop)];
+          return { crop: crop, hint: (hit && hit.read && hit.values) ? hit : null };
+        };
+
+        // One place that turns a reading into the section's draft, so a cached
+        // reading and a fresh one land in exactly the same review panel.
+        const iaSetDraft = (reading) => {
+          setScoreScanDrafts(prev => {
+            const before = prev[activeIdx];
+            const values = before ? { ...before.values } : {};
+            Object.keys(reading.values || {}).forEach((no) => { values[no] = reading.values[no]; });
+            return {
+              ...prev,
+              [activeIdx]: {
+                values: values,
+                takers: reading.takers || (before && before.takers) || 0,
+                notes: reading.notes || (before && before.notes) || '',
+                read: reading.read || 0,
+                source: reading.source || 'the photo',
+                cached: !!reading.cached,
+                ms: reading.ms || 0
+              }
+            };
+          });
+          setScoreScanError(null);
+        };
+
         // Phone photos are several megabytes; the model only needs enough
         // pixels to read the handwriting, so shrink before sending. 1400px wide
         // keeps digits crisp while sending about a third less data than 1600,
-        // which is time spent on the upload before the model even starts.
-        const iaShrinkForAI = (file) => new Promise((resolve, reject) => {
+        // which is time spent on the upload before the model even starts. A
+        // framed photo is cut out first, so only the box is ever uploaded.
+        const iaImageForAI = (file, crop) => new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onerror = () => reject(new Error('That image could not be opened. Try another photo.'));
           reader.onload = () => {
@@ -1637,18 +1743,22 @@
               const maxW = 1400;
               const nw = img.naturalWidth || maxW;
               const nh = img.naturalHeight || maxW;
-              const scale = Math.min(1, maxW / nw);
-              const w = Math.max(1, Math.round(nw * scale));
-              const h = Math.max(1, Math.round(nh * scale));
+              const sx = crop ? Math.min(nw - 1, Math.max(0, Math.round(crop.x * nw))) : 0;
+              const sy = crop ? Math.min(nh - 1, Math.max(0, Math.round(crop.y * nh))) : 0;
+              const sw = crop ? Math.min(nw - sx, Math.max(1, Math.round(crop.w * nw))) : nw;
+              const sh = crop ? Math.min(nh - sy, Math.max(1, Math.round(crop.h * nh))) : nh;
+              const scale = Math.min(1, maxW / sw);
+              const w = Math.max(1, Math.round(sw * scale));
+              const h = Math.max(1, Math.round(sh * scale));
               const canvas = document.createElement('canvas');
               canvas.width = w;
               canvas.height = h;
               const ctx = canvas.getContext('2d');
               ctx.fillStyle = '#ffffff';
               ctx.fillRect(0, 0, w, h);
-              ctx.drawImage(img, 0, 0, w, h);
+              ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
               const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' });
+              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '', width: w, height: h });
             };
             img.src = reader.result;
           };
@@ -1785,11 +1895,33 @@
           setTypedOpen(false);
         };
 
+        const iaNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+
         const handleScorePhoto = async (event) => {
           const input = event && event.target;
           const file = input && input.files && input.files[0];
           if (input) input.value = ''; // lets the same photo be picked again
           if (!file) return;
+          setScoreScanError(null);
+
+          // This photo has been read before: hand back the same numbers with no
+          // upload and no model call. They still arrive as a draft to review.
+          const fileKey = await iaFileKey(file);
+          const remembered = iaRememberedRead(fileKey);
+          if (remembered && remembered.hint) {
+            const hint = remembered.hint;
+            iaSetDraft({
+              values: hint.values,
+              takers: hint.takers,
+              notes: hint.notes,
+              read: hint.read,
+              ms: 0,
+              cached: true,
+              source: (file && file.name) || 'the photo'
+            });
+            return;
+          }
+
           if (!apiKey.trim()) {
             setScoreScanError({ idx: activeIdx, message: 'Add your Gemini API key first (gear icon in the header) — the AI needs it to read the photo.' });
             return;
@@ -1799,11 +1931,42 @@
             setScoreScanError({ idx: activeIdx, message: 'The AI helper did not load. Reload the page and try again.' });
             return;
           }
+
+          // Show the photo first so the teacher can frame the tally columns.
+          const reader = new FileReader();
+          reader.onerror = () => setScoreScanError({ idx: activeIdx, message: 'That image could not be opened. Try another photo.' });
+          reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => setScoreScanError({ idx: activeIdx, message: 'That file is not a readable image.' });
+            img.onload = () => {
+              setScoreCrop({
+                file: file,
+                fileKey: fileKey,
+                name: (file && file.name) || 'the photo',
+                dataUrl: String(reader.result),
+                natW: img.naturalWidth || 1,
+                natH: img.naturalHeight || 1,
+                sel: (remembered && remembered.crop) || null,
+                remembered: !!(remembered && remembered.crop)
+              });
+              setScoreScanError(null);
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+        };
+
+        // crop is the framing in fractions of the photo (or null for all of it).
+        const iaRunScoreRead = async (crop) => {
+          const pending = scoreCrop;
+          if (!pending || !pending.file) return;
+          const file = pending.file;
+          const helper = window.SilidAPI;
           setScoreScanBusy(true);
           setScoreScanError(null);
-          const startedAt = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+          const startedAt = iaNow();
           try {
-            const inlineData = await iaShrinkForAI(file);
+            const inlineData = await iaImageForAI(file, crop);
             const raw = await helper.callGeminiJSON({
               prompt: iaScoreScanPrompt,
               inlineData: inlineData,
@@ -1817,31 +1980,84 @@
             });
             const read = iaNormalizeScoreScan(raw);
             if (!read.items.length) {
-              throw new Error('No item scores could be read from that photo. Try a sharper, straight-on shot — or type the scores.');
+              throw new Error('No item scores could be read from that photo. Try framing just the tally columns, a straighter shot — or type the scores.');
             }
+            const values = {};
+            read.items.forEach((it) => { values[it.itemNo] = String(it.correct); });
             // The reading is held as a draft for this section only. Nothing
             // touches the scores until the teacher presses "Apply to scores".
-            setScoreScanDrafts(prev => {
-              const before = prev[activeIdx];
-              const values = before ? { ...before.values } : {};
-              read.items.forEach((it) => { values[it.itemNo] = String(it.correct); });
-              return {
-                ...prev,
-                [activeIdx]: {
-                  values: values,
-                  takers: read.takers || (before && before.takers) || 0,
-                  notes: read.notes || (before && before.notes) || '',
-                  read: read.items.length,
-                  source: (file && file.name) || 'the photo',
-                  ms: Math.round((typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - startedAt)
-                }
-              };
+            iaSetDraft({
+              values: values,
+              takers: read.takers,
+              notes: read.notes,
+              read: read.items.length,
+              source: (file && file.name) || 'the photo',
+              ms: Math.round(iaNow() - startedAt)
             });
+            iaRememberRead(pending.fileKey, crop, { values: values, takers: read.takers, notes: read.notes, read: read.items.length });
+            scoreCropDragRef.current = null;
+            setScoreCrop(null);
           } catch (err) {
+            // The framing stays open: a tighter box is usually the fix.
             setScoreScanError({ idx: activeIdx, message: (err && err.message) || 'The photo could not be read. Please try again.' });
           } finally {
             setScoreScanBusy(false);
           }
+        };
+
+        /* Framing box: pointer events cover mouse, touch and pen in one path.
+           The selection is kept as fractions of the photo so it survives any
+           display size, then turned into real pixels only when cutting. */
+        const iaCropPoint = (event) => {
+          const el = scoreCropStageRef.current;
+          if (!el) return null;
+          const box = el.getBoundingClientRect();
+          if (!box.width || !box.height) return null;
+          return {
+            x: Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)),
+            y: Math.min(1, Math.max(0, (event.clientY - box.top) / box.height))
+          };
+        };
+        const iaCropDown = (event) => {
+          if (scoreScanBusy) return;
+          const p = iaCropPoint(event);
+          if (!p) return;
+          event.preventDefault();
+          try { if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId); } catch (e) { /* not capturable */ }
+          scoreCropDragRef.current = { x0: p.x, y0: p.y };
+          setScoreCrop(prev => (prev ? { ...prev, sel: null } : prev));
+        };
+        const iaCropMove = (event) => {
+          const drag = scoreCropDragRef.current;
+          if (!drag) return;
+          const p = iaCropPoint(event);
+          if (!p) return;
+          event.preventDefault();
+          const sel = {
+            x: Math.min(drag.x0, p.x),
+            y: Math.min(drag.y0, p.y),
+            w: Math.abs(p.x - drag.x0),
+            h: Math.abs(p.y - drag.y0)
+          };
+          setScoreCrop(prev => (prev ? { ...prev, sel: sel } : prev));
+        };
+        const iaCropUp = () => {
+          if (!scoreCropDragRef.current) return;
+          scoreCropDragRef.current = null;
+          // A stray click or a sliver is not a framing choice.
+          setScoreCrop(prev => {
+            if (!prev || !prev.sel) return prev;
+            if (prev.sel.w * prev.sel.h < 0.0025) return { ...prev, sel: null };
+            return prev;
+          });
+        };
+        const iaCropClear = () => {
+          scoreCropDragRef.current = null;
+          setScoreCrop(prev => (prev ? { ...prev, sel: null } : prev));
+        };
+        const iaCloseCrop = () => {
+          scoreCropDragRef.current = null;
+          setScoreCrop(null);
         };
 
         // Fixing one number in the draft before it is applied.
@@ -3025,7 +3241,7 @@ ${signTable([
                       type="button"
                       onClick={() => scoreScanRef.current && scoreScanRef.current.click()}
                       disabled={scoreScanBusy}
-                      title="Upload a photo of a hand-written tally — you review the reading before it fills this section"
+                      title="Upload a photo of a hand-written tally — frame the tally columns, then review the reading before it fills this section"
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-iris-200 bg-iris-50 text-iris-700 text-xs font-semibold hover:bg-iris-100 disabled:opacity-60 disabled:cursor-wait transition-colors"
                     >
                       <LucideIcon name={scoreScanBusy ? 'Loader2' : 'Upload'} className={`w-3.5 h-3.5 ${scoreScanBusy ? 'animate-spin' : ''}`} />
@@ -3176,7 +3392,9 @@ ${signTable([
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
                     <span>From {scoreScanDraft.source}</span>
-                    {scoreScanDraft.ms ? <span>Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span> : null}
+                    {scoreScanDraft.cached ? (
+                      <span>Reused your earlier reading of this photo — instantly, with no upload</span>
+                    ) : scoreScanDraft.ms ? <span>Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span> : null}
                     {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
                     <span>Your scores stay unchanged until you apply.</span>
                   </div>
@@ -3850,6 +4068,111 @@ ${signTable([
             {step === 2 && renderAnalyzing()}
             {step === 3 && renderReview()}
             {step === 4 && renderResults()}
+
+            {/* Framing step: the photo is cut down to the tally columns before
+                it is sent, so less has to travel and less can confuse the read. */}
+            {scoreCrop && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/70 p-3 md:p-6 no-print" role="dialog" aria-modal="true" aria-label="Frame the tally photo">
+                <div data-score-crop-dialog="1" className="w-full max-w-3xl max-h-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden">
+                  <div className="flex items-start gap-2 px-4 py-3 border-b border-ink/10">
+                    <LucideIcon name="FileDigit" className="w-4 h-4 text-iris-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-ink">Frame the tally before reading</p>
+                      <p className="text-[11px] leading-relaxed text-ink/55">
+                        Drag a box around the item numbers and their tallies. Only the boxed area is uploaded, so a tight box reads faster and cannot pick up names or running totals. Reading the whole photo still works when the sheet is already clear.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={iaCloseCrop}
+                      disabled={scoreScanBusy}
+                      title="Cancel"
+                      className="p-1.5 rounded-lg text-ink/40 hover:bg-ink/5 hover:text-ink/70 transition-colors disabled:opacity-40"
+                    >
+                      <LucideIcon name="X" className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="px-4 py-3 bg-ink/5 overflow-auto">
+                    <div
+                      ref={scoreCropStageRef}
+                      data-score-crop-stage="1"
+                      onPointerDown={iaCropDown}
+                      onPointerMove={iaCropMove}
+                      onPointerUp={iaCropUp}
+                      onPointerCancel={iaCropUp}
+                      className={`relative mx-auto w-fit max-w-full select-none rounded-lg overflow-hidden ring-1 ring-ink/10 ${scoreScanBusy ? 'cursor-wait' : 'cursor-crosshair'}`}
+                      style={{ touchAction: 'none' }}
+                    >
+                      <img src={scoreCrop.dataUrl} alt="Your tally photo" draggable={false} className="block max-h-[50vh] max-w-full pointer-events-none" />
+                      {scoreCrop.sel && (
+                        <div
+                          data-score-crop-box="1"
+                          className="absolute border-2 border-iris-500 pointer-events-none"
+                          style={{
+                            left: `${scoreCrop.sel.x * 100}%`,
+                            top: `${scoreCrop.sel.y * 100}%`,
+                            width: `${scoreCrop.sel.w * 100}%`,
+                            height: `${scoreCrop.sel.h * 100}%`,
+                            boxShadow: '0 0 0 9999px rgba(11,10,18,0.55)'
+                          }}
+                        ></div>
+                      )}
+                      {!scoreCrop.sel && (
+                        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] font-semibold text-white pointer-events-none whitespace-nowrap">
+                          Drag a box around the tally columns
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {scoreScanError && scoreScanError.idx === activeIdx && (
+                    <div className="px-4 pb-2">
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700">
+                        {scoreScanError.message}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-ink/10">
+                    <span className="text-[11px] text-ink/45">
+                      {scoreCrop.sel
+                        ? `Sending ${Math.max(1, Math.round(scoreCrop.sel.w * scoreCrop.natW))}×${Math.max(1, Math.round(scoreCrop.sel.h * scoreCrop.natH))} px of ${scoreCrop.natW}×${scoreCrop.natH}`
+                        : `Sending the whole photo (${scoreCrop.natW}×${scoreCrop.natH})`}
+                      {scoreCrop.remembered && scoreCrop.sel ? ' · same framing as last time' : ''}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {scoreCrop.sel && (
+                        <button
+                          type="button"
+                          onClick={iaCropClear}
+                          disabled={scoreScanBusy}
+                          className="px-2.5 py-1.5 rounded-lg border border-ink/15 bg-white text-[11px] font-semibold text-ink/60 hover:bg-ink/5 transition-colors disabled:opacity-40"
+                        >
+                          Clear box
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        data-score-crop-all="1"
+                        onClick={() => iaRunScoreRead(null)}
+                        disabled={scoreScanBusy}
+                        className="px-2.5 py-1.5 rounded-lg border border-iris-200 bg-iris-50 text-[11px] font-semibold text-iris-700 hover:bg-iris-100 transition-colors disabled:opacity-40"
+                      >
+                        Read whole photo
+                      </button>
+                      <button
+                        type="button"
+                        data-score-crop-read="1"
+                        onClick={() => iaRunScoreRead(scoreCrop.sel)}
+                        disabled={scoreScanBusy || !scoreCrop.sel}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-iris-600 text-[11px] font-semibold text-white hover:bg-iris-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <LucideIcon name={scoreScanBusy ? 'Loader2' : 'CheckCircle'} className={`w-3 h-3 ${scoreScanBusy ? 'animate-spin' : ''}`} />
+                        {scoreScanBusy ? 'Reading…' : 'Read framed area'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       };
