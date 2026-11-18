@@ -1758,7 +1758,7 @@
               ctx.fillRect(0, 0, w, h);
               ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
               const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '', width: w, height: h });
+              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' });
             };
             img.src = reader.result;
           };
