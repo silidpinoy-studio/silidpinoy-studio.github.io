@@ -1911,18 +1911,8 @@
           // If there is a cached reading with a previous selection, show the
           // framing modal pre‑loaded so the teacher can review/confirm or adjust.
           if (remembered && remembered.crop) {
-            setScoreCrop({
-              file: file,
-              fileKey: fileKey,
-              name: (file && file.name) || 'the photo',
-              dataUrl: '',
-              natW: 1,
-              natH: 1,
-              sel: remembered.crop,   // previous selection fractions
-              remembered: true
-            });
-            // Do NOT set the draft yet – let the teacher review the crop first.
-            return;
+            // Let the FileReader below load the image and restore the previous crop.
+            // The setScoreCrop here will be overwritten by the reader.onload handler.
           }
 
           // If there is a cached reading but no previous crop (e.g. full‑photo read),
@@ -3411,7 +3401,19 @@ ${signTable([
                         >
                           <LucideIcon name="CheckCircle" className="w-3 h-3" /> Apply to scores
                         </button>
-                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const instruction = scoreScanDraft.notes
+                              ? `AI note: ${scoreScanDraft.notes}`
+                              : "Intervention: practice the just-read tallies; target 80 % correct.";
+                            sessionStorage.setItem("ia_custom_instruction", instruction);
+                            window.location.href = "activity.html?custom=1";
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          <LucideIcon name="Link" className="w-3 h-3" /> Send to Sheet
+                        </button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-3 py-2.5 max-h-[220px] overflow-y-auto">
