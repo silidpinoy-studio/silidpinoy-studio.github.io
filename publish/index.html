@@ -1624,7 +1624,9 @@
         const [typedScores, setTypedScores] = useState('');
 
         // Phone photos are several megabytes; the model only needs enough
-        // pixels to read the handwriting, so shrink before sending.
+        // pixels to read the handwriting, so shrink before sending. 1400px wide
+        // keeps digits crisp while sending about a third less data than 1600,
+        // which is time spent on the upload before the model even starts.
         const iaShrinkForAI = (file) => new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onerror = () => reject(new Error('That image could not be opened. Try another photo.'));
@@ -1632,7 +1634,7 @@
             const img = new Image();
             img.onerror = () => reject(new Error('That file is not a readable image.'));
             img.onload = () => {
-              const maxW = 1600;
+              const maxW = 1400;
               const nw = img.naturalWidth || maxW;
               const nh = img.naturalHeight || maxW;
               const scale = Math.min(1, maxW / nw);
@@ -1645,7 +1647,7 @@
               ctx.fillStyle = '#ffffff';
               ctx.fillRect(0, 0, w, h);
               ctx.drawImage(img, 0, 0, w, h);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
               resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' });
             };
             img.src = reader.result;
@@ -1668,37 +1670,48 @@
           '- If a percentage is written and the number of takers is visible, convert it back to a count.',
           '- If the sheet states the number of takers (for example "/30", "out of 30", "30 students"), return it as takers.',
           '- Read only what is visible. Do not invent rows. Omit any digit you cannot read with confidence and name the skipped items in notes.',
-          '- Ignore names, dates, signatures, column headers, and running totals such as "Total: 40".'
+          '- Ignore names, dates, signatures, column headers, and running totals such as "Total: 40".',
+          '',
+          // Every word the model writes is time the teacher waits, so the answer
+          // is kept to the smallest shape that still carries the numbers.
+          'Answer with JSON only, using the short keys t (takers) and items of {n, c}: n is the item number, c is the count correct. No explanation, no prose.',
+          'Example: {"t":30,"items":[{"n":1,"c":29},{"n":2,"c":30}],"notes":""}'
         ].join('\n');
 
         const iaScoreScanSchema = {
           type: 'object',
           properties: {
-            takers: { type: 'integer' },
+            t: { type: 'integer', description: 'Number of takers' },
             items: {
               type: 'array',
               items: {
                 type: 'object',
                 properties: {
-                  itemNo: { type: 'integer' },
-                  correct: { type: 'integer' }
+                  n: { type: 'integer', description: 'Item number' },
+                  c: { type: 'integer', description: 'Learners correct' }
                 },
-                required: ['itemNo', 'correct']
+                required: ['n', 'c']
               }
             },
-            notes: { type: 'string' }
+            notes: { type: 'string', description: 'Items that could not be read' }
           },
           required: ['items']
         };
 
         // Keep only usable rows: one entry per item, 1..200, no duplicates.
+        // The prompt asks for {n, c} rows to keep the answer short, but an older
+        // or chattier reply may still use the long names or [n, c] pairs, so
+        // every shape is accepted here.
         const iaNormalizeScoreScan = (raw) => {
           const items = [];
           const seen = {};
           const list = Array.isArray(raw && raw.items) ? raw.items : [];
           list.forEach((row) => {
-            const no = Math.round(Number(row && (row.itemNo != null ? row.itemNo : row.item)));
-            const correct = Math.round(Number(row && (row.correct != null ? row.correct : row.count)));
+            const pair = Array.isArray(row) ? row : null;
+            const noRaw = pair ? pair[0] : (row && (row.n != null ? row.n : (row.itemNo != null ? row.itemNo : row.item)));
+            const correctRaw = pair ? pair[1] : (row && (row.c != null ? row.c : (row.correct != null ? row.correct : row.count)));
+            const no = Math.round(Number(noRaw));
+            const correct = Math.round(Number(correctRaw));
             if (!Number.isFinite(no) || no < 1 || no > 200) return;
             if (!Number.isFinite(correct) || correct < 0) return;
             if (seen[no]) return;
@@ -1706,7 +1719,7 @@
             items.push({ itemNo: no, correct });
           });
           items.sort((a, b) => a.itemNo - b.itemNo);
-          const takers = Math.round(Number(raw && raw.takers));
+          const takers = Math.round(Number(raw && (raw.t != null ? raw.t : raw.takers)));
           return {
             items: items,
             takers: Number.isFinite(takers) && takers > 0 ? takers : 0,
@@ -1788,6 +1801,7 @@
           }
           setScoreScanBusy(true);
           setScoreScanError(null);
+          const startedAt = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
           try {
             const inlineData = await iaShrinkForAI(file);
             const raw = await helper.callGeminiJSON({
@@ -1795,6 +1809,9 @@
               inlineData: inlineData,
               schema: iaScoreScanSchema,
               temperature: 0,
+              // This is digit reading, not reasoning: the lowest thinking budget
+              // is the single biggest saving on how long the read takes.
+              thinking: { thinkingLevel: 'low' },
               apiKey: apiKey.trim(),
               backupKey: apiKey2.trim()
             });
@@ -1815,7 +1832,8 @@
                   takers: read.takers || (before && before.takers) || 0,
                   notes: read.notes || (before && before.notes) || '',
                   read: read.items.length,
-                  source: (file && file.name) || 'the photo'
+                  source: (file && file.name) || 'the photo',
+                  ms: Math.round((typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - startedAt)
                 }
               };
             });
@@ -3158,6 +3176,7 @@ ${signTable([
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
                     <span>From {scoreScanDraft.source}</span>
+                    {scoreScanDraft.ms ? <span>Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span> : null}
                     {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
                     <span>Your scores stay unchanged until you apply.</span>
                   </div>

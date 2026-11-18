@@ -51,6 +51,10 @@
 
   function friendlyError(msg) {
     if (!msg) return 'Something went wrong. Please check your key and try again.';
+    // "Invalid JSON payload received…" is Google rejecting our own request
+    // body, not a bad answer from the model. Keep the real wording: the caller
+    // inspects it to decide whether to resend a trimmed payload.
+    if (/invalid json payload received/i.test(msg)) return msg;
     if (msg.indexOf('API key not valid') !== -1) return 'Your API key is not valid. Please paste a fresh key from aistudio.google.com/apikey.';
     if (msg.indexOf('invalid authentication credentials') !== -1) return 'Your API key is not valid. Please paste a fresh key from aistudio.google.com/apikey.';
     if (msg.indexOf('Permission denied') !== -1) return 'Permission denied. Make sure the Generative Language API is enabled for your Google account.';
@@ -147,17 +151,36 @@
     // callers pass either `schema` (documented API) or `responseSchema` (wire name)
     var schema = opts.responseSchema || opts.schema;
     if (schema) genConfig.responseSchema = schema;
+    // How hard the model is allowed to think before answering. Callers that do
+    // plain reading (OCR, extraction) pass a low budget: on those tasks the
+    // hidden reasoning is most of the wait and adds nothing to the answer.
+    var thinking = opts.thinking || null;
+    if (thinking) genConfig.thinkingConfig = thinking;
     payload.generationConfig = genConfig;
 
     var url = API_BASE;
 
-    return fetchWithRetry(url, payload, { signal: signal, retries: 4, apiKey: key }).catch(function (err) {
+    function send(body) {
+      return fetchWithRetry(url, body, { signal: signal, retries: 4, apiKey: key }).catch(function (err) {
+        var msg = (err && err.message) || '';
+        var isQuotaOrBusy = /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable|429/i.test(msg);
+        if (backupKey && backupKey !== key && isQuotaOrBusy) {
+          return fetchWithRetry(url, body, { signal: signal, retries: 4, apiKey: backupKey });
+        }
+        throw err;
+      });
+    }
+
+    return send(payload).catch(function (err) {
+      // Thinking control is not accepted by every model; rather than fail the
+      // whole request over a speed hint, drop it and ask again. The second
+      // answer is still correct, just slower.
       var msg = (err && err.message) || '';
-      var isQuotaOrBusy = /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable|429/i.test(msg);
-      if (backupKey && backupKey !== key && isQuotaOrBusy) {
-        return fetchWithRetry(url, payload, { signal: signal, retries: 4, apiKey: backupKey });
-      }
-      throw err;
+      var rejected = /unknown name|invalid json payload|invalid argument|unsupported|not supported|bad request/i.test(msg);
+      if (!thinking || !rejected) throw err;
+      var plain = JSON.parse(JSON.stringify(payload));
+      if (plain.generationConfig) delete plain.generationConfig.thinkingConfig;
+      return send(plain);
     });
   }
 
@@ -179,7 +202,7 @@
   /**
    * Call Gemini and return parsed JSON.
    *
-   * opts: { prompt, systemPrompt?, temperature?, schema?, signal?, apiKey?, backupKey?, inlineData? }
+   * opts: { prompt, systemPrompt?, temperature?, schema?, signal?, apiKey?, backupKey?, inlineData?, thinking? }
    * Returns: Promise<object>
    */
   function callGeminiJSON(opts) {
