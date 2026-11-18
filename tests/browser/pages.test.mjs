@@ -3150,16 +3150,15 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       'choosing Upload must reveal the file browser');
     await page.getByRole('button', { name: /Manual Entry/ }).click();
 
-    // the section name & takers row leads the scores card, above the scores header
+    // the section name & takers row leads the scores card, above the score inputs
     const rowAbove = await page.evaluate(() => {
-      const row = Array.from(document.querySelectorAll('span'))
+      const row = Array.from(document.querySelectorAll('p'))
         .find(s => s.textContent.includes('Section name & Total No. of Takers'));
-      const scores = Array.from(document.querySelectorAll('h3'))
-        .find(h => h.textContent.includes('3. Enter Scores'));
-      if (!row || !scores) return null;
-      return !!(row.compareDocumentPosition(scores) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const firstScore = document.querySelector('#score-input-0');
+      if (!row || !firstScore) return null;
+      return !!(row.compareDocumentPosition(firstScore) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
-    assert.ok(rowAbove, 'the section name & takers row must sit above the scores section');
+    assert.ok(rowAbove, 'the section name & takers row must sit above the score inputs');
 
     // task 3 — the shared fields are no longer collected here
     const labels = await page.evaluate(() =>

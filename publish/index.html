@@ -3127,454 +3127,700 @@ ${signTable([
           </div>
         );
 
-        const renderUpload = () => (
-          <div className="max-w-5xl mx-auto space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="font-display text-3xl font-light tracking-tight text-ink">Item Analysis Setup</h2>
-              <p className="text-ink/55">Choose how to map competencies to test items.</p>
-            </div>
+        const renderUpload = () => {
+          const activeSectionName = currentSection.name.trim() || `Section ${activeIdx + 1}`;
+          const filledCount = manualScores.filter(s => String(s.score == null ? '' : s.score).trim() !== '').length;
+          const totalItems = itemCount;
+          const sectionReady = totalItems > 0 && filledCount >= totalItems;
+          const lowCut = sectionTakers > 0 ? sectionTakers * 0.5 : 0;
+          const stepDefs = [
+            { n: 1, label: 'Test setup', sub: 'Details and competencies', state: 'done' },
+            { n: 2, label: 'Enter scores', sub: 'Photo or manual entry', state: 'active' },
+            { n: 3, label: 'Review', sub: 'Check the draft', state: 'todo' },
+            { n: 4, label: 'Report', sub: 'Mastery and exports', state: 'todo' }
+          ];
 
-            {errorMsg && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-center gap-3">
-                <LucideIcon name="AlertTriangle" className="w-5 h-5 flex-shrink-0" />
-                <p className="font-medium text-sm">{errorMsg}</p>
+          return (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-3xl md:text-4xl font-light tracking-tight text-ink">Item Analysis</h2>
+                  <p className="text-sm text-ink/55 mt-2 max-w-xl">
+                    Set up the test once, enter scores per section, then review mastery and export the report.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('home')}
+                  className="text-xs font-semibold text-iris-600 hover:text-iris-800 px-3 py-2 rounded-lg hover:bg-iris-50 transition-colors"
+                >
+                  All tools
+                </button>
               </div>
-            )}
 
-            {/* Mode selector */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <button
-                onClick={() => { setUseManualCompetencies(false); setTosFile(null); setIaSourcePicked(true); }}
-                className={`p-6 rounded-2xl border-2 transition-all ${!useManualCompetencies && tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
-              >
-                <LucideIcon name="Upload" className={"w-8 h-8 " + (!useManualCompetencies && tosFile ? 'text-iris-500' : 'text-ink/40')} />
-                <span className="font-semibold text-ink">{!useManualCompetencies && tosFile ? tosFile.name : 'Upload TOS Document'}</span>
-                <span className="text-xs text-ink/40">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</span>
-              </button>
-              <button
-                onClick={handleCompetencyToggle}
-                className={`p-6 rounded-2xl border-2 transition-all ${useManualCompetencies ? 'border-iris-500 bg-iris-500 text-white' : 'border-ink/20 bg-ink/5 hover:border-iris-300 text-ink'} flex flex-col items-center gap-3 cursor-pointer`}
-              >
-                <LucideIcon name="Edit3" className={`w-8 h-8 ${useManualCompetencies ? 'text-white' : 'text-ink/40'}`} />
-                <span className="font-semibold">Manual Entry</span>
-                <span className={`text-xs ${useManualCompetencies ? 'opacity-80' : 'text-ink/40'}`}>Type competencies yourself</span>
-              </button>
-            </div>
-
-            {!useManualCompetencies && iaSourcePicked && (
-              <div
-                className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                {tosFile ? (
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="p-3 bg-iris-500/20 rounded-full text-iris-500"><LucideIcon name="FileText" className="w-8 h-8" /></div>
-                    <p className="font-semibold text-ink text-center">{tosFile.name}</p>
-                    <button onClick={() => setTosFile(null)} className="text-xs text-rose-500 hover:text-rose-600 hover:underline">Remove file</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="p-4 bg-ink/20 rounded-full text-ink/30 mb-4"><LucideIcon name="UploadCloud" className="w-8 h-8" /></div>
-                    <p className="font-medium text-ink/60">1. Upload TOS Document</p>
-                    <label className="mt-4 px-4 py-2 bg-white border border-ink/20 rounded-lg text-sm font-medium text-ink hover:bg-iris-50 hover:border-iris-300 cursor-pointer transition-colors">
-                      Browse Files
-                      <input type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
-                    </label>
-                  </>
-                )}
-              </div>
-            )}
-
-            {useManualCompetencies && (
-              <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <LucideIcon name="Edit3" className="w-5 h-5 text-iris-600" />
-                  <h3 className="font-semibold text-lg text-ink">2. Enter Competencies Manually</h3>
-                </div>
-                <p className="text-sm text-ink/50 mb-4">
-                  Type one competency per line for each test item — no API key needed.
-                  Numbered lists ("1. Identifies main idea", "Item 2: Uses context clues") and ranges ("1-5. Solves linear equations") are both understood.
-                </p>
-                <textarea
-                  value={manualCompetencies}
-                  onChange={(e) => setManualCompetencies(e.target.value)}
-                  rows={10}
-                  className="w-full rounded-xl bg-ink/5 ring-1 ring-ink/10 px-4 py-3 text-sm focus:ring-2 focus:ring-iris-500 focus:border-iris-500 outline-none font-mono"
-                  placeholder="1. Identifies the main idea&#10;2. Uses context clues&#10;3-5. Solves linear equations..."
-                />
-              </div>
-            )}
-
-            {/* Scores section */}
-            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
-              <div className="bg-ink/10 p-4 rounded-xl border border-ink/10 flex flex-col md:flex-row items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <LucideIcon name="Info" className="w-5 h-5 text-iris-500" />
-                  <span className="text-sm text-ink/50">Section name &amp; Total No. of Takers (this row)</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text" value={currentSection.name}
-                    onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
-                    placeholder="e.g. BABBAGE"
-                    className="w-44 px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-sm text-ink"
-                  />
-                  <input
-                    type="number" value={currentSection.takers}
-                    onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
-                    className="w-32 px-4 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-center text-lg font-semibold text-ink"
-                    min="1"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pb-4 mb-4 border-b border-ink/10">
-                <LucideIcon name="ClipboardList" className="w-4 h-4 text-iris-600" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40 mr-1">Sections</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {sections.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setActiveIdx(i)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${i === activeIdx ? 'bg-iris-600 border-iris-600 text-white' : 'bg-ink/5 border-ink/10 text-ink/60 hover:bg-ink/10'}`}
-                    >
-                      {s.name.trim() || `Section ${i + 1}`}
-                      {scoreScanDrafts[i] ? (
-                        <span
-                          title="A photo reading is waiting for your approval"
-                          className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${i === activeIdx ? 'bg-white' : 'bg-amber-500'}`}
-                        ></span>
-                      ) : null}
-                    </button>
-                  ))}
-                  <button onClick={addSection} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-iris-300 text-iris-600 hover:bg-iris-50 transition-colors">
-                    + Add Section
-                  </button>
-                  {sections.length > 1 && (
-                    <button
-                      onClick={() => removeSection(activeIdx)}
-                      title="Remove this section"
-                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
-                    >
-                      <LucideIcon name="Trash2" className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3 border-b border-ink/10 pb-4">
-                <div className="flex items-center gap-2">
-                  <LucideIcon name="ListOrdered" className="w-5 h-5 text-iris-600" />
-                  <h3 className="font-semibold text-lg text-ink">3. Enter Scores</h3>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-ink/40">Number of Items:</span>
-                    <input
-                      type="number" value={itemCount} onChange={handleItemCountChange}
-                      className="w-16 rounded-lg border border-ink/20 bg-ink/5 px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-iris-500 outline-none"
-                      min="1" max="200"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => scoreScanRef.current && scoreScanRef.current.click()}
-                      disabled={scoreScanBusy}
-                      title="Upload a photo of a hand-written tally — frame the tally columns, then review the reading before it fills this section"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-iris-200 bg-iris-50 text-iris-700 text-xs font-semibold hover:bg-iris-100 disabled:opacity-60 disabled:cursor-wait transition-colors"
-                    >
-                      <LucideIcon name={scoreScanBusy ? 'Loader2' : 'Upload'} className={`w-3.5 h-3.5 ${scoreScanBusy ? 'animate-spin' : ''}`} />
-                      {scoreScanBusy ? 'Reading photo…' : 'Read from photo'}
-                    </button>
-                    <input ref={scoreScanRef} type="file" accept="image/*" className="hidden" onChange={handleScorePhoto} />
-                    <button
-                      type="button"
-                      onClick={() => { setTypedOpen(v => !v); setScoreScanError(null); }}
-                      title="No photo, no key, or the photo would not read? Type the tally instead"
-                      className="text-[11px] font-semibold text-iris-600 underline decoration-dotted underline-offset-2 hover:text-iris-800"
-                    >
-                      or type scores
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-ink/40">Fill score for all items (every section):</span>
-                    <input
-                      id="fill-all-score"
-                      type="number" value={fillScore}
-                      onChange={(e) => setFillScore(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') applyFillScore(); }}
-                      placeholder="e.g. 4"
-                      className="w-20 rounded-lg border border-ink/20 bg-white px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-iris-500 outline-none"
-                      min="0"
-                    />
-                    <button
-                      onClick={applyFillScore}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-iris-600 text-white hover:bg-iris-700 transition-colors"
-                    >
-                      Fill All
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {typedOpen && (
-                <div className="mb-4 rounded-xl border border-iris-200 bg-iris-50/70 p-3">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <p className="text-[11px] leading-relaxed text-ink/60">
-                      Type or paste the tally — one item per line, or comma-separated, like{' '}
-                      <code className="px-1 rounded bg-white border border-ink/10">1 - 29</code>{' '}
-                      <code className="px-1 rounded bg-white border border-ink/10">2: 30</code>{' '}
-                      <code className="px-1 rounded bg-white border border-ink/10">3 - 12/30</code>.
-                      Works without an API key, and you still review every number before it is applied.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => { setTypedOpen(false); setTypedScores(''); }}
-                      title="Close"
-                      className="p-1 rounded-md text-ink/40 hover:bg-white hover:text-ink/70 transition-colors"
-                    >
-                      <LucideIcon name="X" className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <textarea
-                    value={typedScores}
-                    onChange={(e) => setTypedScores(e.target.value)}
-                    rows={4}
-                    placeholder="1 - 29, 2 - 30, 3 - 12"
-                    className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
-                  />
-                  <div className="flex justify-end mt-2">
-                    <button
-                      type="button"
-                      onClick={handleTypedScores}
-                      className="px-3 py-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-semibold hover:bg-iris-700 transition-colors"
-                    >
-                      Review scores
-                    </button>
-                  </div>
-                </div>
-              )}
-              {scoreScanError && scoreScanError.idx === activeIdx && (
-                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
-                  {scoreScanError.message}
-                  <button
-                    type="button"
-                    onClick={() => setTypedOpen(true)}
-                    className="ml-2 font-semibold underline decoration-dotted underline-offset-2 hover:text-rose-900"
+              <ol className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+                {stepDefs.map((s) => (
+                  <li
+                    key={s.n}
+                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 ${s.state === 'active'
+                      ? 'bg-iris-600 text-white shadow-lg shadow-iris-200'
+                      : 'bg-white ring-1 ring-black/5'}`}
                   >
-                    Type the scores instead
-                  </button>
+                    <span className={`w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold flex-shrink-0 ${s.state === 'done'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : s.state === 'active'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-ink/5 text-ink/40'}`}>
+                      {s.state === 'done' ? '✓' : s.n}
+                    </span>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-bold leading-tight ${s.state === 'todo' ? 'text-ink/55' : ''}`}>{s.label}</p>
+                      <p className={`text-[10px] leading-tight ${s.state === 'active' ? 'text-white/70' : 'text-ink/40'}`}>{s.sub}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              {errorMsg && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-center gap-3">
+                  <LucideIcon name="AlertTriangle" className="w-5 h-5 flex-shrink-0" />
+                  <p className="font-medium text-sm">{errorMsg}</p>
                 </div>
               )}
-              {scoreScanDraft && (
-                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-amber-200">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="text-xs font-semibold text-amber-900">
-                        Draft for {currentSection.name.trim() || `Section ${activeIdx + 1}`} — {scoreScanDraftNos.length} item{scoreScanDraftNos.length === 1 ? '' : 's'} to check. Fix anything that looks wrong, then apply.
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {!iaNum(currentSection.takers) && (
-                        <span className="flex items-center gap-1 text-[11px] text-amber-900/80">
-                          Takers
-                          <input
-                            type="number" min="1"
-                            value={scoreScanDraft.takers === 0 ? '' : scoreScanDraft.takers}
-                            onChange={(e) => handleScoreDraftTakers(e.target.value)}
-                            placeholder="?"
-                            className="w-16 rounded-md border border-amber-300 bg-white px-2 py-1 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
-                          />
+
+              <div className="grid lg:grid-cols-12 gap-6 items-start">
+                {/* LEFT: setup */}
+                <section className="lg:col-span-5 space-y-4">
+                  {/* Test details */}
+                  <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
+                          <LucideIcon name="FileText" className="w-4 h-4" />
                         </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={discardScoreDraft}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white text-[11px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                      >
-                        <LucideIcon name="X" className="w-3 h-3" /> Discard
-                      </button>                        <button
-                          type="button"
-                          onClick={applyScoreDraft}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-[11px] font-semibold text-white hover:bg-emerald-700 transition-colors"
-                        >
-                          <LucideIcon name="CheckCircle" className="w-3 h-3" /> Apply to scores
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const instruction = scoreScanDraft.notes
-                              ? `AI note: ${scoreScanDraft.notes}`
-                              : "Intervention: practice the just-read tallies; target 80 % correct.";
-                            sessionStorage.setItem("ia_custom_instruction", instruction);
-                            window.location.href = "activity.html?custom=1";
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-colors"
-                        >
-                          <LucideIcon name="Link" className="w-3 h-3" /> Send to Sheet
-                        </button>
+                        <h3 className="text-sm font-bold">Test details</h3>
+                      </div>
+                      <span className="text-[10px] font-semibold text-ink/40">{totalItems} items</span>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-3 py-2.5 max-h-[220px] overflow-y-auto">
-                    {scoreScanDraftNos.map((itemNo) => {
-                      const raw = scoreScanDraft.values[itemNo] == null ? '' : String(scoreScanDraft.values[itemNo]);
-                      const n = Number(raw);
-                      const over = scoreScanCap && Number.isFinite(n) && n > scoreScanCap;
-                      const empty = raw.trim() === '';
-                      return (
-                        <div
-                          key={itemNo}
-                          className={`flex items-center gap-2 rounded-lg border bg-white px-2 py-1.5 ${over ? 'border-amber-400' : 'border-amber-100'}`}
-                        >
-                          <span className="text-[11px] font-semibold text-ink/50 w-12 shrink-0">Item {itemNo}</span>
-                          <input
-                            type="number" min="0" max={scoreScanCap || ''}
-                            value={raw}
-                            onChange={(e) => handleScoreDraftChange(itemNo, e.target.value)}
-                            className={`w-16 rounded-md border px-2 py-1 text-sm text-center outline-none focus:ring-2 focus:ring-iris-500 ${over ? 'border-amber-400 text-amber-700' : 'border-ink/20 text-ink'}`}
-                          />
-                          <span className="text-[11px] text-ink/40 truncate">
-                            {empty ? 'skipped' : (scoreScanCap ? `/ ${scoreScanCap}` : '')}
-                            {over ? ' · capped' : ''}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex flex-col items-center gap-2 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
-                    <span>From {scoreScanDraft.source}</span>
-                    {scoreScanDraft.cached ? (
-                      <span>Reused your earlier reading of this photo — instantly, with no upload</span>
-                    ) : scoreScanDraft.ms ? (
-                      <React.Fragment>
-                        <span className="text-sm">Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span>
-                        <button
-                          type="button"
-                          onClick={() => setScoreCrop({
-                            file: scoreCrop?.file,
-                            name: scoreCrop?.name || 'the photo',
-                            dataUrl: scoreCrop?.dataUrl,
-                            sel: scoreCrop?.sel,
-                            remembered: scoreCrop?.remembered
-                          })}
-                          className="mt-1 text-[10px] text-iris-600 hover:underline"
-                        >Adjust crop
-                      </button>
-                        {scoreCrop?.dataUrl && (<img src={scoreCrop.dataUrl} alt="Cropped preview" className="w-24 h-14 rounded-md mt-1" />)}
-                      </React.Fragment>
-                    ) : null}
-                    {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
-                    <span>Your scores stay unchanged until you apply.</span>
-                  </div>
-                </div>
-              )}
-              <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
-                {manualScores.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between bg-ink/5 p-2.5 rounded-lg border border-ink/10 hover:border-ink/20 transition-colors">
-                    <span className="text-sm font-medium text-ink/60 w-24">Item {item.itemNo}</span>
-                    <div className="flex items-center gap-2 flex-1 max-w-xs">
-                      <input
-                        id={`score-input-${idx}`}
-                        type="number"
-                        placeholder="Correct"
-                        value={item.score}
-                        onChange={(e) => handleScoreChange(idx, 'score', e.target.value)}
-                        className="w-24 rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-center"
-                        min="0" max={sectionTakers || ''}
-                      />
-                      {!useManualCompetencies ? (
-                        <span className="text-xs text-ink/40">/ {sectionTakers}</span>
-                      ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Subject (full title)</label>
                         <input
                           type="text"
-                          placeholder="Competency (optional)"
-                          value={item.competency}
-                          onChange={(e) => handleScoreChange(idx, 'competency', e.target.value)}
-                          className="w-full rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none"
+                          value={meta.subject}
+                          onChange={(e) => setMetaField('subject', e.target.value)}
+                          placeholder="e.g. MEDIA AND INFORMATION LITERACY"
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Subject code</label>
+                        <input
+                          type="text"
+                          value={meta.subjectCode}
+                          onChange={(e) => setMetaField('subjectCode', e.target.value)}
+                          placeholder="e.g. MIL"
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grade level</label>
+                        <input
+                          type="text"
+                          value={meta.gradeLevel}
+                          onChange={(e) => setMetaField('gradeLevel', e.target.value)}
+                          placeholder="e.g. 12"
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grading period</label>
+                        <input
+                          type="text"
+                          value={meta.gradingPeriod}
+                          onChange={(e) => setMetaField('gradingPeriod', e.target.value)}
+                          placeholder="e.g. SECOND"
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">School year</label>
+                        <input
+                          type="text"
+                          value={meta.schoolYear}
+                          onChange={(e) => setMetaField('schoolYear', e.target.value)}
+                          placeholder="e.g. 2025-2026"
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Number of items</label>
+                        <input
+                          type="number"
+                          value={itemCount}
+                          onChange={handleItemCountChange}
+                          min="1" max="200"
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Competency mapping */}
+                  <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
+                        <LucideIcon name="ListOrdered" className="w-4 h-4" />
+                      </span>
+                      <h3 className="text-sm font-bold">Competency mapping</h3>
+                    </div>
+                    <p className="text-xs text-ink/50 mb-4">Upload a TOS or type the competencies that each item measures.</p>
+
+                    <div className="flex bg-canvas rounded-xl p-1 ring-1 ring-black/5 mb-4">
+                      <button
+                        type="button"
+                        aria-label="Upload TOS Document"
+                        onClick={() => { setUseManualCompetencies(false); setIaSourcePicked(true); setErrorMsg(''); }}
+                        className={`flex-1 rounded-lg text-xs font-bold py-2 transition ${!useManualCompetencies && iaSourcePicked ? 'bg-white text-ink shadow-sm' : 'text-ink/50 hover:text-ink'}`}
+                      >
+                        Upload TOS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setUseManualCompetencies(true); setIaSourcePicked(true); setErrorMsg(''); }}
+                        className={`flex-1 rounded-lg text-xs font-bold py-2 transition ${useManualCompetencies && iaSourcePicked ? 'bg-white text-ink shadow-sm' : 'text-ink/50 hover:text-ink'}`}
+                      >
+                        Manual Entry
+                      </button>
+                    </div>
+
+                    {!useManualCompetencies && iaSourcePicked && (
+                      <>
+                        {tosFile ? (
+                          <div className="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2.5 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-emerald-800 truncate">{tosFile.name}</p>
+                                <p className="text-[10px] text-emerald-700/70">Ready to map {totalItems} items</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setTosFile(null)}
+                              className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors flex-shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            className={`rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors ${isDragging ? 'border-iris-500 bg-iris-50' : 'border-iris-200 bg-iris-50/50'}`}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                          >
+                            <div className="w-9 h-9 mx-auto rounded-full bg-white ring-1 ring-iris-100 grid place-items-center text-iris-600 mb-2">
+                              <LucideIcon name="UploadCloud" className="w-4 h-4" />
+                            </div>
+                            <p className="text-xs font-bold text-iris-700">Drop your TOS here</p>
+                            <p className="text-[10px] text-ink/45 mt-1">PDF, DOCX, or TXT. Old .doc files should be saved as .docx first.</p>
+                            <label className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-bold px-3 py-1.5 cursor-pointer hover:bg-iris-700 transition-colors">
+                              Browse Files
+                              <input type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
+                            </label>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {useManualCompetencies && (
+                      <div>
+                        <textarea
+                          value={manualCompetencies}
+                          onChange={(e) => setManualCompetencies(e.target.value)}
+                          rows={8}
+                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 font-mono resize-none scroll-thin"
+                          placeholder={'1. Identifies the main idea\n2. Uses context clues\n3-5. Solves linear equations...'}
+                        />
+                        <p className="text-[10px] text-ink/40 mt-1.5">
+                          One competency per line. Numbered lists and ranges (1-5) are understood. No API key needed.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sections */}
+                  <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
+                          <LucideIcon name="ClipboardList" className="w-4 h-4" />
+                        </span>
+                        <h3 className="text-sm font-bold">Sections</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addSection}
+                        className="text-[11px] font-semibold text-iris-600 hover:text-iris-800 px-2 py-1 rounded-lg hover:bg-iris-50 transition-colors"
+                      >
+                        + Add section
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {sections.map((s, i) => {
+                        const sFilled = s.scores.filter(x => String(x.score == null ? '' : x.score).trim() !== '').length;
+                        const sReady = totalItems > 0 && sFilled >= totalItems;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setActiveIdx(i)}
+                            className={`w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors ${i === activeIdx ? 'bg-iris-50 ring-1 ring-iris-200' : 'bg-canvas ring-1 ring-black/5 hover:bg-ink/5'}`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`w-6 h-6 rounded-lg grid place-items-center text-[10px] font-bold flex-shrink-0 ${i === activeIdx ? 'bg-iris-600 text-white' : 'bg-white ring-1 ring-black/10 text-ink/50'}`}>
+                                {(s.name.trim() || `S${i + 1}`).charAt(0).toUpperCase()}
+                              </span>
+                              <div className="min-w-0">
+                                <p className={`text-xs font-bold truncate ${i === activeIdx ? 'text-ink' : 'text-ink/70'}`}>{s.name.trim() || `Section ${i + 1}`}</p>
+                                <p className="text-[10px] text-ink/40">{iaNum(s.takers) || 0} takers - {sFilled} of {totalItems} scored</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={`text-[10px] font-bold ${sReady ? 'text-emerald-700' : 'text-ink/30'}`}>{sReady ? 'Ready' : 'Empty'}</span>
+                              {sections.length > 1 && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  title="Remove this section"
+                                  onClick={(e) => { e.stopPropagation(); removeSection(i); }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); removeSection(i); } }}
+                                  className="p-1 rounded-md text-rose-500 hover:bg-rose-50 transition-colors"
+                                >
+                                  <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </section>
+
+                {/* RIGHT: scores + draft */}
+                <section className="lg:col-span-7 space-y-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-black/5 overflow-hidden">
+                    <div className="px-5 pt-5 pb-4 border-b border-black/5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Section name &amp; Total No. of Takers</p>
+                          <input
+                            type="text"
+                            value={currentSection.name}
+                            onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
+                            placeholder="e.g. BABBAGE"
+                            className="mt-0.5 w-full bg-transparent text-xl font-bold tracking-tight outline-none border-b border-transparent focus:border-iris-400"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Takers</label>
+                          <input
+                            type="number" min="1"
+                            value={currentSection.takers}
+                            onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
+                            className="w-16 rounded-lg bg-canvas ring-1 ring-black/5 px-2 py-1.5 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-iris-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-4 flex-wrap">
+                        {sections.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setActiveIdx(i)}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${i === activeIdx ? 'bg-ink text-white' : 'text-ink/50 hover:bg-canvas'}`}
+                          >
+                            {s.name.trim() || `Section ${i + 1}`}
+                            {scoreScanDrafts[i] ? <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle bg-amber-400"></span> : null}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addSection}
+                          className="px-3 py-1.5 rounded-lg border border-dashed border-iris-300 text-iris-600 text-[11px] font-bold hover:bg-iris-50 transition-colors"
+                        >
+                          + Add
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="px-5 py-4 bg-iris-50/40 border-b border-black/5">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => scoreScanRef.current && scoreScanRef.current.click()}
+                          disabled={scoreScanBusy}
+                          title="Upload a photo of a hand-written tally - frame the tally columns, then review the reading before it fills this section"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-iris-600 text-white text-sm font-bold px-4 py-2.5 hover:bg-iris-700 transition-colors shadow-lg shadow-iris-200 disabled:opacity-60 disabled:cursor-wait"
+                        >
+                          <LucideIcon name={scoreScanBusy ? 'Loader2' : 'Upload'} className={`w-4 h-4 ${scoreScanBusy ? 'animate-spin' : ''}`} />
+                          {scoreScanBusy ? 'Reading photo...' : 'Read from photo'}
+                        </button>
+                        <input ref={scoreScanRef} type="file" accept="image/*" className="hidden" onChange={handleScorePhoto} />
+                        <div className="text-xs text-ink/50">
+                          or{' '}
+                          <button
+                            type="button"
+                            onClick={() => { setTypedOpen(v => !v); setScoreScanError(null); }}
+                            className="font-semibold text-iris-600 underline decoration-dotted underline-offset-2 hover:text-iris-800"
+                          >
+                            type the scores
+                          </button>{' '}
+                          if you have no photo.
+                        </div>
+                        <div className="sm:ml-auto flex items-center gap-2">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Fill all</label>
+                          <input
+                            id="fill-all-score"
+                            type="number" min="0"
+                            value={fillScore}
+                            onChange={(e) => setFillScore(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') applyFillScore(); }}
+                            placeholder="e.g. 4"
+                            className="w-16 rounded-lg bg-white ring-1 ring-black/10 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-iris-500"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Fill All"
+                            onClick={applyFillScore}
+                            className="text-[11px] font-bold text-iris-600 hover:text-iris-800 px-2 py-1.5 rounded-lg hover:bg-iris-50 transition-colors"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="px-5 py-4">
+                      {typedOpen && (
+                        <div className="mb-4 rounded-xl border border-iris-200 bg-iris-50/70 p-3">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <p className="text-[11px] leading-relaxed text-ink/60">
+                              Type or paste the tally - one item per line, or comma-separated, like{' '}
+                              <code className="px-1 rounded bg-white border border-ink/10">1 - 29</code>{' '}
+                              <code className="px-1 rounded bg-white border border-ink/10">2: 30</code>{' '}
+                              <code className="px-1 rounded bg-white border border-ink/10">3 - 12/30</code>.
+                              Works without an API key, and you still review every number before it is applied.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => { setTypedOpen(false); setTypedScores(''); }}
+                              title="Close"
+                              className="p-1 rounded-md text-ink/40 hover:bg-white hover:text-ink/70 transition-colors"
+                            >
+                              <LucideIcon name="X" className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <textarea
+                            value={typedScores}
+                            onChange={(e) => setTypedScores(e.target.value)}
+                            rows={4}
+                            placeholder="1 - 29, 2 - 30, 3 - 12"
+                            className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                          />
+                          <div className="flex justify-end mt-2">
+                            <button
+                              type="button"
+                              onClick={handleTypedScores}
+                              className="px-3 py-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-semibold hover:bg-iris-700 transition-colors"
+                            >
+                              Review scores
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {scoreScanError && scoreScanError.idx === activeIdx && (
+                        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
+                          {scoreScanError.message}
+                          <button
+                            type="button"
+                            onClick={() => setTypedOpen(true)}
+                            className="ml-2 font-semibold underline decoration-dotted underline-offset-2 hover:text-rose-900"
+                          >
+                            Type the scores instead
+                          </button>
+                        </div>
+                      )}
+
+                      {scoreScanDraft && (
+                        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
+                          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-amber-200">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-6 h-6 rounded-lg bg-amber-200/70 text-amber-800 grid place-items-center flex-shrink-0">
+                                <LucideIcon name="AlertTriangle" className="w-3.5 h-3.5" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-amber-900">Photo reading ready for review</p>
+                                <p className="text-[10px] text-amber-800/70">
+                                  {scoreScanDraftNos.length} item{scoreScanDraftNos.length === 1 ? '' : 's'} read from {scoreScanDraft.source} - fix anything that looks wrong, then apply.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {!iaNum(currentSection.takers) && (
+                                <label className="flex items-center gap-1 text-[10px] text-amber-900/80">
+                                  Takers
+                                  <input
+                                    type="number" min="1"
+                                    value={scoreScanDraft.takers === 0 ? '' : scoreScanDraft.takers}
+                                    onChange={(e) => handleScoreDraftTakers(e.target.value)}
+                                    placeholder="?"
+                                    className="w-14 rounded-md border border-amber-300 bg-white px-1.5 py-1 text-center text-xs text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                                  />
+                                </label>
+                              )}
+                              <button
+                                type="button"
+                                onClick={discardScoreDraft}
+                                className="rounded-lg bg-white ring-1 ring-amber-300 text-amber-800 text-[11px] font-bold px-3 py-1.5 hover:bg-amber-100 transition-colors"
+                              >
+                                Discard
+                              </button>
+                              <button
+                                type="button"
+                                onClick={applyScoreDraft}
+                                className="rounded-lg bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 hover:bg-emerald-700 transition-colors"
+                              >
+                                Apply to scores
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid md:grid-cols-[160px_1fr] gap-4 px-4 py-4">
+                            <div>
+                              <div className="rounded-xl overflow-hidden ring-1 ring-amber-200 bg-white h-24 grid place-items-center">
+                                {scoreCrop?.dataUrl ? (
+                                  <img src={scoreCrop.dataUrl} alt="Cropped tally preview" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-ink/30 px-2 text-center">Cropped tally preview</span>
+                                )}
+                              </div>
+                              {scoreCrop?.dataUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setScoreCrop({
+                                    file: scoreCrop.file,
+                                    name: scoreCrop.name || 'the photo',
+                                    dataUrl: scoreCrop.dataUrl,
+                                    sel: scoreCrop.sel,
+                                    remembered: scoreCrop.remembered
+                                  })}
+                                  className="mt-2 w-full text-[10px] font-semibold text-iris-600 hover:text-iris-800 py-1.5 rounded-lg hover:bg-white transition-colors"
+                                >
+                                  Adjust crop
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 content-start">
+                              {scoreScanDraftNos.map((itemNo) => {
+                                const raw = scoreScanDraft.values[itemNo] == null ? '' : String(scoreScanDraft.values[itemNo]);
+                                const n = Number(raw);
+                                const over = scoreScanCap && Number.isFinite(n) && n > scoreScanCap;
+                                const empty = raw.trim() === '';
+                                return (
+                                  <div key={itemNo} className={`flex items-center gap-2 rounded-lg bg-white ring-1 px-2.5 py-1.5 ${over ? 'ring-amber-400' : 'ring-amber-100'}`}>
+                                    <span className="text-[10px] font-bold text-ink/40 w-8 shrink-0">Item {itemNo}</span>
+                                    <input
+                                      type="number" min="0" max={scoreScanCap || ''}
+                                      value={raw}
+                                      onChange={(e) => handleScoreDraftChange(itemNo, e.target.value)}
+                                      className={`w-11 rounded-md border px-1.5 py-1 text-xs text-center font-semibold outline-none focus:ring-2 focus:ring-iris-500 ${over ? 'border-amber-400 text-amber-700' : 'border-ink/20 text-ink'}`}
+                                    />
+                                    <span className="text-[10px] text-ink/35 truncate">
+                                      {empty ? 'skipped' : (scoreScanCap ? `/ ${scoreScanCap}` : '')}
+                                      {over ? ' - capped' : ''}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="px-4 py-2.5 border-t border-amber-200 text-[10px] text-amber-900/70 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>From {scoreScanDraft.source}</span>
+                            {scoreScanDraft.cached ? (
+                              <span>Reused your earlier reading of this photo - instantly, with no upload</span>
+                            ) : scoreScanDraft.ms ? (
+                              <span>Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span>
+                            ) : null}
+                            {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
+                            <span>Your scores stay unchanged until you apply.</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[11px] font-semibold text-ink/45">
+                          Item scores <span className="font-normal">(number of learners correct)</span>
+                        </p>
+                        <p className={`text-[11px] font-semibold ${sectionReady ? 'text-emerald-700' : 'text-ink/40'}`}>
+                          {filledCount} of {totalItems} filled
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-h-[420px] overflow-y-auto pr-1 scroll-thin">
+                        {manualScores.map((item, idx) => {
+                          const raw = String(item.score == null ? '' : item.score);
+                          const scoreNum = Number(raw);
+                          const low = raw.trim() !== '' && sectionTakers > 0 && Number.isFinite(scoreNum) && scoreNum < lowCut;
+                          return (
+                            <div
+                              key={idx}
+                              className={`flex flex-col gap-1.5 rounded-lg bg-canvas ring-1 px-2.5 py-2 ${low ? 'ring-rose-200' : 'ring-black/5'}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-ink/40 w-9 shrink-0">Item {item.itemNo}</span>
+                                <input
+                                  id={`score-input-${idx}`}
+                                  type="number"
+                                  placeholder="0"
+                                  value={item.score}
+                                  onChange={(e) => handleScoreChange(idx, 'score', e.target.value)}
+                                  min="0" max={sectionTakers || ''}
+                                  className={`w-14 rounded-md bg-white ring-1 px-1.5 py-1 text-sm text-center font-semibold outline-none focus:ring-2 focus:ring-iris-500 ${low ? 'ring-rose-200 text-rose-700' : 'ring-black/10 text-ink'}`}
+                                />
+                                <span className="text-[10px] text-ink/35">/ {sectionTakers || '?'}</span>
+                              </div>
+                              {useManualCompetencies && (
+                                <input
+                                  type="text"
+                                  placeholder="Competency (optional)"
+                                  value={item.competency}
+                                  onChange={(e) => handleScoreChange(idx, 'competency', e.target.value)}
+                                  className="w-full rounded-md bg-white ring-1 ring-black/5 px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-iris-500"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {sectionReady && (
+                        <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2.5">
+                          <LucideIcon name="CheckCircle" className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                          <p className="text-[11px] leading-relaxed text-emerald-800">
+                            <span className="font-bold">Section ready.</span> All {totalItems} items have a score. Switch to another section or continue to review.
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
-                ))}
+                </section>
               </div>
-            </div>
 
-            {/* Report details — header rows of the Excel-style table */}
-            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-1">
-                <LucideIcon name="FileText" className="w-5 h-5 text-iris-600" />
-                <h3 className="font-semibold text-lg text-ink">4. Report Details</h3>
-              </div>
-              <p className="text-sm text-ink/50 mb-4">
-                These fill the header rows of the SIMPLIFIED ITEM ANALYSIS table (preview and Word export).
-                School name, district and signatories are read from{' '}
-                <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
-                so they are never typed twice.
-              </p>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {[
-                  ['School Year', 'schoolYear', 'e.g. 2025-2026'],
-                  ['Term / Grading Period', 'gradingPeriod', 'e.g. SECOND'],
-                  ['Subject (full title)', 'subject', 'e.g. MEDIA AND INFORMATION LITERACY'],
-                  ['Subject code (table)', 'subjectCode', 'e.g. MIL'],
-                  ['Grade Level', 'gradeLevel', 'e.g. 12'],
-                  ['Assessment Conducted', 'assessment', 'e.g. November Exam']
-                ].map(([label, key, ph]) => (
-                  <label key={key} className="flex flex-col gap-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">{label}</span>
-                    <input
-                      type="text" value={meta[key]} placeholder={ph}
-                      onChange={(e) => setMetaField(key, e.target.value)}
+              {/* Report details */}
+              <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
+                    <LucideIcon name="FileText" className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-sm font-bold">Report details</h3>
+                </div>
+                <p className="text-xs text-ink/50 mb-4">
+                  These fill the header rows of the simplified item analysis table. School name, district and signatories are read from{' '}
+                  <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
+                  so they are never typed twice.
+                </p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[
+                    ['School Year', 'schoolYear', 'e.g. 2025-2026'],
+                    ['Term / Grading Period', 'gradingPeriod', 'e.g. SECOND'],
+                    ['Grade Level', 'gradeLevel', 'e.g. 12'],
+                    ['Assessment Conducted', 'assessment', 'e.g. November Exam']
+                  ].map(([label, key, ph]) => (
+                    <label key={key} className="flex flex-col gap-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">{label}</span>
+                      <input
+                        type="text" value={meta[key]} placeholder={ph}
+                        onChange={(e) => setMetaField(key, e.target.value)}
+                        className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
+                      />
+                    </label>
+                  ))}
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Assessment Type (annex checkbox)</span>
+                    <select
+                      value={meta.assessmentType || ''}
+                      onChange={(e) => setMetaField('assessmentType', e.target.value)}
                       className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
-                    />
+                    >
+                      <option value="">Select the assessment...</option>
+                      <option value="ST-1">ST-1</option>
+                      <option value="ST-2">ST-2</option>
+                      <option value="TE">TE</option>
+                    </select>
                   </label>
-                ))}
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Assessment Type (annex checkbox)</span>
-                  <select
-                    value={meta.assessmentType || ''}
-                    onChange={(e) => setMetaField('assessmentType', e.target.value)}
-                    className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
-                  >
-                    <option value="">Select the assessment…</option>
-                    <option value="ST-1">ST-1</option>
-                    <option value="ST-2">ST-2</option>
-                    <option value="TE">TE</option>
-                  </select>
-                </label>
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col items-center pt-4 gap-2">
-              <button
-                onClick={analyzeData}
-                disabled={!useManualCompetencies && !tosFile}
-                className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-lg transition-all shadow-md ${!useManualCompetencies && !tosFile ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed' : 'bg-iris-600 text-white hover:bg-iris-700 hover:shadow-[0_0_30px_rgba(91,70,232,0.3)]'}`}
-              >
-                <LucideIcon name="Table" className="w-6 h-6" />
-                <span>Generate Item Analysis</span>
-              </button>
+              {/* Action bar */}
+              <div className="rounded-2xl bg-white ring-1 ring-black/5 shadow-[0_18px_50px_-24px_rgba(11,10,18,0.35)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className={`w-8 h-8 rounded-full grid place-items-center text-[11px] font-bold ${sectionReady ? 'bg-emerald-100 text-emerald-700' : 'bg-iris-50 text-iris-600'}`}>
+                    {sectionReady ? '✓' : '2'}
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold">{activeSectionName} scores {sectionReady ? 'are ready' : 'need attention'}</p>
+                    <p className="text-[10px] text-ink/45">
+                      {sectionReady ? 'Next: review the competencies, then generate the report.' : `${totalItems - filledCount} item${totalItems - filledCount === 1 ? '' : 's'} still blank.`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={resetAnalyzer}
+                    className="rounded-xl bg-white ring-1 ring-black/10 text-ink text-xs font-bold px-4 py-2.5 hover:ring-black/25 transition-colors"
+                  >
+                    Start over
+                  </button>
+                  <button
+                    onClick={analyzeData}
+                    disabled={!useManualCompetencies && !tosFile}
+                    className={`rounded-xl text-xs font-bold px-5 py-2.5 transition-colors inline-flex items-center gap-2 ${!useManualCompetencies && !tosFile
+                      ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed'
+                      : 'bg-iris-600 text-white hover:bg-iris-700 shadow-lg shadow-iris-200'}`}
+                  >
+                    <LucideIcon name="Table" className="w-4 h-4" />
+                    Generate Item Analysis
+                  </button>
+                </div>
+              </div>
               {(!useManualCompetencies && !tosFile) && (
                 <div className="text-xs text-ink/40 text-center">
-                  Upload a TOS file, or switch to manual competency entry above
+                  Upload a TOS file, or switch to manual competency entry above.
                 </div>
               )}
               {useManualCompetencies && !apiKey.trim() && (
                 <div className="text-xs text-ink/40 text-center">
-                  No API key needed — your list is read right on this device.
+                  No API key needed - your list is read right on this device.
                 </div>
               )}
               {!useManualCompetencies && tosFile && !apiKey.trim() && (
                 <div className="text-xs text-ink/40 text-center">
-                  Works without a key for common TOS layouts —{' '}
+                  Works without a key for common TOS layouts -{' '}
                   <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">add one</button>{' '}
                   to let the AI fill in any competencies the file does not list.
                 </div>
               )}
             </div>
-          </div>
-        );
+          );
+        };
+
 
         const renderAnalyzing = () => (
           <div className="max-w-5xl mx-auto flex flex-col items-center justify-center py-20">
