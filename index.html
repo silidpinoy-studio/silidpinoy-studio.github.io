@@ -1911,13 +1911,13 @@
           // If there is a cached reading with a previous selection, show the
           // framing modal pre‑loaded so the teacher can review/confirm or adjust.
           if (remembered && remembered.crop) {
-            // Let the FileReader below load the image and restore the previous crop.
-            // The setScoreCrop here will be overwritten by the reader.onload handler.
+            // Previous crop exists – let the FileReader below load the image and
+            // restore the selection box. The setScoreCrop here is a no‑op; the
+            // reader.onload handler will overwrite it with the data URL and the
+            // remembered fractions.
           }
-
           // If there is a cached reading but no previous crop (e.g. full‑photo read),
-          // still surface the framing step so the teacher can re‑frame if desired.
-          if (remembered) {
+          // still surface the framing step so the teacher can re‑frame if desired.          else if (remembered) {
             setScoreCrop({
               file: file,
               fileKey: fileKey,
