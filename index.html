@@ -117,6 +117,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <!-- PptxGenJS builds the .pptx export. -->
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
   <!-- MathJax typesets the $...$ / $$...$$ formulas a math test is written in.
@@ -1373,6 +1374,13 @@
       const iaFixed = (n, d) => (Number(n) || 0).toFixed(d);
       const iaTrim = (n) => String(Math.round((Number(n) || 0) * 100) / 100);
 
+      /* DepEd mastery cut-off and competency identity for the Least Learned
+         list. Case, spacing and punctuation are ignored when matching, so one
+         competency mapped as "Identifies the main idea" and "identifies the
+         main idea." is declared once, under the first spelling seen. */
+      const IA_MASTERY_CUT = 75;
+      const iaCompKey = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
       /* One Excel data row: raw counts exactly as entered (the workbook
          itself never clamps them against the number of takers). */
       const iaSectionRow = (sec, items) => {
@@ -1503,6 +1511,7 @@
             line.match(/^(\d+)\s*[.)]\s*(.+)$/);
           if (!m) continue;
           const nums = m.length === 4 ? iaNumberList(m[1] + '-' + m[2]) : iaNumberList(m[1]);
+          if (isSubjectish(m[m.length - 1])) continue;
           assign(nums, m[m.length - 1]);
         }
         return map;
@@ -1543,6 +1552,11 @@
         const [summaryStats, setSummaryStats] = useState({});
         const [aiInsight, setAiInsight] = useState('');
         const [leastMastered, setLeastMastered] = useState([]);
+        // The three long previews (Excel sheet, Annex 1, Annex 3) start
+        // collapsed so a finished report is scannable instead of one long
+        // scroll; each export button stays in its own header either way.
+        const [openPanels, setOpenPanels] = useState({ excel: true, annex1: true, annex3: true });
+        const togglePanel = (key) => setOpenPanels(p => ({ ...p, [key]: !p[key] }));
         const [overallScores, setOverallScores] = useState({ mean: 0, mps: 0 });
 
         // The competency mapping the teacher reviews (step 3) before the report.
@@ -1582,6 +1596,285 @@
             case 'No Mastery': return 'bg-rose-500/10 text-rose-600 border-rose-500/20';
             default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
           }
+        };
+
+        /* ------------------------------------------------------------
+           Read item scores from a photo of a hand-written tally.
+
+           A teacher photographs the sheet, the vision model returns
+           item number -> how many learners answered it correctly, and
+           this section is prefilled. Every value stays editable: a
+           misread digit would silently skew the whole report, so the
+           result is always a draft the teacher confirms.
+           ------------------------------------------------------------ */
+        const scoreScanRef = useRef(null);
+        const [scoreScanBusy, setScoreScanBusy] = useState(false);
+        const [scoreScanError, setScoreScanError] = useState(null); // { idx, message }
+        // Every section keeps its own pending reading, so a teacher can scan one
+        // section, leave it for review, and scan the next one.
+        const [scoreScanDrafts, setScoreScanDrafts] = useState({});
+        const scoreScanDraft = scoreScanDrafts[activeIdx] || null;
+        const scoreScanDraftNos = scoreScanDraft
+          ? Object.keys(scoreScanDraft.values).map(Number).filter(n => n >= 1 && n <= 200).sort((a, b) => a - b)
+          : [];
+        const scoreScanCap = scoreScanDraft
+          ? (iaNum(currentSection.takers) || iaNum(scoreScanDraft.takers))
+          : 0;
+        const [typedOpen, setTypedOpen] = useState(false);
+        const [typedScores, setTypedScores] = useState('');
+
+        // Phone photos are several megabytes; the model only needs enough
+        // pixels to read the handwriting, so shrink before sending.
+        const iaShrinkForAI = (file) => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('That image could not be opened. Try another photo.'));
+          reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('That file is not a readable image.'));
+            img.onload = () => {
+              const maxW = 1600;
+              const nw = img.naturalWidth || maxW;
+              const nh = img.naturalHeight || maxW;
+              const scale = Math.min(1, maxW / nw);
+              const w = Math.max(1, Math.round(nw * scale));
+              const h = Math.max(1, Math.round(nh * scale));
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' });
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+        });
+
+        const iaScoreScanPrompt = [
+          "You are reading a photo of a teacher's hand-written item analysis tally for a quiz or test.",
+          '',
+          'The sheet pairs each test item with how many learners answered that item correctly. Typical layouts:',
+          '- "1 - 29" or "Item 1: 29" or "1) 29" means item 1, 29 learners correct.',
+          '- "1 | 29/30" means item 1, 29 correct out of 30 takers.',
+          '- Tally marks in groups of five (often four strokes plus a slash) have to be counted.',
+          '- A table or two columns: left is the item number, right is the number correct.',
+          '',
+          'Rules:',
+          '- itemNo is the 1-based item number; correct is the NUMBER OF LEARNERS who got that item right.',
+          '- Never treat a mark out of 5, a raw score, or a percentage as "correct".',
+          '- If a percentage is written and the number of takers is visible, convert it back to a count.',
+          '- If the sheet states the number of takers (for example "/30", "out of 30", "30 students"), return it as takers.',
+          '- Read only what is visible. Do not invent rows. Omit any digit you cannot read with confidence and name the skipped items in notes.',
+          '- Ignore names, dates, signatures, column headers, and running totals such as "Total: 40".'
+        ].join('\n');
+
+        const iaScoreScanSchema = {
+          type: 'object',
+          properties: {
+            takers: { type: 'integer' },
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  itemNo: { type: 'integer' },
+                  correct: { type: 'integer' }
+                },
+                required: ['itemNo', 'correct']
+              }
+            },
+            notes: { type: 'string' }
+          },
+          required: ['items']
+        };
+
+        // Keep only usable rows: one entry per item, 1..200, no duplicates.
+        const iaNormalizeScoreScan = (raw) => {
+          const items = [];
+          const seen = {};
+          const list = Array.isArray(raw && raw.items) ? raw.items : [];
+          list.forEach((row) => {
+            const no = Math.round(Number(row && (row.itemNo != null ? row.itemNo : row.item)));
+            const correct = Math.round(Number(row && (row.correct != null ? row.correct : row.count)));
+            if (!Number.isFinite(no) || no < 1 || no > 200) return;
+            if (!Number.isFinite(correct) || correct < 0) return;
+            if (seen[no]) return;
+            seen[no] = true;
+            items.push({ itemNo: no, correct });
+          });
+          items.sort((a, b) => a.itemNo - b.itemNo);
+          const takers = Math.round(Number(raw && raw.takers));
+          return {
+            items: items,
+            takers: Number.isFinite(takers) && takers > 0 ? takers : 0,
+            notes: String((raw && raw.notes) || '').trim()
+          };
+        };
+
+        /* Fallback for when a photo cannot be read, or when no API key is set:
+           the teacher types the same tally and it goes through the very same
+           draft -> review -> apply step. */
+        const iaParseTypedScores = (text) => {
+          const items = [];
+          const seen = {};
+          let takers = 0;
+          String(text || '').split(/[\n\r;,]+/).forEach((chunk) => {
+            const clean = String(chunk).replace(/\bitem\b/gi, ' ').trim();
+            if (!clean) return;
+            // "out of 30", "29/30", or a row that is only "30 students"
+            const t = clean.match(/(?:out\s+of|\/)\s*(\d{1,3})\b/i)
+              || clean.match(/^(\d{1,3})\s*(?:students|learners|pupils|takers|papers)\b/i);
+            if (t) {
+              const n = Number(t[1]);
+              if (n > 0 && n <= 500) takers = n;
+            }
+            // "1 - 29", "1: 29", "1) 29", "1 | 29", "1  29"
+            const pair = clean.match(/(\d{1,3})\s*(?:[-:=.)\]]|\s)\s*(\d{1,3})/);
+            if (!pair) return;
+            const no = Number(pair[1]);
+            const correct = Number(pair[2]);
+            if (!(no >= 1 && no <= 200)) return;
+            if (!(correct >= 0)) return;
+            if (seen[no]) return;
+            seen[no] = true;
+            items.push({ itemNo: no, correct: correct });
+          });
+          items.sort((a, b) => a.itemNo - b.itemNo);
+          return { items: items, takers: takers };
+        };
+
+        const handleTypedScores = () => {
+          const read = iaParseTypedScores(typedScores);
+          if (!read.items.length) {
+            setScoreScanError({ idx: activeIdx, message: 'No item numbers found there. One item per line or comma-separated, like "1 - 29", "2 - 30", "3 - 12/30".' });
+            return;
+          }
+          setScoreScanDrafts(prev => {
+            const before = prev[activeIdx];
+            const values = before ? { ...before.values } : {};
+            read.items.forEach((it) => { values[it.itemNo] = String(it.correct); });
+            return {
+              ...prev,
+              [activeIdx]: {
+                values: values,
+                takers: read.takers || (before && before.takers) || 0,
+                notes: '',
+                read: read.items.length,
+                source: 'what you typed'
+              }
+            };
+          });
+          setScoreScanError(null);
+          setTypedScores('');
+          setTypedOpen(false);
+        };
+
+        const handleScorePhoto = async (event) => {
+          const input = event && event.target;
+          const file = input && input.files && input.files[0];
+          if (input) input.value = ''; // lets the same photo be picked again
+          if (!file) return;
+          if (!apiKey.trim()) {
+            setScoreScanError({ idx: activeIdx, message: 'Add your Gemini API key first (gear icon in the header) — the AI needs it to read the photo.' });
+            return;
+          }
+          const helper = window.SilidAPI;
+          if (!helper || typeof helper.callGeminiJSON !== 'function') {
+            setScoreScanError({ idx: activeIdx, message: 'The AI helper did not load. Reload the page and try again.' });
+            return;
+          }
+          setScoreScanBusy(true);
+          setScoreScanError(null);
+          try {
+            const inlineData = await iaShrinkForAI(file);
+            const raw = await helper.callGeminiJSON({
+              prompt: iaScoreScanPrompt,
+              inlineData: inlineData,
+              schema: iaScoreScanSchema,
+              temperature: 0,
+              apiKey: apiKey.trim(),
+              backupKey: apiKey2.trim()
+            });
+            const read = iaNormalizeScoreScan(raw);
+            if (!read.items.length) {
+              throw new Error('No item scores could be read from that photo. Try a sharper, straight-on shot — or type the scores.');
+            }
+            // The reading is held as a draft for this section only. Nothing
+            // touches the scores until the teacher presses "Apply to scores".
+            setScoreScanDrafts(prev => {
+              const before = prev[activeIdx];
+              const values = before ? { ...before.values } : {};
+              read.items.forEach((it) => { values[it.itemNo] = String(it.correct); });
+              return {
+                ...prev,
+                [activeIdx]: {
+                  values: values,
+                  takers: read.takers || (before && before.takers) || 0,
+                  notes: read.notes || (before && before.notes) || '',
+                  read: read.items.length,
+                  source: (file && file.name) || 'the photo'
+                }
+              };
+            });
+          } catch (err) {
+            setScoreScanError({ idx: activeIdx, message: (err && err.message) || 'The photo could not be read. Please try again.' });
+          } finally {
+            setScoreScanBusy(false);
+          }
+        };
+
+        // Fixing one number in the draft before it is applied.
+        const handleScoreDraftChange = (itemNo, value) => {
+          setScoreScanDrafts(prev => {
+            const draft = prev[activeIdx];
+            if (!draft) return prev;
+            return { ...prev, [activeIdx]: { ...draft, values: { ...draft.values, [itemNo]: value } } };
+          });
+        };
+        const handleScoreDraftTakers = (value) => {
+          setScoreScanDrafts(prev => {
+            const draft = prev[activeIdx];
+            if (!draft) return prev;
+            return { ...prev, [activeIdx]: { ...draft, takers: value } };
+          });
+        };
+        const discardScoreDraft = () => setScoreScanDrafts(prev => {
+          if (!prev[activeIdx]) return prev;
+          const next = { ...prev };
+          delete next[activeIdx];
+          return next;
+        });
+        const applyScoreDraft = () => {
+          const draft = scoreScanDrafts[activeIdx];
+          if (!draft) return;
+          const rows = Object.keys(draft.values)
+            .map(no => ({ itemNo: Number(no), value: String(draft.values[no] == null ? '' : draft.values[no]).trim() }))
+            .filter(x => x.itemNo >= 1 && x.itemNo <= 200);
+          if (!rows.length) return;
+          const cap = iaNum(currentSection.takers) || iaNum(draft.takers);
+          const maxNo = rows.reduce((m, x) => Math.max(m, x.itemNo), 0);
+          // The item count is shared by every section, so widen them all.
+          const count = Math.max(itemCount, maxNo);
+          setItemCount(count);
+          setSections(prev => prev.map((s, si) => {
+            const base = Array.from({ length: count }, (_, i) =>
+              s.scores.find(x => x.itemNo === i + 1) || { itemNo: i + 1, score: '', competency: '' });
+            if (si !== activeIdx) return { ...s, scores: base };
+            rows.forEach((x) => {
+              if (x.value === '') return; // left blank in the draft -> keep what is there
+              const n = Number(x.value);
+              if (!Number.isFinite(n) || n < 0) return;
+              const at = x.itemNo - 1;
+              base[at] = { ...base[at], score: String(cap ? Math.min(n, cap) : n) };
+            });
+            const keepTakers = iaNum(s.takers) ? s.takers : (iaNum(draft.takers) ? String(iaNum(draft.takers)) : s.takers);
+            return { ...s, takers: keepTakers, scores: base };
+          }));
+          discardScoreDraft();
+          setScoreScanError(null);
         };
 
         const handleItemCountChange = (e) => {
@@ -1624,6 +1917,15 @@
           if (sections.length <= 1) return;
           const next = sections.filter((_, i) => i !== idx);
           setSections(next);
+          setScoreScanDrafts(prev => {
+            const out = {};
+            Object.keys(prev).forEach((k) => {
+              const i = Number(k);
+              if (i === idx) return;
+              out[i > idx ? i - 1 : i] = prev[k];
+            });
+            return out;
+          });
           setActiveIdx(prev => Math.max(0, Math.min(idx < prev ? prev - 1 : prev, next.length - 1)));
         };
         const setMetaField = (key, value) => setMeta(prev => ({ ...prev, [key]: value }));
@@ -1851,15 +2153,47 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
             const mps = (mean / itemCount) * 100;
             setOverallScores({ mean: mean.toFixed(2), mps: mps.toFixed(2) });
 
-            const compGroups = {};
-            finalData.forEach(it => {
-              if (!compGroups[it.competency]) compGroups[it.competency] = { total: 0, n: 0 };
-              compGroups[it.competency].total += parseFloat(it.percentage);
-              compGroups[it.competency].n += 1;
+            /* ── Least Learned Competencies: DepEd 75% cut-off, two rules ──
+               Pooled across every section, as entered.
+               Rule A (competency level): correct answers over all items
+                 mapped to the competency ÷ (total takers × items mapped).
+                 Flagged when that competency mastery % is below 75.
+               Rule B (item level): each individual mapped item's correct
+                 answers ÷ total takers. Flagged when any of those items is
+                 below 75.
+               A competency is declared Least Learned when EITHER rule flags
+               it, and grouped by iaCompKey so it is never declared twice. */
+            const compGroups = new Map();
+            finalData.forEach((it, i) => {
+              const key = iaCompKey(it.competency) || ('item ' + it.itemNo);
+              if (!compGroups.has(key)) compGroups.set(key, { competency: it.competency, correct: 0, n: 0, weakItems: [], lowest: 100 });
+              const g = compGroups.get(key);
+              const correct = pooledCorrect[i] || 0;
+              const itemPct = totalLearners > 0 ? (correct / totalLearners) * 100 : 0;
+              g.correct += correct;
+              g.n += 1;
+              if (itemPct < IA_MASTERY_CUT) g.weakItems.push(it.itemNo);
+              if (itemPct < g.lowest) g.lowest = itemPct;
             });
-            const compAvg = Object.keys(compGroups).map(c => ({ competency: c, average: (compGroups[c].total / compGroups[c].n).toFixed(2) }));
-            compAvg.sort((a, b) => parseFloat(a.average) - parseFloat(b.average));
-            setLeastMastered(compAvg.slice(0, 5));
+            const leastLearned = [];
+            compGroups.forEach(g => {
+              const mastery = (totalLearners > 0 && g.n > 0) ? (g.correct / (totalLearners * g.n)) * 100 : 0;
+              const ruleA = mastery < IA_MASTERY_CUT;   // competency-level mastery
+              const ruleB = g.weakItems.length > 0;     // at least one item below 75%
+              if (!ruleA && !ruleB) return;
+              leastLearned.push({
+                competency: g.competency,
+                average: mastery.toFixed(2),
+                mastery,
+                ruleA,
+                ruleB,
+                items: g.n,
+                weakItems: g.weakItems,
+                lowestItem: g.lowest.toFixed(2)
+              });
+            });
+            leastLearned.sort((a, b) => a.mastery - b.mastery || parseFloat(a.lowestItem) - parseFloat(b.lowestItem));
+            setLeastMastered(leastLearned);
 
             let insight = `Based on ${totalLearners} learners across ${finalData.length} items: `;
             if (counts['High Mastery'] >= finalData.length * 0.5) insight += 'Over half the items reached High Mastery — excellent class understanding. ';
@@ -2162,6 +2496,92 @@ ${sigTable}`;
           }
         };
 
+        const downloadPdf = async () => {
+          if (!(window.jspdf && window.jspdf.jsPDF)) {
+            const m = 'The PDF helper has not loaded yet — try again in a moment.';
+            if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+            return;
+          }
+          try {
+            const jsPDF = window.jspdf.jsPDF;
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const items = results || [];
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+            const margin = 12;
+            const rowH = 9;
+            const cols = [
+              { label: 'Item No.', w: 20 },
+              { label: 'Competency', w: pageW - margin * 2 - 20 - 32 - 28 - 40 },
+              { label: 'Correct', w: 32 },
+              { label: 'Percentage', w: 28 },
+              { label: 'Mastery Level', w: 40 }
+            ];
+            let y = margin;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.text('Item Analysis — ' + String((meta && (meta.subjectCode || meta.subject)) || '').trim(), margin, y + 4);
+            y += 12;
+
+            const drawHeader = () => {
+              let x = margin;
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(9);
+              doc.setFillColor(91, 70, 232);
+              doc.setTextColor(255, 255, 255);
+              cols.forEach((c) => {
+                doc.rect(x, y, c.w, rowH, 'F');
+                doc.text(String(c.label), x + 2, y + rowH / 2 + 1.5);
+                x += c.w;
+              });
+              doc.setTextColor(20, 20, 20);
+              doc.setFont('helvetica', 'normal');
+              y += rowH;
+            };
+
+            const drawRow = (cells, shaded) => {
+              let x = margin;
+              const totalW = cols.reduce((s, c) => s + c.w, 0);
+              if (shaded) {
+                doc.setFillColor(244, 244, 250);
+                doc.rect(x, y, totalW, rowH, 'F');
+              }
+              doc.setFontSize(8.5);
+              doc.setDrawColor(200, 200, 205);
+              cells.forEach((cell, i) => {
+                doc.rect(x, y, cols[i].w, rowH, 'S');
+                const text = doc.splitTextToSize(String(cell == null ? '' : cell), cols[i].w - 3)[0] || '';
+                doc.text(text, x + 1.5, y + rowH / 2 + 1.2);
+                x += cols[i].w;
+              });
+              y += rowH;
+            };
+
+            drawHeader();
+            items.forEach((r, idx) => {
+              if (y + rowH > pageH - margin) {
+                doc.addPage();
+                y = margin;
+                drawHeader();
+              }
+              drawRow([
+                r.itemNo,
+                r.competency || '',
+                (Number(r.correctResponses) || 0) + ' / ' + totalLearners,
+                (Number(r.percentage) || 0) + '%',
+                r.masteryLevel || ''
+              ], idx % 2 === 1);
+            });
+
+            doc.save(wordFileName('.pdf'));
+          } catch (e) {
+            console.error(e);
+            const m = 'Could not build the PDF file: ' + ((e && e.message) || 'unknown error') + '.';
+            if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+          }
+        };
+
         /* ── DepEd annex exports ───────────────────────────────────────────
            Annex 1 (ST-2)      — MPS per Learning Area
            Annex 3 (SS-10)     — School Consolidated List of Least Mastered
@@ -2174,6 +2594,58 @@ ${sigTable}`;
           return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase().replace(/\s*term$/, '');
         };
 
+          /* Annex 3 cause + intervention — computed from the same results the
+             report shows, so the columns are never left blank. */
+          const compDetail = (name) => {
+            /* Match on iaCompKey, not the raw string, so items whose competency
+               was spelled differently still land under the one declared row. */
+            const key = iaCompKey(name);
+            const items = results.filter(r => iaCompKey(r.competency) === key);
+            const avg = items.length ? items.reduce((a, r) => a + (Number(r.percentage) || 0), 0) / items.length : 0;
+            return { nums: items.map(r => r.itemNo).join(', '), avg, n: items.length };
+          };
+          /* Likely causes for the Reasons/s/Cause/s column — why learners got
+             the items wrong, not just what they scored. Severe band (<40%) and
+             moderate band (40–59%) pools; a stable hash of the row's own data
+             picks one, so every row reads differently but never changes
+             between renders. */
+          const REASON_SEVERE = [
+            'Learners may have lacked the foundational skill this competency builds on, so they could not even start the task',
+            'Unfamiliar vocabulary in the items may have stopped learners from understanding what was being asked',
+            'Learners may have confused this competency with a closely related one and applied the wrong procedure',
+            'Close distractors may have led learners to guess instead of reasoning through each step',
+            'Learners may have had too little practice with real-life examples, so they could not transfer the skill to new situations'
+          ];
+          const REASON_WEAK = [
+            'Learners may have rushed and overlooked the key detail in the stem, picking the first plausible option',
+            'Some learners may have understood the concept but misread what the item was asking for',
+            'Learners may have succeeded on familiar examples but got stuck on unfamiliar ones',
+            'The multi-step reasoning the items require may have caused learners to lose track halfway through the solution'
+          ];
+          /* Classroom-delivery causes — the exam is only half the story; the
+             lesson itself may not have landed. Causes alternate: one row
+             explains the exam scenario, the next the classroom delivery, so
+             both perspectives always appear in the table. */
+          const REASON_DELIVERY = [
+            'The competency may not have been fully covered during classroom delivery, so learners met it for the first time in the test',
+            'Classroom practice may have stayed at whole-class level, leaving slower learners without the guided practice they needed',
+            'The lesson pace may have moved on before every learner could demonstrate the skill',
+            'Real-life examples and visuals may not have been used enough during instruction for the concept to stick',
+            'Quick checks during the lesson may not have surfaced these gaps before the exam'
+          ];
+          const reasonFor = (d, i) => {
+            const where = d.n ? `${d.n > 1 ? 'items' : 'item'} ${d.nums}` : 'its items';
+            const pool = i % 2 === 1
+              ? REASON_DELIVERY
+              : (d.avg < 40 ? REASON_SEVERE : REASON_WEAK);
+            let h = 0;
+            const key = `${d.nums}:${d.avg.toFixed(2)}`;
+            for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+            return `${pool[h % pool.length]} (${where} \u2014 ${d.avg.toFixed(2)}% answered correctly)`;
+          };
+          const interventionFor = (d) => (d.avg < 40
+            ? 'Reteach with concrete examples, guided practice and visual aids, then re-check with a short 3-item quiz.'
+            : 'Give targeted reinforcement activities and small-group remediation; revisit common errors through class discussion.');
         /* The annex body only — shared verbatim by the Word exports and the
            on-screen preview, so what the teacher sees is what downloads. */
         const buildAnnexContent = (kind) => {
@@ -2237,55 +2709,6 @@ ${sigTable}`;
           const logos = (si.schoolLogo1 || si.schoolLogo2)
             ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => window.SilidAssets.logoImgHtml(src, 52)).join('&nbsp;&nbsp;&nbsp;')}</p>`
             : '';
-          /* Annex 3 cause + intervention — computed from the same results the
-             report shows, so the columns are never left blank. */
-          const compDetail = (name) => {
-            const items = results.filter(r => r.competency === name);
-            const avg = items.length ? items.reduce((a, r) => a + (Number(r.percentage) || 0), 0) / items.length : 0;
-            return { nums: items.map(r => r.itemNo).join(', '), avg, n: items.length };
-          };
-          /* Likely causes for the Reasons/s/Cause/s column — why learners got
-             the items wrong, not just what they scored. Severe band (<40%) and
-             moderate band (40–59%) pools; a stable hash of the row's own data
-             picks one, so every row reads differently but never changes
-             between renders. */
-          const REASON_SEVERE = [
-            'Learners may have lacked the foundational skill this competency builds on, so they could not even start the task',
-            'Unfamiliar vocabulary in the items may have stopped learners from understanding what was being asked',
-            'Learners may have confused this competency with a closely related one and applied the wrong procedure',
-            'Close distractors may have led learners to guess instead of reasoning through each step',
-            'Learners may have had too little practice with real-life examples, so they could not transfer the skill to new situations'
-          ];
-          const REASON_WEAK = [
-            'Learners may have rushed and overlooked the key detail in the stem, picking the first plausible option',
-            'Some learners may have understood the concept but misread what the item was asking for',
-            'Learners may have succeeded on familiar examples but got stuck on unfamiliar ones',
-            'The multi-step reasoning the items require may have caused learners to lose track halfway through the solution'
-          ];
-          /* Classroom-delivery causes — the exam is only half the story; the
-             lesson itself may not have landed. Causes alternate: one row
-             explains the exam scenario, the next the classroom delivery, so
-             both perspectives always appear in the table. */
-          const REASON_DELIVERY = [
-            'The competency may not have been fully covered during classroom delivery, so learners met it for the first time in the test',
-            'Classroom practice may have stayed at whole-class level, leaving slower learners without the guided practice they needed',
-            'The lesson pace may have moved on before every learner could demonstrate the skill',
-            'Real-life examples and visuals may not have been used enough during instruction for the concept to stick',
-            'Quick checks during the lesson may not have surfaced these gaps before the exam'
-          ];
-          const reasonFor = (d, i) => {
-            const where = d.n ? `${d.n > 1 ? 'items' : 'item'} ${d.nums}` : 'its items';
-            const pool = i % 2 === 1
-              ? REASON_DELIVERY
-              : (d.avg < 40 ? REASON_SEVERE : REASON_WEAK);
-            let h = 0;
-            const key = `${d.nums}:${d.avg.toFixed(2)}`;
-            for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-            return `${pool[h % pool.length]} (${where} \u2014 ${d.avg.toFixed(2)}% answered correctly)`;
-          };
-          const interventionFor = (d) => (d.avg < 40
-            ? 'Reteach with concrete examples, guided practice and visual aids, then re-check with a short 3-item quiz.'
-            : 'Give targeted reinforcement activities and small-group remediation; revisit common errors through class discussion.');
           let content;
           if (kind === 'annex1') {
             const w = [21, 20, 20, 17, 22];
@@ -2330,14 +2753,11 @@ ${signTable([
               [w[2], 'Reasons/s/Cause/s', 'text-align:left;font-weight:bold;'],
               [w[3], 'Proposed Intervention Activity', 'text-align:left;font-weight:bold;']
             ]);
-            /* Only competencies that are genuinely LOW by score belong here —
-               below the 60% MPS benchmark. The weakest skill in an otherwise
-               strong class is not "least mastered". Subject stays on the
-               first row only, as the template does. */
-            const LOW_MPS = 60;
-            const list = (leastMastered.length ? leastMastered : [])
-              .filter(c => parseFloat(c.average) < LOW_MPS)
-              .slice(0, 8);
+            /* The 75% dual rule and the deduplication already happened when the
+               report was computed (Rule A competency mastery or Rule B any item
+               below 75%). The template only limits how many rows it prints.
+               Subject stays on the first row only, as the template does. */
+            const list = (leastMastered.length ? leastMastered : []).slice(0, 8);
             const dataRows = list.length ? list.map((c, i) => {
               const d = compDetail(c.competency);
               return tr([
@@ -2349,7 +2769,7 @@ ${signTable([
             }).join('\n')
               : tr([
                 [w[0], meta.subjectCode || meta.subject, 'text-align:left;vertical-align:top;'],
-                [w[1], `None — every competency scored ${LOW_MPS}% or above.`, 'text-align:left;vertical-align:top;'],
+                [w[1], `None — every competency met the ${IA_MASTERY_CUT}% mastery cut-off.`, 'text-align:left;vertical-align:top;'],
                 [w[2], '', 'vertical-align:top;'],
                 [w[3], '', 'vertical-align:top;']
               ]);
@@ -2546,6 +2966,12 @@ ${signTable([
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${i === activeIdx ? 'bg-iris-600 border-iris-600 text-white' : 'bg-ink/5 border-ink/10 text-ink/60 hover:bg-ink/10'}`}
                     >
                       {s.name.trim() || `Section ${i + 1}`}
+                      {scoreScanDrafts[i] ? (
+                        <span
+                          title="A photo reading is waiting for your approval"
+                          className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${i === activeIdx ? 'bg-white' : 'bg-amber-500'}`}
+                        ></span>
+                      ) : null}
                     </button>
                   ))}
                   <button onClick={addSection} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-iris-300 text-iris-600 hover:bg-iris-50 transition-colors">
@@ -2577,6 +3003,27 @@ ${signTable([
                     />
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => scoreScanRef.current && scoreScanRef.current.click()}
+                      disabled={scoreScanBusy}
+                      title="Upload a photo of a hand-written tally — you review the reading before it fills this section"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-iris-200 bg-iris-50 text-iris-700 text-xs font-semibold hover:bg-iris-100 disabled:opacity-60 disabled:cursor-wait transition-colors"
+                    >
+                      <LucideIcon name={scoreScanBusy ? 'Loader2' : 'Upload'} className={`w-3.5 h-3.5 ${scoreScanBusy ? 'animate-spin' : ''}`} />
+                      {scoreScanBusy ? 'Reading photo…' : 'Read from photo'}
+                    </button>
+                    <input ref={scoreScanRef} type="file" accept="image/*" className="hidden" onChange={handleScorePhoto} />
+                    <button
+                      type="button"
+                      onClick={() => { setTypedOpen(v => !v); setScoreScanError(null); }}
+                      title="No photo, no key, or the photo would not read? Type the tally instead"
+                      className="text-[11px] font-semibold text-iris-600 underline decoration-dotted underline-offset-2 hover:text-iris-800"
+                    >
+                      or type scores
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <span className="text-xs text-ink/40">Fill score for all items (every section):</span>
                     <input
                       id="fill-all-score"
@@ -2596,6 +3043,126 @@ ${signTable([
                   </div>
                 </div>
               </div>
+              {typedOpen && (
+                <div className="mb-4 rounded-xl border border-iris-200 bg-iris-50/70 p-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <p className="text-[11px] leading-relaxed text-ink/60">
+                      Type or paste the tally — one item per line, or comma-separated, like{' '}
+                      <code className="px-1 rounded bg-white border border-ink/10">1 - 29</code>{' '}
+                      <code className="px-1 rounded bg-white border border-ink/10">2: 30</code>{' '}
+                      <code className="px-1 rounded bg-white border border-ink/10">3 - 12/30</code>.
+                      Works without an API key, and you still review every number before it is applied.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setTypedOpen(false); setTypedScores(''); }}
+                      title="Close"
+                      className="p-1 rounded-md text-ink/40 hover:bg-white hover:text-ink/70 transition-colors"
+                    >
+                      <LucideIcon name="X" className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <textarea
+                    value={typedScores}
+                    onChange={(e) => setTypedScores(e.target.value)}
+                    rows={4}
+                    placeholder="1 - 29, 2 - 30, 3 - 12"
+                    className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                  />
+                  <div className="flex justify-end mt-2">
+                    <button
+                      type="button"
+                      onClick={handleTypedScores}
+                      className="px-3 py-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-semibold hover:bg-iris-700 transition-colors"
+                    >
+                      Review scores
+                    </button>
+                  </div>
+                </div>
+              )}
+              {scoreScanError && scoreScanError.idx === activeIdx && (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
+                  {scoreScanError.message}
+                  <button
+                    type="button"
+                    onClick={() => setTypedOpen(true)}
+                    className="ml-2 font-semibold underline decoration-dotted underline-offset-2 hover:text-rose-900"
+                  >
+                    Type the scores instead
+                  </button>
+                </div>
+              )}
+              {scoreScanDraft && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-amber-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="text-xs font-semibold text-amber-900">
+                        Draft for {currentSection.name.trim() || `Section ${activeIdx + 1}`} — {scoreScanDraftNos.length} item{scoreScanDraftNos.length === 1 ? '' : 's'} to check. Fix anything that looks wrong, then apply.
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!iaNum(currentSection.takers) && (
+                        <span className="flex items-center gap-1 text-[11px] text-amber-900/80">
+                          Takers
+                          <input
+                            type="number" min="1"
+                            value={scoreScanDraft.takers === 0 ? '' : scoreScanDraft.takers}
+                            onChange={(e) => handleScoreDraftTakers(e.target.value)}
+                            placeholder="?"
+                            className="w-16 rounded-md border border-amber-300 bg-white px-2 py-1 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                          />
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={discardScoreDraft}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white text-[11px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                      >
+                        <LucideIcon name="X" className="w-3 h-3" /> Discard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyScoreDraft}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-[11px] font-semibold text-white hover:bg-emerald-700 transition-colors"
+                      >
+                        <LucideIcon name="CheckCircle" className="w-3 h-3" /> Apply to scores
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-3 py-2.5 max-h-[220px] overflow-y-auto">
+                    {scoreScanDraftNos.map((itemNo) => {
+                      const raw = scoreScanDraft.values[itemNo] == null ? '' : String(scoreScanDraft.values[itemNo]);
+                      const n = Number(raw);
+                      const over = scoreScanCap && Number.isFinite(n) && n > scoreScanCap;
+                      const empty = raw.trim() === '';
+                      return (
+                        <div
+                          key={itemNo}
+                          className={`flex items-center gap-2 rounded-lg border bg-white px-2 py-1.5 ${over ? 'border-amber-400' : 'border-amber-100'}`}
+                        >
+                          <span className="text-[11px] font-semibold text-ink/50 w-12 shrink-0">Item {itemNo}</span>
+                          <input
+                            type="number" min="0" max={scoreScanCap || ''}
+                            value={raw}
+                            onChange={(e) => handleScoreDraftChange(itemNo, e.target.value)}
+                            className={`w-16 rounded-md border px-2 py-1 text-sm text-center outline-none focus:ring-2 focus:ring-iris-500 ${over ? 'border-amber-400 text-amber-700' : 'border-ink/20 text-ink'}`}
+                          />
+                          <span className="text-[11px] text-ink/40 truncate">
+                            {empty ? 'skipped' : (scoreScanCap ? `/ ${scoreScanCap}` : '')}
+                            {over ? ' · capped' : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
+                    <span>From {scoreScanDraft.source}</span>
+                    {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
+                    <span>Your scores stay unchanged until you apply.</span>
+                  </div>
+                </div>
+              )}
               <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
                 {manualScores.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-ink/5 p-2.5 rounded-lg border border-ink/10 hover:border-ink/20 transition-colors">
@@ -2853,6 +3420,16 @@ ${signTable([
             ...(withTotals ? ['Total Raw Score', 'MPS', 'Mastery Level'] : [])
           ];
 
+          // Numbers for the insights card: the individual items that fell below
+          // the cut-off, and how many competencies each rule caught.
+          const weakItemSet = new Set();
+          leastMastered.forEach(c => (c.weakItems || []).forEach(n => weakItemSet.add(n)));
+          const ruleACount = leastMastered.filter(c => c.ruleA).length;
+          const ruleBCount = leastMastered.filter(c => c.ruleB).length;
+          const lowestItemPct = leastMastered.length
+            ? Math.min.apply(null, leastMastered.map(c => parseFloat(c.lowestItem) || 0))
+            : 0;
+
           return (
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2967,6 +3544,81 @@ ${signTable([
               </div>
             )}
 
+            {/* Competency insights — the report's own analytics. The causes and
+                interventions come from the same helpers the Annex 3 export
+                uses, so the screen and the downloaded form never disagree. */}
+            {leastMastered.length > 0 && (
+              <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-ink flex items-center gap-2">
+                      <LucideIcon name="BrainCircuit" className="w-5 h-5 text-iris-600" />
+                      Why These Competencies Fell Below {IA_MASTERY_CUT}%
+                    </h3>
+                    <p className="text-sm text-ink/50 mt-1">
+                      Reasons, causes and proposed interventions for every flagged competency, plus the item-level numbers behind each decision.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                    {[
+                      ['Flagged', leastMastered.length],
+                      ['Items < ' + IA_MASTERY_CUT + '%', weakItemSet.size],
+                      ['Rule A', ruleACount],
+                      ['Rule B', ruleBCount],
+                      ['Lowest item', lowestItemPct.toFixed(2) + '%']
+                    ].map(([label, value]) => (
+                      <div key={label} className="px-3 py-2 rounded-xl bg-ink/5 border border-ink/10">
+                        <p className="text-base font-bold text-ink">{value}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-ink/40">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {leastMastered.map((c, i) => {
+                    const d = compDetail(c.competency);
+                    return (
+                      <div key={i} className="rounded-xl border border-ink/10 bg-ink/5 p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-rose-600">#{i + 1}</span>
+                          <p className="text-sm font-semibold text-ink">{c.competency}</p>
+                          <span className="ml-auto text-sm font-bold text-rose-600">{c.average}%</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-white border-ink/10 text-ink/50">
+                            {c.items} item{c.items === 1 ? '' : 's'} mapped
+                          </span>
+                          {c.ruleA && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-rose-50 border-rose-200 text-rose-700">
+                              Rule A · mastery {c.average}% &lt; {IA_MASTERY_CUT}%
+                            </span>
+                          )}
+                          {c.ruleB && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-amber-50 border-amber-200 text-amber-700">
+                              Rule B · item{c.weakItems.length === 1 ? '' : 's'} {c.weakItems.join(', ')} below {IA_MASTERY_CUT}%
+                            </span>
+                          )}
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-white border-ink/10 text-ink/50">
+                            weakest item {c.lowestItem}%
+                          </span>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-3 mt-3">
+                          <div className="rounded-lg bg-white p-3 border border-ink/10">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 mb-1">Reasons / Causes</p>
+                            <p className="text-sm text-ink/70 leading-relaxed">{reasonFor(d, i)}</p>
+                          </div>
+                          <div className="rounded-lg bg-white p-3 border border-ink/10">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 mb-1">Proposed Intervention</p>
+                            <p className="text-sm text-ink/70 leading-relaxed">{interventionFor(d)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Detail table */}
             <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
@@ -3011,18 +3663,28 @@ ${signTable([
                   <span className="text-[10px] uppercase tracking-wider text-ink/40 mr-1">
                     {xl.rows.length} section{xl.rows.length === 1 ? '' : 's'} · {xl.items} items
                   </span>
+                  <button
+                    onClick={() => togglePanel('excel')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-xs transition-colors"
+                  >
+                    <LucideIcon name="ChevronDown" className={`w-4 h-4 transition-transform ${openPanels.excel ? 'rotate-180' : ''}`} />
+                    {openPanels.excel ? 'Hide preview' : 'Show preview'}
+                  </button>
                   <button onClick={downloadCSV} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-xs transition-colors">
                     <LucideIcon name="Download" className="w-4 h-4" /> Export CSV
                   </button>
                   <button onClick={downloadDocx} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-iris-600 text-white hover:bg-iris-700 border border-iris-600 font-medium text-xs transition-colors">
                     <LucideIcon name="FileText" className="w-4 h-4" /> Export DOCX
                   </button>
+                  <button onClick={downloadPdf} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-xs transition-colors">
+                    <LucideIcon name="FileText" className="w-4 h-4" /> Export PDF
+                  </button>
                   <button onClick={downloadDoc} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-xs transition-colors">
                     <LucideIcon name="FileText" className="w-4 h-4" /> Export DOC
                   </button>
                 </div>
               </div>
-              <div className="p-4 overflow-x-auto">
+              <div className="p-4 overflow-x-auto" style={{ display: openPanels.excel ? undefined : 'none' }}>
                 <div className="w-max">
                   {iaHeaderJsx()}
                   <table className="border-collapse table-fixed text-[10px] text-ink" style={{ width: xInfoW }}>
@@ -3130,14 +3792,23 @@ ${signTable([
                   <div key={kind} className="border border-ink/10 rounded-xl overflow-hidden">
                     <div className="px-4 py-2.5 bg-ink/5 border-b border-ink/10 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold text-ink">{label}</span>
+                      <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => togglePanel(kind)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-xs transition-colors"
+                      >
+                        <LucideIcon name="ChevronDown" className={`w-3.5 h-3.5 transition-transform ${openPanels[kind] ? 'rotate-180' : ''}`} />
+                        {openPanels[kind] ? 'Hide' : 'Show'}
+                      </button>
                       <button
                         onClick={() => downloadAnnex(kind)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-iris-600 text-white hover:bg-iris-700 font-medium text-xs transition-colors"
                       >
                         <LucideIcon name="Download" className="w-3.5 h-3.5" /> Download {kind === 'annex1' ? 'Annex 1' : 'Annex 3'}
                       </button>
+                      </div>
                     </div>
-                    <div className="p-3 bg-ink/5">
+                    <div className="p-3 bg-ink/5" style={{ display: openPanels[kind] ? 'block' : 'none' }}>
                       <div
                         data-annex-preview={kind}
                         className="bg-white border border-ink/10 shadow-sm p-6 overflow-x-auto text-[#111]"
