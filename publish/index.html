@@ -1758,7 +1758,7 @@
               ctx.fillRect(0, 0, w, h);
               ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
               const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '', width: w, height: h });
+              resolve({ mimeType: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' });
             };
             img.src = reader.result;
           };
@@ -1904,23 +1904,54 @@
           if (!file) return;
           setScoreScanError(null);
 
-          // This photo has been read before: hand back the same numbers with no
-          // upload and no model call. They still arrive as a draft to review.
+          // This photo has been read before: check for a cached reading.
           const fileKey = await iaFileKey(file);
           const remembered = iaRememberedRead(fileKey);
-          if (remembered && remembered.hint) {
-            const hint = remembered.hint;
-            iaSetDraft({
-              values: hint.values,
-              takers: hint.takers,
-              notes: hint.notes,
-              read: hint.read,
-              ms: 0,
-              cached: true,
-              source: (file && file.name) || 'the photo'
+
+          // If there is a cached reading with a previous selection, show the
+          // framing modal pre‑loaded so the teacher can review/confirm or adjust.
+          if (remembered && remembered.crop) {
+            setScoreCrop({
+              file: file,
+              fileKey: fileKey,
+              name: (file && file.name) || 'the photo',
+              dataUrl: '',
+              natW: 1,
+              natH: 1,
+              sel: remembered.crop,   // previous selection fractions
+              remembered: true
+            });
+            // Do NOT set the draft yet – let the teacher review the crop first.
+            return;
+          }
+
+          // If there is a cached reading but no previous crop (e.g. full‑photo read),
+          // still surface the framing step so the teacher can re‑frame if desired.
+          if (remembered) {
+            setScoreCrop({
+              file: file,
+              fileKey: fileKey,
+              name: (file && file.name) || 'the photo',
+              dataUrl: '',
+              natW: 1,
+              natH: 1,
+              sel: null,
+              remembered: true
             });
             return;
           }
+
+          // No prior reading: show the framing step for a fresh read.
+          setScoreCrop({
+            file: file,
+            fileKey: fileKey,
+            name: (file && file.name) || 'the photo',
+            dataUrl: '',
+            natW: 1,
+            natH: 1,
+            sel: null,
+            remembered: false
+          });
 
           if (!apiKey.trim()) {
             setScoreScanError({ idx: activeIdx, message: 'Add your Gemini API key first (gear icon in the header) — the AI needs it to read the photo.' });
@@ -1960,6 +1991,25 @@
         const iaRunScoreRead = async (crop) => {
           const pending = scoreCrop;
           if (!pending || !pending.file) return;
+
+          // If we have a remembered reading for this exact crop, use it instantly
+          // (no upload, no model call) and land the numbers as a draft.
+          const cachedHint = iaRememberedRead(pending.fileKey);
+          if (cachedHint && cachedHint.crop === crop) {
+            iaSetDraft({
+              values: cachedHint.values || {},
+              takers: cachedHint.takers || 0,
+              notes: cachedHint.notes || '',
+              read: cachedHint.read || 0,
+              source: pending.fileKey ? 'cached photo' : 'the photo',
+              ms: 0,
+              cached: true
+            });
+            scoreCropDragRef.current = null;
+            setScoreCrop(null);
+            return;
+          }
+
           const file = pending.file;
           const helper = window.SilidAPI;
           setScoreScanBusy(true);
@@ -3402,11 +3452,28 @@ ${signTable([
                       );
                     })}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
+                  <div className="flex flex-col items-center gap-2 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
                     <span>From {scoreScanDraft.source}</span>
                     {scoreScanDraft.cached ? (
                       <span>Reused your earlier reading of this photo — instantly, with no upload</span>
-                    ) : scoreScanDraft.ms ? <span>Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span> : null}
+                    ) : scoreScanDraft.ms ? (
+                      <React.Fragment>
+                        <span className="text-sm">Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span>
+                        <button
+                          type="button"
+                          onClick={() => setScoreCrop({
+                            file: scoreCrop?.file,
+                            name: scoreCrop?.name || 'the photo',
+                            dataUrl: scoreCrop?.dataUrl,
+                            sel: scoreCrop?.sel,
+                            remembered: scoreCrop?.remembered
+                          })}
+                          className="mt-1 text-[10px] text-iris-600 hover:underline"
+                        >Adjust crop
+                      </button>
+                        {scoreCrop?.dataUrl && (<img src={scoreCrop.dataUrl} alt="Cropped preview" className="w-24 h-14 rounded-md mt-1" />)}
+                      </React.Fragment>
+                    ) : null}
                     {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
                     <span>Your scores stay unchanged until you apply.</span>
                   </div>
