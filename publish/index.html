@@ -67,6 +67,23 @@
     .halo-2 { background:radial-gradient(30% 35% at 82% 18%,rgba(236,72,153,0.12) 0%,transparent 70%); }
     .reveal { opacity:0; transform:translateY(28px); filter:blur(6px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s cubic-bezier(.22,1,.36,1); }
     .reveal.in { opacity:1; transform:none; filter:none; }
+    /* Hero headline: 3D word flip with a springy overshoot, staged once the
+       parent .reveal has faded in. Words default to visible — the hidden start
+       frame comes from `backwards` fill, so if the animation never runs the
+       headline still renders. */
+    .hero-title { perspective:900px; }
+    .hero-word { display:inline-block; transform-origin:50% 100%; backface-visibility:hidden; }
+    @keyframes heroFlip {
+      from { opacity:0; transform:rotateX(-95deg) translateY(35%); filter:blur(7px); }
+      to { opacity:1; transform:rotateX(0) translateY(0); filter:blur(0px); }
+    }
+    .reveal.in .hero-word {
+      animation:heroFlip .95s cubic-bezier(.2,1.35,.3,1) backwards;
+      animation-delay:calc(var(--i, 0) * 75ms + 120ms);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal.in .hero-word { animation:none; }
+    }
     .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1), box-shadow .5s cubic-bezier(.32,.72,0,1); }
     .btn-spring:hover { transform:translateY(-2px); }
     .btn-spring:active { transform:scale(.98); }
@@ -1635,28 +1652,6 @@
         /* Every reading is remembered against the photo it came from, so picking
            the same photo again for a section is instant: no upload, no model
            call, and the numbers come straight back for the same review step. */
-        // v2 deliberately drops readings cached by older versions: those could
-        // carry blank or unusable counts that Apply correctly refuses, making a
-        // re-picked photo look broken. A fresh read is safer.
-        const IA_SCAN_CACHE = 'silid_item_scan_cache_v2';
-        const iaScanCacheRef = useRef(null);
-        const iaCache = () => {
-          if (iaScanCacheRef.current) return iaScanCacheRef.current;
-          let data = { v: 2, reads: {}, crops: {} };
-          try {
-            const saved = JSON.parse(localStorage.getItem(IA_SCAN_CACHE) || 'null');
-            if (saved && saved.v === 2 && saved.reads && saved.crops) data = saved;
-          } catch (e) { /* corrupt or blocked storage: start clean */ }
-          iaScanCacheRef.current = data;
-          return data;
-        };
-        const iaCacheSave = () => {
-          try { localStorage.setItem(IA_SCAN_CACHE, JSON.stringify(iaCache())); } catch (e) { /* full or blocked */ }
-        };
-        // A photo is identified by its content: name plus a cheap hash of its
-        // head and tail bytes. Timestamps are deliberately left out — a share
-        // sheet or a picker can stamp a fresh lastModified on the very same
-        // photo, which would quietly turn every re-pick into a cache miss.
         const iaFileKey = async (file) => {
           const base = [String((file && file.name) || ''), (file && file.size) || 0].join('|');
           try {
@@ -1681,25 +1676,6 @@
           ? [crop.x, crop.y, crop.w, crop.h].map(v => Math.round(v * 10000) / 10000).join(',')
           : 'full';
         const iaScanKey = (fileKey, crop) => fileKey + '#' + iaCropSig(crop);
-        const iaRememberRead = (fileKey, crop, reading) => {
-          const cache = iaCache();
-          cache.reads[iaScanKey(fileKey, crop)] = {
-            values: reading.values || {},
-            takers: reading.takers || 0,
-            notes: reading.notes || '',
-            read: reading.read || 0,
-            at: Date.now()
-          };
-          // Keep the store small: the newest 24 photos are plenty.
-          const keys = Object.keys(cache.reads);
-          if (keys.length > 24) {
-            keys.sort((a, b) => (cache.reads[a].at || 0) - (cache.reads[b].at || 0))
-              .slice(0, keys.length - 24)
-              .forEach(k => { delete cache.reads[k]; });
-          }
-          cache.crops[fileKey] = crop || 'full';
-          iaCacheSave();
-        };
         // Accept counts written as numbers or common text shapes ("45/50",
         // "45 correct") so a formatting quirk never leaves a draft blank.
         const iaScanNumber = (value) => {
@@ -1707,18 +1683,6 @@
           const text = String(value == null ? '' : value).replace(/,/g, '');
           const match = text.match(/-?\d+(?:\.\d+)?/);
           return match ? Number(match[0]) : NaN;
-        };
-        const iaRememberedRead = (fileKey) => {
-          const cache = iaCache();
-          if (!Object.prototype.hasOwnProperty.call(cache.crops, fileKey)) return null;
-          const framing = cache.crops[fileKey];
-          const crop = framing === 'full' ? null : framing;
-          const hit = cache.reads[iaScanKey(fileKey, crop)];
-          const hasFilled = !!(hit && hit.values && Object.keys(hit.values).some((no) => {
-            const n = iaScanNumber(hit.values[no]);
-            return Number.isFinite(n) && n >= 0;
-          }));
-          return { crop: crop, hint: (hit && hit.read && hasFilled) ? hit : null };
         };
 
         // One place that turns a reading into the section's draft, so a cached
@@ -1955,12 +1919,11 @@
           if (!file) return;
           setScoreScanError(null);
 
-          // This photo has been read before: check for a cached reading.
+          // Always load the photo for a fresh read — no cached readings.
           const fileKey = await iaFileKey(file);
-          const remembered = iaRememberedRead(fileKey);          // Always load the photo, including one with a remembered reading, so
-          // the framing step never opens blank and the previous box can be
-          // reviewed, adjusted, or cleared before reading again.
-          const rememberedCrop = (remembered && remembered.crop) || null;
+          // Always load the photo, the framing step never opens blank and the
+          // previous box can be reviewed, adjusted, or cleared before reading again.
+          const rememberedCrop = null;
           setScoreCrop({
             file: file,
             fileKey: fileKey,
@@ -1969,7 +1932,7 @@
             natW: 1,
             natH: 1,
             sel: rememberedCrop,
-            remembered: !!rememberedCrop
+            remembered: false
           });
 
           const reader = new FileReader();
@@ -1998,24 +1961,6 @@
         const iaRunScoreRead = async (crop) => {
           const pending = scoreCrop;
           if (!pending || !pending.file) return;
-
-          // If we have a remembered reading for this exact crop, use it instantly
-          // (no upload, no model call) and land the numbers as a draft.
-          const cachedHint = iaRememberedRead(pending.fileKey);
-          if (cachedHint && cachedHint.crop === crop) {
-            iaSetDraft({
-              values: cachedHint.values || {},
-              takers: cachedHint.takers || 0,
-              notes: cachedHint.notes || '',
-              read: cachedHint.read || 0,
-              source: pending.fileKey ? 'cached photo' : 'the photo',
-              ms: 0,
-              cached: true
-            });
-            scoreCropDragRef.current = null;
-            setScoreCrop(null);
-            return;
-          }
 
           const file = pending.file;
           if (!apiKey.trim()) {
@@ -2084,7 +2029,6 @@
               source: (file && file.name) || 'the photo',
               ms: Math.round(iaNow() - startedAt)
             });
-            iaRememberRead(pending.fileKey, crop, { values: values, takers: read.takers, notes: read.notes, read: read.items.length });
             scoreCropDragRef.current = null;
             setScoreCrop(null);
           } catch (err) {
@@ -3082,6 +3026,49 @@ ${sigTable}`;
         };
 
         const downloadAnalysisDocx = async () => {
+          // Compute section-specific data based on activeIdx
+          let sectionOverallScores = overallScores;
+          let sectionResults = results;
+          let sectionSummaryStats = summaryStats;
+          let sectionLeastMastered = leastMastered;
+          let sectionTotalLearners = totalLearners;
+
+          if (activeIdx >= 0 && sections[activeIdx]) {
+            const section = sections[activeIdx];
+            const sectionCorrect = section.scores.reduce((sum, s, i) => sum + (s.correct || 0), 0);
+            const sectionTotal = section.takers || 50;
+            const sectionMean = sectionTotal > 0 ? sectionCorrect / sectionTotal : 0;
+            const sectionMps = (sectionMean / (itemCount || 10)) * 100;
+            sectionOverallScores = { mean: sectionMean.toFixed(2), mps: sectionMps.toFixed(2) };
+
+            // Filter results to this section's items
+            // (results are already global, but we'll use section total learners)
+            sectionTotalLearners = sectionTotal;
+
+            // Compute summary stats for this section only
+            const sectionCompPerf = section.scores.map((s, i) => {
+              const correct = s.correct || 0;
+              const pct = sectionTotal > 0 ? (correct / sectionTotal) * 100 : 0;
+              return { competency: s.competency || '', n: 1, average: pct.toFixed(2) };
+            });
+            const sectionCompAgg = Object.values(sectionCompPerf.reduce((acc, r) => {
+              const k = r.competency;
+              if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
+              acc[k].total += parseFloat(r.average);
+              acc[k].n += 1;
+              return acc;
+            }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
+              .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+            sectionSummaryStats = {};
+            sectionCompAgg.forEach(c => {
+              sectionSummaryStats[`${c.average}% Mastery`] = (sectionSummaryStats[`${c.average}% Mastery`] || 0) + c.n;
+            });
+
+            // Compute least mastered for this section
+            const IA_MASTERY_CUT = 75;
+            sectionLeastMastered = sectionCompAgg.filter(c => parseFloat(c.average) < IA_MASTERY_CUT);
+          }
+
           if (!window.htmlDocx || !window.saveAs) {
             const blob = new Blob(['\ufeff', buildAnalysisReportHtml({ forDoc: true })], { type: 'application/msword' });
             saveWordBlob(blob, analysisFileName('.doc'));
@@ -3105,6 +3092,49 @@ ${sigTable}`;
             const m = 'The PDF helper has not loaded yet — try again in a moment.';
             if (window.SilidToast) window.SilidToast.error(m); else alert(m);
             return;
+          }
+          // Compute section-specific data based on activeIdx
+          let sectionOverallScores = overallScores;
+          let sectionCompPerf = compPerf;
+          let sectionSummaryStats = summaryStats;
+          let sectionLeastMastered = leastMastered;
+          let sectionTotalLearners = totalLearners;
+
+          if (activeIdx >= 0 && sections[activeIdx]) {
+            const section = sections[activeIdx];
+            const sectionCorrect = section.scores.reduce((sum, s, i) => sum + (s.correct || 0), 0);
+            const sectionTotal = section.takers || 50;
+            const sectionMean = sectionTotal > 0 ? sectionCorrect / sectionTotal : 0;
+            const sectionMps = (sectionMean / (itemCount || 10)) * 100;
+            sectionOverallScores = { mean: sectionMean.toFixed(2), mps: sectionMps.toFixed(2) };
+
+            // Compute competency performance for this section only
+            sectionCompPerf = section.scores.map((s, i) => {
+              const correct = s.correct || 0;
+              const pct = sectionTotal > 0 ? (correct / sectionTotal) * 100 : 0;
+              return { competency: s.competency || '', n: 1, average: pct.toFixed(2) };
+            });
+
+            // Aggregate competency performance
+            const compAgg = Object.values(sectionCompPerf.reduce((acc, r) => {
+              const k = r.competency;
+              if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
+              acc[k].total += parseFloat(r.average);
+              acc[k].n += 1;
+              return acc;
+            }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
+              .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
+            sectionSummaryStats = {};
+            compAgg.forEach(c => {
+              sectionSummaryStats[`${c.average}% Mastery`] = (sectionSummaryStats[`${c.average}% Mastery`] || 0) + c.n;
+            });
+
+            // Compute least mastered for this section
+            const IA_MASTERY_CUT = 75;
+            sectionLeastMastered = compAgg.filter(c => parseFloat(c.average) < IA_MASTERY_CUT);
+
+            sectionTotalLearners = sectionTotal;
           }
           try {
             const jsPDF = window.jspdf.jsPDF;
@@ -3913,9 +3943,11 @@ ${signTable([
                   </div>
                   <div className="flex flex-col items-center gap-2 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
                     <span>From {scoreScanDraft.source}</span>
-                    {scoreScanDraft.cached ? (
-                      <span>Reused your earlier reading of this photo — instantly, with no upload</span>
-                    ) : scoreScanDraft.ms ? (
+                    <span className="text-sm">Read from the photo</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
+                    <span>From {scoreScanDraft.source}</span>
+                    {scoreScanDraft.ms ? (
                       <React.Fragment>
                         <span className="text-sm">Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span>
                         <button
@@ -4826,8 +4858,15 @@ ${signTable([
                   <span className="inline-flex items-center gap-2 rounded-full bg-white/70 ring-1 ring-black/5 backdrop-blur px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600 mb-8 shadow-sm">
                     <span className="w-1.5 h-1.5 rounded-full bg-iris-600"></span> The AI teaching studio for educators
                   </span>
-                  <h1 className="font-display text-[clamp(2.8rem,7vw,5.5rem)] leading-[0.98] tracking-tight font-light mb-7">
-                    Turn hours of prep into <span className="italic font-medium">minutes.</span>
+                  <h1 className="hero-title font-display text-[clamp(2.8rem,7vw,5.5rem)] leading-[0.98] tracking-tight font-light mb-7">
+                    {['Turn','hours','of','prep','into'].map((w,i)=>(
+                      <React.Fragment key={w}>
+                        {i>0 && ' '}
+                        <span className="hero-word" style={{'--i':String(i)}}>{w}</span>
+                      </React.Fragment>
+                    ))}
+                    {' '}
+                    <span className="hero-word italic font-medium" style={{'--i':'5'}}>minutes.</span>
                   </h1>
                   <p className="text-lg md:text-xl text-ink/60 max-w-2xl mx-auto leading-relaxed mb-12">
                     One studio for every teacher task — generate rigorous tests, build your TOS and DepEd-aligned lesson plans, and spin up slide decks. Upload your modules or paste competencies and let the AI handle the rest.
