@@ -447,7 +447,7 @@
         'Scrambled Words', '3 Pics 1 Word', 'Identification', 'Multiple Choice',
         'True or False', 'Matching Type', 'Fill in the Blanks', 'Word Search',
         'Crossword Puzzle', 'Acrostic / Slogan', 'Analogy', 'Enumeration',
-        'Short Answer', 'Essay / Reflection', 'Problem Solving', 'Sequencing / Arrange'
+        'Short Answer', 'Essay / Reflection', 'Problem Solving', 'Sequencing / Arrange', 'Other'
     ];
 
     var CATEGORY_BADGES = {
@@ -499,6 +499,26 @@
     }
 
     /* ============================================================
+       Update custom activity type when user selects 'Other'
+       ============================================================ */
+    function updateCustomActivityType(select, sec) {
+        if (select.value === 'custom') {
+            sec.type = 'custom';
+            var customInput = select.closest('div').querySelector('.custom-activity-type');
+            if (customInput) {
+                customInput.style.display = '';
+                customInput.focus();
+            }
+        } else {
+            sec.type = select.value;
+            var customInput = select.closest('div').querySelector('.custom-activity-type');
+            if (customInput) {
+                customInput.style.display = 'none';
+            }
+        }
+    }
+
+    /* ============================================================
        DepEd autocomplete (reuses shared deped-options.js)
        ============================================================ */
     function bindAutocomplete(input, listEl, source) {
@@ -543,9 +563,11 @@
                 '<div class="grid grid-cols-[1fr_auto] gap-2 items-end">' +
                     '<div>' +
                         '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Activity Type</label>' +
-                        '<select class="sec-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">' +
+                        '<select class="sec-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500" onchange="updateCustomActivityType(this, sec)">' +
                             ACTIVITY_TYPES.map(function (t) { return '<option value="' + t + '"' + (t === sec.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
+                            '<option value="custom"' + (sec.type === 'custom' ? ' selected' : '') + '>Other</option>' +
                         '</select>' +
+                        '<input type="text" class="custom-activity-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm placeholder:text-ink/35 focus:outline-none focus:ring-2 focus:ring-iris-500" style="display:none;" placeholder="Enter custom activity type" value="' + (sec.type === 'custom' ? (sec.customType || '') : '') + '">' +
                     '</div>' +
                     '<div>' +
                         '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Items</label>' +
@@ -569,7 +591,6 @@
 
             wrap.appendChild(div);
 
-            div.querySelector('.sec-type').addEventListener('change', function (e) { sec.type = e.target.value; });
             div.querySelector('.sec-count').addEventListener('input', function (e) {
                 var v = parseInt(e.target.value, 10);
                 sec.count = isNaN(v) || v < 1 ? 1 : Math.min(v, 40);
