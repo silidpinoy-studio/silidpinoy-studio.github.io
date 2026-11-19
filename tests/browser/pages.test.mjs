@@ -3150,15 +3150,32 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       'choosing Upload must reveal the file browser');
     await page.getByRole('button', { name: /Manual Entry/ }).click();
 
-    // the section name & takers row leads the scores card, above the score inputs
-    const rowAbove = await page.evaluate(() => {
-      const row = Array.from(document.querySelectorAll('p'))
-        .find(s => s.textContent.includes('Section name & Total No. of Takers'));
-      const firstScore = document.querySelector('#score-input-0');
-      if (!row || !firstScore) return null;
-      return !!(row.compareDocumentPosition(firstScore) & Node.DOCUMENT_POSITION_FOLLOWING);
+    // section switcher + Add Section lead, then one box each for name,
+    // takers and item count, then the score-entry controls
+    const setupLayout = await page.evaluate(() => {
+      const add = Array.from(document.querySelectorAll('button'))
+        .find(b => b.textContent.includes('Add Section'));
+      const name = document.querySelector('#ia-section-name');
+      const takers = document.querySelector('#ia-section-takers');
+      const items = document.querySelector('#ia-item-count');
+      const scores = Array.from(document.querySelectorAll('h3'))
+        .find(h => h.textContent.includes('3. Enter Scores'));
+      if (!add || !name || !takers || !items || !scores) return null;
+      const before = (a, b) =>
+        !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return before(add, name) && before(name, takers) &&
+        before(takers, items) && before(items, scores);
     });
-    assert.ok(rowAbove, 'the section name & takers row must sit above the score inputs');
+    assert.ok(setupLayout,
+      'Add Section must sit above separate Section Name, Takers and Number of Items boxes, above the scores section');
+    assert.ok(await page.getByLabel('Section Name', { exact: true }).isVisible(),
+      'the Section Name box needs its own visible label');
+    assert.ok(await page.getByLabel('Total No. of Takers', { exact: true }).isVisible(),
+      'the Total No. of Takers box needs its own visible label');
+    assert.ok(await page.getByLabel(/Number of Items/).isVisible(),
+      'the Number of Items box must stay visible');
+    assert.ok(await page.getByRole('button', { name: 'Read from photo' }).isVisible(),
+      'the Read from photo control must stay visible');
 
     // task 3 — the shared fields are no longer collected here
     const labels = await page.evaluate(() =>
@@ -3188,8 +3205,8 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     for (const [i, v] of [45, 40, 10, 5, 2].entries()) {
       await page.locator(`#score-input-${i}`).fill(String(v));
     }
-    await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
-    await page.locator('input[type="number"][min="1"]:not([max])').fill('50');
+    await page.locator('#ia-section-name').fill('BABBAGE');
+    await page.locator('#ia-section-takers').fill('50');
     await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
     await page.getByLabel(/Assessment Type/).selectOption('ST-1');
 
@@ -3377,6 +3394,46 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       return mht.replace(/=\r?\n/g, '').replace(/<[^>]+>/g, '');
     };
 
+    /* the Analysis Report has its own DOCX/PDF exports; they carry the report
+       only — never the Excel-style grid or either DepEd annex */
+    const reportDocx = await grab(/Export Analysis DOCX/);
+    assert.match(reportDocx.name, /^Analysis_Report_.*\.(docx|doc)$/);
+    const reportDocText = await readExport(reportDocx);
+    assert.match(reportDocText, /Analysis Report/, 'the report DOCX must carry the report title');
+    assert.match(reportDocText, /AI Interpretation/, 'the report DOCX must carry the interpretation');
+    assert.match(reportDocText, /Performance by Competency/, 'the report DOCX must carry competency performance');
+    assert.match(reportDocText, /Mastery Summary/, 'the report DOCX must carry the mastery summary');
+    assert.match(reportDocText, /Least Mastered Competencies/, 'the report DOCX must carry the focus areas');
+    assert.match(reportDocText, /Why These Competencies Fell Below 75%/, 'the report DOCX must carry the causes section');
+    assert.match(reportDocText, /REASONS \/ CAUSES/, 'the report DOCX must style the causes panel');
+    assert.match(reportDocText, /Item Detail/, 'the report DOCX must carry the item table');
+    assert.doesNotMatch(reportDocText, /SIMPLIFIED ITEM ANALYSIS|MPS per Learning Area|School Consolidated List of Least Mastered/,
+      'the report DOCX must not include the Excel sheet or the annexes');
+
+    if (!cdnBlocked) {
+      const reportPdf = await grab(/Export Analysis PDF/);
+      assert.match(reportPdf.name, /^Analysis_Report_.*\.pdf$/);
+      assert.equal(reportPdf.bytes.subarray(0, 4).toString('latin1'), '%PDF',
+        'the report PDF must be a real PDF file');
+      const reportPdfText = await page.evaluate(async (b64) => {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+        let out = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          out += content.items.map(x => x.str).join(' ') + '\n';
+        }
+        return out;
+      }, reportPdf.bytes.toString('base64'));
+      assert.match(reportPdfText, /ANALYSIS REPORT/, 'the report PDF must carry the report title');
+      assert.match(reportPdfText, /AI Interpretation/, 'the report PDF must carry the interpretation');
+      assert.match(reportPdfText, /Item Detail/, 'the report PDF must carry the item table');
+      assert.match(reportPdfText, /Page 1 of \d+/, 'the report PDF must number its pages');
+      assert.doesNotMatch(reportPdfText, /SIMPLIFIED ITEM ANALYSIS|Annex 1|Annex 3/,
+        'the report PDF must not include the Excel sheet or the annexes');
+    }
+
     const a1 = await grab(/Annex 1/);
     assert.match(a1.name, /^Annex1_MPS-per-Learning-Area_Second_2025-2026\.(docx|doc)$/);
     if (a1.name.endsWith('.docx')) {
@@ -3446,8 +3503,8 @@ test('the Item Analysis bands a wide report into readable grids', { timeout: LON
     await page.waitForTimeout(150);
     await page.locator('#fill-all-score').fill('4');
     await page.getByRole('button', { name: 'Fill All' }).click();
-    await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
-    await page.locator('input[type="number"][min="1"]:not([max])').fill('50');
+    await page.locator('#ia-section-name').fill('BABBAGE');
+    await page.locator('#ia-section-takers').fill('50');
     await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
     await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
     await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
@@ -3569,8 +3626,8 @@ test('the Item Analysis never reads the subject as a competency', { timeout: LON
     await page.waitForTimeout(150);
     await page.locator('#fill-all-score').fill('4');
     await page.getByRole('button', { name: 'Fill All' }).click();
-    await page.getByPlaceholder('e.g. BABBAGE').fill('BABBAGE');
-    await page.locator('input[type="number"][min="1"]:not([max])').fill('50');
+    await page.locator('#ia-section-name').fill('BABBAGE');
+    await page.locator('#ia-section-takers').fill('50');
     await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
     await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
     await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });

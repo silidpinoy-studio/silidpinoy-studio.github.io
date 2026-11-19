@@ -1609,6 +1609,7 @@
            ------------------------------------------------------------ */
         const scoreScanRef = useRef(null);
         const [scoreScanBusy, setScoreScanBusy] = useState(false);
+        const [scoreScanPhase, setScoreScanPhase] = useState(''); // what the read is doing right now
         const [scoreScanError, setScoreScanError] = useState(null); // { idx, message }
         // Every section keeps its own pending reading, so a teacher can scan one
         // section, leave it for review, and scan the next one.
@@ -1634,14 +1635,17 @@
         /* Every reading is remembered against the photo it came from, so picking
            the same photo again for a section is instant: no upload, no model
            call, and the numbers come straight back for the same review step. */
-        const IA_SCAN_CACHE = 'silid_item_scan_cache_v1';
+        // v2 deliberately drops readings cached by older versions: those could
+        // carry blank or unusable counts that Apply correctly refuses, making a
+        // re-picked photo look broken. A fresh read is safer.
+        const IA_SCAN_CACHE = 'silid_item_scan_cache_v2';
         const iaScanCacheRef = useRef(null);
         const iaCache = () => {
           if (iaScanCacheRef.current) return iaScanCacheRef.current;
-          let data = { v: 1, reads: {}, crops: {} };
+          let data = { v: 2, reads: {}, crops: {} };
           try {
             const saved = JSON.parse(localStorage.getItem(IA_SCAN_CACHE) || 'null');
-            if (saved && saved.v === 1 && saved.reads && saved.crops) data = saved;
+            if (saved && saved.v === 2 && saved.reads && saved.crops) data = saved;
           } catch (e) { /* corrupt or blocked storage: start clean */ }
           iaScanCacheRef.current = data;
           return data;
@@ -1696,13 +1700,25 @@
           cache.crops[fileKey] = crop || 'full';
           iaCacheSave();
         };
+        // Accept counts written as numbers or common text shapes ("45/50",
+        // "45 correct") so a formatting quirk never leaves a draft blank.
+        const iaScanNumber = (value) => {
+          if (typeof value === 'number') return value;
+          const text = String(value == null ? '' : value).replace(/,/g, '');
+          const match = text.match(/-?\d+(?:\.\d+)?/);
+          return match ? Number(match[0]) : NaN;
+        };
         const iaRememberedRead = (fileKey) => {
           const cache = iaCache();
           if (!Object.prototype.hasOwnProperty.call(cache.crops, fileKey)) return null;
           const framing = cache.crops[fileKey];
           const crop = framing === 'full' ? null : framing;
           const hit = cache.reads[iaScanKey(fileKey, crop)];
-          return { crop: crop, hint: (hit && hit.read && hit.values) ? hit : null };
+          const hasFilled = !!(hit && hit.values && Object.keys(hit.values).some((no) => {
+            const n = iaScanNumber(hit.values[no]);
+            return Number.isFinite(n) && n >= 0;
+          }));
+          return { crop: crop, hint: (hit && hit.read && hasFilled) ? hit : null };
         };
 
         // One place that turns a reading into the section's draft, so a cached
@@ -1711,7 +1727,13 @@
           setScoreScanDrafts(prev => {
             const before = prev[activeIdx];
             const values = before ? { ...before.values } : {};
-            Object.keys(reading.values || {}).forEach((no) => { values[no] = reading.values[no]; });
+            Object.keys(reading.values || {}).forEach((no) => {
+              const raw = reading.values[no];
+              const n = iaScanNumber(raw);
+              values[no] = (String(raw == null ? '' : raw).trim() !== '' && Number.isFinite(n) && n >= 0)
+                ? String(n)
+                : raw;
+            });
             return {
               ...prev,
               [activeIdx]: {
@@ -1726,6 +1748,25 @@
             };
           });
           setScoreScanError(null);
+
+          // A photo read lands below the score controls. Bring the draft into
+          // view so a successful extraction is never mistaken for nothing
+          // happening, and say plainly that it needs one more click to apply.
+          if (reading.source && reading.source !== 'what you typed') {
+            const count = Object.keys(reading.values || {}).length;
+            window.setTimeout(() => {
+              const panel = document.getElementById('ia-score-draft');
+              if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 120);
+            if (window.SilidToast && typeof window.SilidToast.success === 'function') {
+              window.SilidToast.success(
+                reading.cached
+                  ? 'Reused the earlier reading of this photo. Review the scores below, then press Apply to scores.'
+                  : `Read ${count} item score${count === 1 ? '' : 's'} from the photo. Review them below, then press Apply to scores.`,
+                7000
+              );
+            }
+          }
         };
 
         // Phone photos are several megabytes; the model only needs enough
@@ -1810,18 +1851,28 @@
 
         // Keep only usable rows: one entry per item, 1..200, no duplicates.
         // The prompt asks for {n, c} rows to keep the answer short, but an older
-        // or chattier reply may still use the long names or [n, c] pairs, so
-        // every shape is accepted here.
+        // or chattier reply may still use the long names, [n, c] pairs, an item
+        // map, or text like "45/50". Every usable shape is accepted here so a
+        // good reading is never thrown away over formatting.
         const iaNormalizeScoreScan = (raw) => {
           const items = [];
           const seen = {};
-          const list = Array.isArray(raw && raw.items) ? raw.items : [];
+          let rawItems = raw && raw.items != null ? raw.items : (raw && raw.rows != null ? raw.rows : raw);
+          if (typeof rawItems === 'string') {
+            try { rawItems = JSON.parse(rawItems); } catch (e) { rawItems = []; }
+          }
+          const list = Array.isArray(rawItems) ? rawItems : (rawItems && typeof rawItems === 'object'
+            ? Object.keys(rawItems).map((key) => {
+              const value = rawItems[key];
+              return (value && typeof value === 'object') ? { ...value, n: key } : { n: key, c: value };
+            })
+            : []);
           list.forEach((row) => {
             const pair = Array.isArray(row) ? row : null;
             const noRaw = pair ? pair[0] : (row && (row.n != null ? row.n : (row.itemNo != null ? row.itemNo : row.item)));
             const correctRaw = pair ? pair[1] : (row && (row.c != null ? row.c : (row.correct != null ? row.correct : row.count)));
-            const no = Math.round(Number(noRaw));
-            const correct = Math.round(Number(correctRaw));
+            const no = Math.round(iaScanNumber(noRaw));
+            const correct = Math.round(iaScanNumber(correctRaw));
             if (!Number.isFinite(no) || no < 1 || no > 200) return;
             if (!Number.isFinite(correct) || correct < 0) return;
             if (seen[no]) return;
@@ -1829,7 +1880,7 @@
             items.push({ itemNo: no, correct });
           });
           items.sort((a, b) => a.itemNo - b.itemNo);
-          const takers = Math.round(Number(raw && (raw.t != null ? raw.t : raw.takers)));
+          const takers = Math.round(iaScanNumber(raw && (raw.t != null ? raw.t : raw.takers)));
           return {
             items: items,
             takers: Number.isFinite(takers) && takers > 0 ? takers : 0,
@@ -1906,32 +1957,10 @@
 
           // This photo has been read before: check for a cached reading.
           const fileKey = await iaFileKey(file);
-          const remembered = iaRememberedRead(fileKey);
-
-          // If there is a cached reading with a previous selection, show the
-          // framing modal pre‑loaded so the teacher can review/confirm or adjust.
-          if (remembered && remembered.crop) {
-            // Previous crop exists – let the FileReader below load the image and
-            // restore the selection box. The setScoreCrop here is a no‑op; the
-            // reader.onload handler will overwrite it with the data URL and the
-            // remembered fractions.
-          }
-          // If there is a cached reading but no previous crop (e.g. full‑photo read),
-          // still surface the framing step so the teacher can re‑frame if desired.          else if (remembered) {
-            setScoreCrop({
-              file: file,
-              fileKey: fileKey,
-              name: (file && file.name) || 'the photo',
-              dataUrl: '',
-              natW: 1,
-              natH: 1,
-              sel: null,
-              remembered: true
-            });
-            return;
-          }
-
-          // No prior reading: show the framing step for a fresh read.
+          const remembered = iaRememberedRead(fileKey);          // Always load the photo, including one with a remembered reading, so
+          // the framing step never opens blank and the previous box can be
+          // reviewed, adjusted, or cleared before reading again.
+          const rememberedCrop = (remembered && remembered.crop) || null;
           setScoreCrop({
             file: file,
             fileKey: fileKey,
@@ -1939,21 +1968,10 @@
             dataUrl: '',
             natW: 1,
             natH: 1,
-            sel: null,
-            remembered: false
+            sel: rememberedCrop,
+            remembered: !!rememberedCrop
           });
 
-          if (!apiKey.trim()) {
-            setScoreScanError({ idx: activeIdx, message: 'Add your Gemini API key first (gear icon in the header) — the AI needs it to read the photo.' });
-            return;
-          }
-          const helper = window.SilidAPI;
-          if (!helper || typeof helper.callGeminiJSON !== 'function') {
-            setScoreScanError({ idx: activeIdx, message: 'The AI helper did not load. Reload the page and try again.' });
-            return;
-          }
-
-          // Show the photo first so the teacher can frame the tally columns.
           const reader = new FileReader();
           reader.onerror = () => setScoreScanError({ idx: activeIdx, message: 'That image could not be opened. Try another photo.' });
           reader.onload = () => {
@@ -1967,10 +1985,9 @@
                 dataUrl: String(reader.result),
                 natW: img.naturalWidth || 1,
                 natH: img.naturalHeight || 1,
-                sel: (remembered && remembered.crop) || null,
-                remembered: !!(remembered && remembered.crop)
+                sel: rememberedCrop,
+                remembered: !!rememberedCrop
               });
-              setScoreScanError(null);
             };
             img.src = reader.result;
           };
@@ -2001,22 +2018,55 @@
           }
 
           const file = pending.file;
+          if (!apiKey.trim()) {
+            const message = 'Add your Gemini API key first (gear icon in the header) — the AI needs it to read the photo.';
+            setScoreScanError({ idx: activeIdx, message: message });
+            if (window.SilidToast && typeof window.SilidToast.error === 'function') {
+              window.SilidToast.error(message, 9000);
+            }
+            return;
+          }
           const helper = window.SilidAPI;
+          if (!helper || typeof helper.callGeminiJSON !== 'function') {
+            const message = 'The AI helper did not load. Reload the page and try again.';
+            setScoreScanError({ idx: activeIdx, message: message });
+            if (window.SilidToast && typeof window.SilidToast.error === 'function') {
+              window.SilidToast.error(message, 9000);
+            }
+            return;
+          }
+
+          const controller = new AbortController();
+          let timedOut = false;
+          const timeoutId = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, 120000);
+
           setScoreScanBusy(true);
+          setScoreScanPhase('Preparing the framed area…');
           setScoreScanError(null);
           const startedAt = iaNow();
           try {
             const inlineData = await iaImageForAI(file, crop);
+            setScoreScanPhase('Reading the tally with AI…');
             const raw = await helper.callGeminiJSON({
               prompt: iaScoreScanPrompt,
               inlineData: inlineData,
               schema: iaScoreScanSchema,
               temperature: 0,
-              // This is digit reading, not reasoning: the lowest thinking budget
-              // is the single biggest saving on how long the read takes.
-              thinking: { thinkingLevel: 'low' },
+              // Reading digits is extraction, not reasoning. Flash-Lite is built
+              // for document parsing, defaults to minimal thinking, and has a
+              // much larger free-tier allowance than Flash while staying fast.
+              model: 'gemini-3.5-flash-lite',
+              thinking: { thinkingLevel: 'minimal' },
+              // Do not spend two minutes on a busy Gemini: three attempts is
+              // enough to ride out a brief spike, and a clear error is more
+              // useful than a timeout.
+              retries: 2,
               apiKey: apiKey.trim(),
-              backupKey: apiKey2.trim()
+              backupKey: apiKey2.trim(),
+              signal: controller.signal
             });
             const read = iaNormalizeScoreScan(raw);
             if (!read.items.length) {
@@ -2038,10 +2088,20 @@
             scoreCropDragRef.current = null;
             setScoreCrop(null);
           } catch (err) {
-            // The framing stays open: a tighter box is usually the fix.
-            setScoreScanError({ idx: activeIdx, message: (err && err.message) || 'The photo could not be read. Please try again.' });
+            // The framing stays open: a tighter box, the whole photo, or a
+            // retry is usually the fix. A timeout is reported in plain words
+            // instead of leaving the teacher on an indefinite spinner.
+            const message = timedOut
+              ? 'Gemini did not answer within two minutes. It may be busy, or your connection may be slow. Wait a moment, then try again, read the whole photo, or type the scores.'
+              : ((err && err.message) || 'The photo could not be read. Please try again.');
+            setScoreScanError({ idx: activeIdx, message: message });
+            if (window.SilidToast && typeof window.SilidToast.error === 'function') {
+              window.SilidToast.error(message, 9000);
+            }
           } finally {
+            clearTimeout(timeoutId);
             setScoreScanBusy(false);
+            setScoreScanPhase('');
           }
         };
 
@@ -2124,31 +2184,60 @@
         const applyScoreDraft = () => {
           const draft = scoreScanDrafts[activeIdx];
           if (!draft) return;
-          const rows = Object.keys(draft.values)
-            .map(no => ({ itemNo: Number(no), value: String(draft.values[no] == null ? '' : draft.values[no]).trim() }))
-            .filter(x => x.itemNo >= 1 && x.itemNo <= 200);
-          if (!rows.length) return;
-          const cap = iaNum(currentSection.takers) || iaNum(draft.takers);
-          const maxNo = rows.reduce((m, x) => Math.max(m, x.itemNo), 0);
-          // The item count is shared by every section, so widen them all.
-          const count = Math.max(itemCount, maxNo);
-          setItemCount(count);
-          setSections(prev => prev.map((s, si) => {
-            const base = Array.from({ length: count }, (_, i) =>
-              s.scores.find(x => x.itemNo === i + 1) || { itemNo: i + 1, score: '', competency: '' });
-            if (si !== activeIdx) return { ...s, scores: base };
-            rows.forEach((x) => {
-              if (x.value === '') return; // left blank in the draft -> keep what is there
-              const n = Number(x.value);
-              if (!Number.isFinite(n) || n < 0) return;
-              const at = x.itemNo - 1;
-              base[at] = { ...base[at], score: String(cap ? Math.min(n, cap) : n) };
+          try {
+            const rows = Object.keys(draft.values)
+              .map(no => ({ itemNo: Number(no), value: String(draft.values[no] == null ? '' : draft.values[no]).trim() }))
+              .filter(x => x.itemNo >= 1 && x.itemNo <= 200);
+            const filled = rows.filter(x => {
+              const n = iaScanNumber(x.value);
+              return x.value !== '' && Number.isFinite(n) && n >= 0;
             });
-            const keepTakers = iaNum(s.takers) ? s.takers : (iaNum(draft.takers) ? String(iaNum(draft.takers)) : s.takers);
-            return { ...s, takers: keepTakers, scores: base };
-          }));
-          discardScoreDraft();
-          setScoreScanError(null);
+            if (!filled.length) {
+              console.warn('Photo draft has no usable score values:', draft);
+              const message = 'This photo read has no filled scores to apply. Correct the draft or try another photo.';
+              setScoreScanError({ idx: activeIdx, message: message });
+              if (window.SilidToast && typeof window.SilidToast.error === 'function') {
+                window.SilidToast.error(message, 9000);
+              }
+              return;
+            }
+            const cap = iaNum(currentSection.takers) || iaNum(draft.takers);
+            const maxNo = filled.reduce((m, x) => Math.max(m, x.itemNo), 0);
+            // The item count is shared by every section, so widen them all.
+            const count = Math.max(itemCount, maxNo);
+            setItemCount(count);
+            setSections(prev => prev.map((s, si) => {
+              const base = Array.from({ length: count }, (_, i) =>
+                s.scores.find(x => x.itemNo === i + 1) || { itemNo: i + 1, score: '', competency: '' });
+              if (si !== activeIdx) return { ...s, scores: base };
+              filled.forEach((x) => {
+                const n = iaScanNumber(x.value);
+                const at = x.itemNo - 1;
+                base[at] = { ...base[at], score: String(cap ? Math.min(n, cap) : n) };
+              });
+              const keepTakers = iaNum(s.takers) ? s.takers : (iaNum(draft.takers) ? String(iaNum(draft.takers)) : s.takers);
+              return { ...s, takers: keepTakers, scores: base };
+            }));
+            discardScoreDraft();
+            setScoreScanError(null);
+            if (window.SilidToast && typeof window.SilidToast.success === 'function') {
+              window.SilidToast.success(
+                `Applied ${filled.length} score${filled.length === 1 ? '' : 's'} to ${currentSection.name.trim() || `Section ${activeIdx + 1}`}.`,
+                6000
+              );
+            }
+            window.setTimeout(() => {
+              const first = document.getElementById('score-input-0');
+              if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 120);
+          } catch (err) {
+            console.error('Could not apply the photo read:', err);
+            const message = 'The read scores could not be applied: ' + ((err && err.message) || 'unknown error') + '. Please try again.';
+            setScoreScanError({ idx: activeIdx, message: message });
+            if (window.SilidToast && typeof window.SilidToast.error === 'function') {
+              window.SilidToast.error(message, 9000);
+            }
+          }
         };
 
         const handleItemCountChange = (e) => {
@@ -2510,6 +2599,7 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
 
         /* ---- Word export: same layout as the Excel sheet ---------------- */
         const wordFileName = (ext) => 'Item_Analysis_' + String(meta.subjectCode || meta.subject || 'Report').trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') + ext;
+        const analysisFileName = (ext) => 'Analysis_Report_' + String(meta.subjectCode || meta.subject || 'Report').trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') + ext;
 
         const saveWordBlob = (blob, name) => {
           if (window.saveAs) { window.saveAs(blob, name); return; }
@@ -2856,6 +2946,377 @@ ${sigTable}`;
           }
         };
 
+        /* ── Analysis Report exports (DOCX / PDF) ─────────────────────────
+           These carry the report itself — metrics, interpretation, competency
+           performance, mastery summary, least-mastered details and item table.
+           The Excel-style grid and the two DepEd annexes are separate exports
+           and are deliberately NOT included here. ── */
+        const iaCompPerf = () => Object.values(results.reduce((acc, r) => {
+          const k = r.competency;
+          if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
+          acc[k].total += parseFloat(r.percentage);
+          acc[k].n += 1;
+          return acc;
+        }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
+          .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
+        const buildAnalysisReportHtml = (opts) => {
+          const forDoc = !!(opts && opts.forDoc);
+          const si = iaSi();
+          const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const C = { ink: '#0B0A12', muted: '#6B6975', line: '#E7E2FD', iris50: '#F1EEFE', iris100: '#E7E2FD', iris200: '#D2C9FB', iris600: '#5B46E8' };
+          const line = 'border-bottom:1px solid ' + C.line + ';';
+          const cell = 'padding:6px 7px;vertical-align:top;font-size:8.5pt;color:' + C.ink + ';';
+          const headCell = 'padding:5px 7px;vertical-align:middle;font-size:7pt;font-weight:bold;background:#F8F7FC;color:' + C.muted + ';text-align:left;text-transform:uppercase;border-bottom:1px solid ' + C.iris200 + ';';
+          const panel = (body, bg, borderColor) => `<table width="100%" style="width:100%;border-collapse:collapse;margin:0 0 10px;"><tr><td style="border:1px solid ${borderColor || C.line};background:${bg || '#FFFFFF'};padding:10px 12px;vertical-align:top;">${body}</td></tr></table>`;
+          const section = (title, body, bg, borderColor, titleColor) => panel(
+            `<p style="margin:0 0 7px;font-size:12pt;font-weight:bold;color:${titleColor || C.ink};">${esc(title)}</p>${body}`,
+            bg, borderColor);
+          const badge = (level) => {
+            const tones = {
+              'High Mastery': ['#ECFDF5', '#A7F3D0', '#047857'],
+              'Moderately Average Mastery': ['#EFF6FF', '#BFDBFE', '#1D4ED8'],
+              'Average Mastery': ['#FEFCE8', '#FEF08A', '#A16207'],
+              'Low Mastery': ['#FFF7ED', '#FED7AA', '#C2410C'],
+              'No Mastery': ['#FFF1F2', '#FECDD3', '#BE123C']
+            };
+            const tone = tones[level] || ['#F8F7FC', C.line, C.muted];
+            return `<span style="background:${tone[0]};border:1px solid ${tone[1]};color:${tone[2]};padding:1px 6px;font-size:7.5pt;font-weight:bold;">${esc(level)}</span>`;
+          };
+          const compPerf = iaCompPerf();
+          const metaRows = [
+            ['School', si.schoolName || '', 'School Year', meta.schoolYear || ''],
+            ['Subject', meta.subject || '', 'Term / Grading Period', meta.gradingPeriod || ''],
+            ['Grade Level', meta.gradeLevel || '', 'Assessment', meta.assessment || ''],
+            ['Sections', sections.map(s => String(s.name || '').trim()).filter(Boolean).join(', ') || '—', 'Learners / Items', `${totalLearners} / ${itemCount}`]
+          ];
+          const infoLabel = 'padding:5px 7px;font-size:7.5pt;font-weight:bold;color:' + C.muted + ';background:#F8F7FC;border-bottom:1px solid ' + C.line + ';';
+          const infoValue = 'padding:5px 7px;font-size:8.5pt;color:' + C.ink + ';border-bottom:1px solid ' + C.line + ';';
+          const infoRow = (l1, v1, l2, v2) => `<tr>` +
+            `<td width="14%" style="${infoLabel}">${esc(l1)}</td>` +
+            `<td width="36%" style="${infoValue}">${esc(v1)}</td>` +
+            `<td width="14%" style="${infoLabel}">${esc(l2)}</td>` +
+            `<td width="36%" style="${infoValue}">${esc(v2)}</td></tr>`;
+          const performanceRows = compPerf.length
+            ? compPerf.map(c => `<tr>` +
+              `<td style="${cell}${line}">${esc(c.competency)}</td>` +
+              `<td style="${cell}${line}text-align:center;">${c.n}</td>` +
+              `<td style="${cell}${line}text-align:center;font-weight:bold;color:${C.iris600};">${esc(c.average)}%</td>` +
+              `<td style="${cell}${line}">${badge(getMasteryLevel(parseFloat(c.average)))}</td></tr>`).join('')
+            : `<tr><td colspan="4" style="${cell}${line}text-align:center;color:${C.muted};">No competency data</td></tr>`;
+          const summary = [
+            ['High', summaryStats['High Mastery'] || 0, ['#ECFDF5', '#A7F3D0', '#047857']],
+            ['Mod. Avg', summaryStats['Moderately Average Mastery'] || 0, ['#EFF6FF', '#BFDBFE', '#1D4ED8']],
+            ['Average', summaryStats['Average Mastery'] || 0, ['#FEFCE8', '#FEF08A', '#A16207']],
+            ['Low', summaryStats['Low Mastery'] || 0, ['#FFF7ED', '#FED7AA', '#C2410C']],
+            ['None', summaryStats['No Mastery'] || 0, ['#FFF1F2', '#FECDD3', '#BE123C']]
+          ];
+          const summaryRow = summary.map(([label, value, tone]) =>
+            `<td width="20%" style="border:1px solid ${tone[1]};background:${tone[0]};padding:8px 4px;text-align:center;vertical-align:top;"><p style="margin:0;font-size:20pt;font-weight:bold;color:${C.ink};">${value}</p><p style="margin:2px 0 0;font-size:7pt;font-weight:bold;color:${tone[2]};text-transform:uppercase;">${esc(label)}</p></td>`).join('');
+          const leastHtml = leastMastered.length ? leastMastered.map((c, i) =>
+            `<table width="100%" style="width:100%;border-collapse:collapse;margin:0 0 6px;"><tr>` +
+            `<td style="border:1px solid #FECDD3;background:#FFFFFF;padding:8px 10px;vertical-align:top;">` +
+            `<table width="100%" style="width:100%;border-collapse:collapse;"><tr>` +
+            `<td style="font-size:9pt;color:${C.ink};"><b style="color:#E11D48;">#${i + 1}</b> <b>${esc(c.competency)}</b></td>` +
+            `<td align="right" style="font-size:9pt;font-weight:bold;color:#E11D48;white-space:nowrap;">${esc(c.average)}%</td>` +
+            `</tr></table></td></tr></table>`).join('')
+            : `<p style="font-size:9pt;color:${C.muted};margin:0;">No competency fell below the mastery cut-off.</p>`;
+          const insightsHtml = leastMastered.length ? leastMastered.map((c, i) => {
+            const d = compDetail(c.competency);
+            return `<table width="100%" style="width:100%;border-collapse:collapse;margin:0 0 9px;"><tr><td style="padding:0 0 7px;border-bottom:1px solid ${C.line};">` +
+              `<table width="100%" style="width:100%;border-collapse:collapse;"><tr>` +
+              `<td style="font-size:9pt;color:${C.ink};"><b style="color:#E11D48;">#${i + 1}</b> <b>${esc(c.competency)}</b></td>` +
+              `<td align="right" style="font-size:9pt;font-weight:bold;color:#E11D48;white-space:nowrap;">${esc(c.average)}%</td>` +
+              `</tr></table>` +
+              `<p style="margin:2px 0 6px;font-size:7.5pt;color:${C.muted};">${c.items} item${c.items === 1 ? '' : 's'} mapped · weakest item ${esc(c.lowestItem)}%</p>` +
+              `<table width="100%" style="width:100%;border-collapse:collapse;"><tr>` +
+              `<td width="49%" style="border:1px solid #FDE68A;background:#FFFBEB;padding:7px;vertical-align:top;"><p style="margin:0 0 3px;font-size:7pt;font-weight:bold;color:#B45309;">REASONS / CAUSES</p><p style="margin:0;font-size:8pt;line-height:1.4;color:${C.ink};">${esc(reasonFor(d, i))}</p></td>` +
+              `<td width="2%"></td>` +
+              `<td width="49%" style="border:1px solid #A7F3D0;background:#ECFDF5;padding:7px;vertical-align:top;"><p style="margin:0 0 3px;font-size:7pt;font-weight:bold;color:#047857;">PROPOSED INTERVENTION</p><p style="margin:0;font-size:8pt;line-height:1.4;color:${C.ink};">${esc(interventionFor(d))}</p></td>` +
+              `</tr></table></td></tr></table>`;
+          }).join('') : '';
+          const detailRows = results.length ? results.map(r => `<tr>` +
+            `<td style="${cell}${line}text-align:center;">${esc(r.itemNo)}</td>` +
+            `<td style="${cell}${line}">${esc(r.competency)}</td>` +
+            `<td style="${cell}${line}text-align:center;">${esc(r.correctResponses)} / ${totalLearners}</td>` +
+            `<td style="${cell}${line}text-align:center;font-weight:bold;color:${C.iris600};">${esc(r.percentage)}%</td>` +
+            `<td style="${cell}${line}">${badge(r.masteryLevel)}</td></tr>`).join('')
+            : `<tr><td colspan="5" style="${cell}${line}text-align:center;color:${C.muted};">No item data</td></tr>`;
+          const sigs = iaSignatories();
+          const sigW = Math.round(100 / sigs.length);
+          const sigTable = `<table width="100%" style="width:100%;border-collapse:collapse;margin-top:18pt;"><tr>${
+            sigs.map(b => `<td width="${sigW}%" style="vertical-align:top;font-size:8.5pt;padding:0 8pt;"><p style="margin:0;color:${C.muted};">${esc(b.label)}:</p><p style="margin:22pt 0 0;font-weight:bold;color:${C.ink};">${esc(b.name)}</p>${b.title ? `<p style="margin:1px 0 0;color:${C.muted};">${esc(b.title)}</p>` : ''}</td>`).join('')
+          }</tr></table>`;
+          const logoHtml = (si.schoolLogo1 || si.schoolLogo2)
+            ? `<p style="text-align:center;margin:0 0 4pt;">${[si.schoolLogo1, si.schoolLogo2].filter(Boolean).map(src => window.SilidAssets.logoImgHtml(src, 48)).join('&nbsp;&nbsp;&nbsp;')}</p>`
+            : '';
+          const headerHtml = '<div style="text-align:center;line-height:1.3;margin-bottom:8pt;">' +
+            iaHeaderLines().map(l => `<p style="margin:1pt 0;font-size:${l.size}pt;${l.bold ? 'font-weight:bold;' : ''}${l.serif ? "font-family:'Times New Roman',Georgia,serif;" : ''}">${esc(l.text)}</p>`).join('') +
+            '</div>';
+          const pageCss = forDoc
+            ? '<style>@page WordSection1 {size:8.27in 11.69in; margin:0.55in;} div.WordSection1 {page:WordSection1;}</style>'
+            : '';
+          const metric = 'border:1px solid ' + C.iris100 + ';background:' + C.iris50 + ';padding:12px 8px;text-align:center;vertical-align:top;';
+          const content = `${logoHtml}${headerHtml}` +
+            `<h1 style="text-align:center;font-family:Georgia,'Times New Roman',serif;font-size:22pt;font-weight:normal;letter-spacing:-0.4pt;color:${C.ink};margin:8pt 0 2pt;">Analysis Report</h1>` +
+            `<p style="text-align:center;font-size:8.5pt;color:${C.muted};margin:0 0 12pt;">${esc([meta.subject, meta.gradingPeriod, meta.schoolYear].filter(Boolean).join(' · '))}</p>` +
+            panel(`<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">${metaRows.map(r => infoRow(r[0], r[1], r[2], r[3])).join('')}</table>`) +
+            panel(`<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>` +
+              `<td width="50%" style="${metric}"><p style="margin:0;font-size:7.5pt;font-weight:bold;color:${C.muted};text-transform:uppercase;">Mean Score</p><p style="margin:3px 0 0;font-size:24pt;font-weight:bold;color:${C.iris600};">${esc(overallScores.mean)}</p></td>` +
+              `<td width="50%" style="${metric}"><p style="margin:0;font-size:7.5pt;font-weight:bold;color:${C.muted};text-transform:uppercase;">Mean Percentage Score (MPS)</p><p style="margin:3px 0 0;font-size:24pt;font-weight:bold;color:${C.iris600};">${esc(overallScores.mps)}%</p></td>` +
+              `</tr></table>`) +
+            section('AI Interpretation', `<p style="margin:0;font-size:9pt;line-height:1.45;color:${C.ink};">${esc(aiInsight)}</p>`, C.iris50, C.iris200) +
+            section('Performance by Competency', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">` +
+              `<thead><tr><th style="${headCell}">Competency</th><th style="${headCell}width:10%;text-align:center;">Items</th><th style="${headCell}width:13%;text-align:center;">Avg %</th><th style="${headCell}width:22%;">Mastery</th></tr></thead>` +
+              `<tbody>${performanceRows}</tbody></table>`) +
+            section('Mastery Summary', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>${summaryRow}</tr></table>`) +
+            section('Least Mastered Competencies (Focus Areas)', leastHtml, '#FFF1F2', '#FECDD3', '#BE123C') +
+            (leastMastered.length ? section(`Why These Competencies Fell Below ${IA_MASTERY_CUT}%`, insightsHtml) : '') +
+            section('Item Detail', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">` +
+              `<thead><tr><th style="${headCell}width:8%;text-align:center;">Item #</th><th style="${headCell}">Competency</th><th style="${headCell}width:14%;text-align:center;">Correct</th><th style="${headCell}width:10%;text-align:center;">%</th><th style="${headCell}width:20%;">Mastery</th></tr></thead>` +
+              `<tbody>${detailRows}</tbody></table>`) +
+            sigTable;
+          const body = forDoc ? `<div class="WordSection1">${content}</div>` : content;
+          return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">${pageCss}<title>Analysis Report</title></head><body style="font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#111;">${body}</body></html>`;
+        };
+
+        const downloadAnalysisDocx = async () => {
+          if (!window.htmlDocx || !window.saveAs) {
+            const blob = new Blob(['\ufeff', buildAnalysisReportHtml({ forDoc: true })], { type: 'application/msword' });
+            saveWordBlob(blob, analysisFileName('.doc'));
+            return;
+          }
+          try {
+            const blob = window.htmlDocx.asBlob(buildAnalysisReportHtml({}), {
+              orientation: 'portrait',
+              margins: { top: 720, bottom: 720, left: 720, right: 720 }
+            });
+            saveWordBlob(blob, analysisFileName('.docx'));
+          } catch (e) {
+            console.error('Analysis Report DOCX export failed:', e);
+            const m = 'Could not build the Analysis Report DOCX: ' + ((e && e.message) || 'unknown error') + '.';
+            if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+          }
+        };
+
+        const downloadAnalysisPdf = async () => {
+          if (!(window.jspdf && window.jspdf.jsPDF)) {
+            const m = 'The PDF helper has not loaded yet — try again in a moment.';
+            if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+            return;
+          }
+          try {
+            const jsPDF = window.jspdf.jsPDF;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+            const margin = 13;
+            const contentW = pageW - margin * 2;
+            const si = iaSi();
+            const compPerf = iaCompPerf();
+            let y = margin;
+            // The report the teacher sees carries the Settings logos; put them
+            // above the letterhead, centred as a pair.
+            const logos = [si.schoolLogo1, si.schoolLogo2].filter(Boolean);
+            if (logos.length) {
+              const slots = logos.map(src => {
+                try {
+                  const props = doc.getImageProperties(src);
+                  const scale = Math.min(16 / props.width, 16 / props.height);
+                  const fmt = /^data:image\/(png|jpe?g)/i.exec(src);
+                  return {
+                    src: src,
+                    w: props.width * scale,
+                    h: props.height * scale,
+                    fmt: fmt ? fmt[1].toUpperCase().replace('JPG', 'JPEG') : 'PNG'
+                  };
+                } catch (e) { return null; }
+              }).filter(Boolean);
+              if (slots.length) {
+                const gap = 5;
+                const totalW = slots.reduce((a, s) => a + s.w, 0) + gap * (slots.length - 1);
+                let x = (pageW - totalW) / 2;
+                const top = y;
+                let maxH = 0;
+                slots.forEach(s => {
+                  try { doc.addImage(s.src, s.fmt, x, top, s.w, s.h); maxH = Math.max(maxH, s.h); } catch (e) { /* unsupported logo */ }
+                  x += s.w + gap;
+                });
+                y = top + maxH + 5;
+              }
+            }
+            const safe = (s) => String(s == null ? '' : s)
+              .replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"')
+              .replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...');
+            const ensure = (h) => {
+              if (y + h > pageH - margin) { doc.addPage(); y = margin; return true; }
+              return false;
+            };
+            const centerWrapped = (value, size, style) => {
+              doc.setFont('helvetica', style || 'normal');
+              doc.setFontSize(size);
+              const lines = doc.splitTextToSize(safe(value), contentW);
+              const lh = size * 0.38;
+              lines.forEach(line => {
+                ensure(lh);
+                doc.text(line, pageW / 2, y, { align: 'center' });
+                y += lh;
+              });
+            };
+            const paragraph = (value, size, style) => {
+              doc.setFont('helvetica', style || 'normal');
+              doc.setFontSize(size || 9);
+              const lines = doc.splitTextToSize(safe(value), contentW);
+              const lh = (size || 9) * 0.42;
+              lines.forEach(line => {
+                ensure(lh);
+                doc.text(line, margin, y);
+                y += lh;
+              });
+            };
+            const heading = (value) => {
+              ensure(9);
+              y += 2;
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(11);
+              doc.text(safe(value), margin, y);
+              y += 5.5;
+            };
+            const table = (headers, rows, widths, opts) => {
+              const size = (opts && opts.size) || 8;
+              const lh = size * 0.42;
+              const pad = 1.7;
+              const drawHeader = () => {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(size);
+                const split = headers.map((h, i) => doc.splitTextToSize(safe(h), widths[i] - pad * 2));
+                const hh = Math.max(...split.map(a => a.length)) * lh + pad * 2;
+                ensure(hh + 2);
+                let x = margin;
+                doc.setFillColor(236, 236, 242);
+                doc.setDrawColor(145, 145, 158);
+                headers.forEach((h, i) => {
+                  doc.rect(x, y, widths[i], hh, 'FD');
+                  split[i].forEach((line, j) => doc.text(line, x + pad, y + pad + lh * (j + 0.8)));
+                  x += widths[i];
+                });
+                y += hh;
+              };
+              if (!(opts && opts.noHeader)) drawHeader();
+              rows.forEach((row, ri) => {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(size);
+                const split = row.map((c, i) => doc.splitTextToSize(safe(c), widths[i] - pad * 2));
+                const h = Math.max(...split.map(a => a.length)) * lh + pad * 2;
+                if (y + h > pageH - margin) { doc.addPage(); y = margin; if (!(opts && opts.noHeader)) drawHeader(); }
+                let x = margin;
+                doc.setDrawColor(180, 180, 190);
+                split.forEach((lines, i) => {
+                  if (ri % 2 === 1) { doc.setFillColor(248, 248, 252); doc.rect(x, y, widths[i], h, 'F'); }
+                  doc.rect(x, y, widths[i], h, 'S');
+                  lines.forEach((line, j) => doc.text(line, x + pad, y + pad + lh * (j + 0.8)));
+                  x += widths[i];
+                });
+                y += h;
+              });
+              y += 2;
+            };
+
+            iaHeaderLines().forEach(l => centerWrapped(l.text, l.size + 1, l.bold ? 'bold' : 'normal'));
+            y += 4;
+            centerWrapped('ANALYSIS REPORT', 15, 'bold');
+            centerWrapped([meta.subject, meta.gradingPeriod, meta.schoolYear].filter(Boolean).join(' · '), 9, 'normal');
+            y += 3;
+
+            table(['', '', '', ''], [
+              ['School', si.schoolName || '', 'School Year', meta.schoolYear || ''],
+              ['Subject', meta.subject || '', 'Term / Grading Period', meta.gradingPeriod || ''],
+              ['Grade Level', meta.gradeLevel || '', 'Assessment', meta.assessment || ''],
+              ['Sections', sections.map(s => String(s.name || '').trim()).filter(Boolean).join(', ') || '-', 'Learners / Items', `${totalLearners} / ${itemCount}`]
+            ], [34, 54, 32, 64], { noHeader: true, size: 8.5 });
+
+            heading('Summary');
+            table(['Mean Score', 'Mean Percentage Score (MPS)'], [[overallScores.mean, overallScores.mps + '%']], [92, 92], { size: 10 });
+
+            heading('AI Interpretation');
+            paragraph(aiInsight, 9);
+
+            heading('Performance by Competency');
+            table(['Competency', 'Items', 'Avg %', 'Mastery'], compPerf.map(c => [
+              c.competency, c.n, c.average + '%', getMasteryLevel(parseFloat(c.average))
+            ]), [96, 14, 24, 50]);
+
+            heading('Mastery Summary');
+            table(['High', 'Mod. Avg', 'Average', 'Low', 'None'], [[
+              summaryStats['High Mastery'] || 0,
+              summaryStats['Moderately Average Mastery'] || 0,
+              summaryStats['Average Mastery'] || 0,
+              summaryStats['Low Mastery'] || 0,
+              summaryStats['No Mastery'] || 0
+            ]], [36.8, 36.8, 36.8, 36.8, 36.8], { size: 10 });
+
+            if (leastMastered.length) {
+              heading(`Least Mastered Competencies (Below ${IA_MASTERY_CUT}%)`);
+              leastMastered.forEach((c, i) => {
+                const d = compDetail(c.competency);
+                ensure(14);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9.5);
+                const lines = doc.splitTextToSize(safe(`#${i + 1}  ${c.competency} - ${c.average}%`), contentW);
+                lines.forEach(line => { ensure(4.2); doc.text(line, margin, y); y += 4.2; });
+                paragraph('Reasons / Causes: ' + reasonFor(d, i), 8.5);
+                paragraph('Proposed Intervention: ' + interventionFor(d), 8.5);
+                y += 2;
+              });
+            }
+
+            heading('Item Detail');
+            table(['Item #', 'Competency', 'Correct', '%', 'Mastery'], results.map(r => [
+              r.itemNo, r.competency, `${r.correctResponses} / ${totalLearners}`, `${r.percentage}%`, r.masteryLevel
+            ]), [13, 91, 26, 15, 39]);
+
+            const sigs = iaSignatories();
+            ensure(30);
+            heading('Signatories');
+            const colW = contentW / sigs.length;
+            sigs.forEach((b, i) => {
+              const x = margin + i * colW;
+              let yy = y;
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(8.5);
+              doc.text(safe(b.label) + ':', x, yy);
+              yy += 9;
+              if (b.name) {
+                doc.setFont('helvetica', 'bold');
+                doc.splitTextToSize(safe(b.name), colW - 4).forEach(line => { doc.text(line, x, yy); yy += 3.7; });
+              }
+              if (b.title) {
+                doc.setFont('helvetica', 'normal');
+                doc.splitTextToSize(safe(b.title), colW - 4).forEach(line => { doc.text(line, x, yy); yy += 3.7; });
+              }
+            });
+
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+              doc.setPage(i);
+              doc.setDrawColor(231, 226, 253);
+              doc.line(margin, pageH - 9, pageW - margin, pageH - 9);
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(7.5);
+              doc.setTextColor(107, 105, 117);
+              doc.text('Analysis Report', margin, pageH - 5.5);
+              doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5.5, { align: 'right' });
+            }
+
+            doc.save(analysisFileName('.pdf'));
+          } catch (e) {
+            console.error('Analysis Report PDF export failed:', e);
+            const m = 'Could not build the Analysis Report PDF: ' + ((e && e.message) || 'unknown error') + '.';
+            if (window.SilidToast) window.SilidToast.error(m); else alert(m);
+          }
+        };
+
         /* ── DepEd annex exports ───────────────────────────────────────────
            Annex 1 (ST-2)      — MPS per Learning Area
            Annex 3 (SS-10)     — School Consolidated List of Least Mastered
@@ -3127,700 +3588,462 @@ ${signTable([
           </div>
         );
 
-        const renderUpload = () => {
-          const activeSectionName = currentSection.name.trim() || `Section ${activeIdx + 1}`;
-          const filledCount = manualScores.filter(s => String(s.score == null ? '' : s.score).trim() !== '').length;
-          const totalItems = itemCount;
-          const sectionReady = totalItems > 0 && filledCount >= totalItems;
-          const lowCut = sectionTakers > 0 ? sectionTakers * 0.5 : 0;
-          const stepDefs = [
-            { n: 1, label: 'Test setup', sub: 'Details and competencies', state: 'done' },
-            { n: 2, label: 'Enter scores', sub: 'Photo or manual entry', state: 'active' },
-            { n: 3, label: 'Review', sub: 'Check the draft', state: 'todo' },
-            { n: 4, label: 'Report', sub: 'Mastery and exports', state: 'todo' }
-          ];
+        const renderUpload = () => (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="font-display text-3xl font-light tracking-tight text-ink">Item Analysis Setup</h2>
+              <p className="text-ink/55">Choose how to map competencies to test items.</p>
+            </div>
 
-          return (
-            <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <h2 className="font-display text-3xl md:text-4xl font-light tracking-tight text-ink">Item Analysis</h2>
-                  <p className="text-sm text-ink/55 mt-2 max-w-xl">
-                    Set up the test once, enter scores per section, then review mastery and export the report.
-                  </p>
+            {errorMsg && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-center gap-3">
+                <LucideIcon name="AlertTriangle" className="w-5 h-5 flex-shrink-0" />
+                <p className="font-medium text-sm">{errorMsg}</p>
+              </div>
+            )}
+
+            {/* Mode selector */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <button
+                onClick={() => { setUseManualCompetencies(false); setTosFile(null); setIaSourcePicked(true); }}
+                className={`p-6 rounded-2xl border-2 transition-all ${!useManualCompetencies && tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
+              >
+                <LucideIcon name="Upload" className={"w-8 h-8 " + (!useManualCompetencies && tosFile ? 'text-iris-500' : 'text-ink/40')} />
+                <span className="font-semibold text-ink">{!useManualCompetencies && tosFile ? tosFile.name : 'Upload TOS Document'}</span>
+                <span className="text-xs text-ink/40">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</span>
+              </button>
+              <button
+                onClick={handleCompetencyToggle}
+                className={`p-6 rounded-2xl border-2 transition-all ${useManualCompetencies ? 'border-iris-500 bg-iris-500 text-white' : 'border-ink/20 bg-ink/5 hover:border-iris-300 text-ink'} flex flex-col items-center gap-3 cursor-pointer`}
+              >
+                <LucideIcon name="Edit3" className={`w-8 h-8 ${useManualCompetencies ? 'text-white' : 'text-ink/40'}`} />
+                <span className="font-semibold">Manual Entry</span>
+                <span className={`text-xs ${useManualCompetencies ? 'opacity-80' : 'text-ink/40'}`}>Type competencies yourself</span>
+              </button>
+            </div>
+
+            {!useManualCompetencies && iaSourcePicked && (
+              <div
+                className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {tosFile ? (
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="p-3 bg-iris-500/20 rounded-full text-iris-500"><LucideIcon name="FileText" className="w-8 h-8" /></div>
+                    <p className="font-semibold text-ink text-center">{tosFile.name}</p>
+                    <button onClick={() => setTosFile(null)} className="text-xs text-rose-500 hover:text-rose-600 hover:underline">Remove file</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-4 bg-ink/20 rounded-full text-ink/30 mb-4"><LucideIcon name="UploadCloud" className="w-8 h-8" /></div>
+                    <p className="font-medium text-ink/60">1. Upload TOS Document</p>
+                    <label className="mt-4 px-4 py-2 bg-white border border-ink/20 rounded-lg text-sm font-medium text-ink hover:bg-iris-50 hover:border-iris-300 cursor-pointer transition-colors">
+                      Browse Files
+                      <input type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
+
+            {useManualCompetencies && (
+              <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <LucideIcon name="Edit3" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">2. Enter Competencies Manually</h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentView('home')}
-                  className="text-xs font-semibold text-iris-600 hover:text-iris-800 px-3 py-2 rounded-lg hover:bg-iris-50 transition-colors"
-                >
-                  All tools
-                </button>
+                <p className="text-sm text-ink/50 mb-4">
+                  Type one competency per line for each test item — no API key needed.
+                  Numbered lists ("1. Identifies main idea", "Item 2: Uses context clues") and ranges ("1-5. Solves linear equations") are both understood.
+                </p>
+                <textarea
+                  value={manualCompetencies}
+                  onChange={(e) => setManualCompetencies(e.target.value)}
+                  rows={10}
+                  className="w-full rounded-xl bg-ink/5 ring-1 ring-ink/10 px-4 py-3 text-sm focus:ring-2 focus:ring-iris-500 focus:border-iris-500 outline-none font-mono"
+                  placeholder="1. Identifies the main idea&#10;2. Uses context clues&#10;3-5. Solves linear equations..."
+                />
+              </div>
+            )}
+
+            {/* Scores section */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 pb-4 mb-4 border-b border-ink/10">
+                <LucideIcon name="ClipboardList" className="w-4 h-4 text-iris-600" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40 mr-1">Sections</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {sections.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveIdx(i)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${i === activeIdx ? 'bg-iris-600 border-iris-600 text-white' : 'bg-ink/5 border-ink/10 text-ink/60 hover:bg-ink/10'}`}
+                    >
+                      {s.name.trim() || `Section ${i + 1}`}
+                      {scoreScanDrafts[i] ? (
+                        <span
+                          title="A photo reading is waiting for your approval"
+                          className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${i === activeIdx ? 'bg-white' : 'bg-amber-500'}`}
+                        ></span>
+                      ) : null}
+                    </button>
+                  ))}
+                  <button onClick={addSection} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-iris-300 text-iris-600 hover:bg-iris-50 transition-colors">
+                    + Add Section
+                  </button>
+                  {sections.length > 1 && (
+                    <button
+                      onClick={() => removeSection(activeIdx)}
+                      title="Remove this section"
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
+                    >
+                      <LucideIcon name="Trash2" className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <ol className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-                {stepDefs.map((s) => (
-                  <li
-                    key={s.n}
-                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 ${s.state === 'active'
-                      ? 'bg-iris-600 text-white shadow-lg shadow-iris-200'
-                      : 'bg-white ring-1 ring-black/5'}`}
-                  >
-                    <span className={`w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold flex-shrink-0 ${s.state === 'done'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : s.state === 'active'
-                        ? 'bg-white/20 text-white'
-                        : 'bg-ink/5 text-ink/40'}`}>
-                      {s.state === 'done' ? '✓' : s.n}
-                    </span>
-                    <div className="min-w-0">
-                      <p className={`text-xs font-bold leading-tight ${s.state === 'todo' ? 'text-ink/55' : ''}`}>{s.label}</p>
-                      <p className={`text-[10px] leading-tight ${s.state === 'active' ? 'text-white/70' : 'text-ink/40'}`}>{s.sub}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              {/* Current section details — one labelled box per value */}
+              <div className="grid sm:grid-cols-3 gap-3 pb-4 mb-4 border-b border-ink/10">
+                <label htmlFor="ia-section-name" className="block">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink/40 mb-1.5">Section Name</span>
+                  <input
+                    id="ia-section-name"
+                    type="text" value={currentSection.name}
+                    onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
+                    placeholder="e.g. BABBAGE"
+                    className="w-full px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-sm text-ink"
+                  />
+                </label>
+                <label htmlFor="ia-section-takers" className="block">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink/40 mb-1.5">Total No. of Takers</span>
+                  <input
+                    id="ia-section-takers"
+                    type="number" value={currentSection.takers}
+                    onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-lg font-semibold text-ink"
+                    min="1"
+                  />
+                </label>
+                <label htmlFor="ia-item-count" className="block">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink/40 mb-1.5">
+                    Number of Items <span className="normal-case tracking-normal font-normal text-ink/35">(all sections)</span>
+                  </span>
+                  <input
+                    id="ia-item-count"
+                    type="number" value={itemCount} onChange={handleItemCountChange}
+                    className="w-full rounded-lg border border-ink/20 bg-ink/5 px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none"
+                    min="1" max="200"
+                  />
+                </label>
+              </div>
 
-              {errorMsg && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-center gap-3">
-                  <LucideIcon name="AlertTriangle" className="w-5 h-5 flex-shrink-0" />
-                  <p className="font-medium text-sm">{errorMsg}</p>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3 border-b border-ink/10 pb-4">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name="ListOrdered" className="w-5 h-5 text-iris-600" />
+                  <h3 className="font-semibold text-lg text-ink">3. Enter Scores</h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => scoreScanRef.current && scoreScanRef.current.click()}
+                      disabled={scoreScanBusy}
+                      title="Upload a photo of a hand-written tally — frame the tally columns, then review the reading before it fills this section"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-iris-200 bg-iris-50 text-iris-700 text-xs font-semibold hover:bg-iris-100 disabled:opacity-60 disabled:cursor-wait transition-colors"
+                    >
+                      <LucideIcon name={scoreScanBusy ? 'Loader2' : 'Upload'} className={`w-3.5 h-3.5 ${scoreScanBusy ? 'animate-spin' : ''}`} />
+                      {scoreScanBusy ? 'Reading photo…' : 'Read from photo'}
+                    </button>
+                    <input ref={scoreScanRef} type="file" accept="image/*" className="hidden" onChange={handleScorePhoto} />
+                    <button
+                      type="button"
+                      onClick={() => { setTypedOpen(v => !v); setScoreScanError(null); }}
+                      title="No photo, no key, or the photo would not read? Type the tally instead"
+                      className="text-[11px] font-semibold text-iris-600 underline decoration-dotted underline-offset-2 hover:text-iris-800"
+                    >
+                      or type scores
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-ink/40">Fill score for all items (every section):</span>
+                    <input
+                      id="fill-all-score"
+                      type="number" value={fillScore}
+                      onChange={(e) => setFillScore(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') applyFillScore(); }}
+                      placeholder="e.g. 4"
+                      className="w-20 rounded-lg border border-ink/20 bg-white px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-iris-500 outline-none"
+                      min="0"
+                    />
+                    <button
+                      onClick={applyFillScore}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-iris-600 text-white hover:bg-iris-700 transition-colors"
+                    >
+                      Fill All
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {typedOpen && (
+                <div className="mb-4 rounded-xl border border-iris-200 bg-iris-50/70 p-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <p className="text-[11px] leading-relaxed text-ink/60">
+                      Type or paste the tally — one item per line, or comma-separated, like{' '}
+                      <code className="px-1 rounded bg-white border border-ink/10">1 - 29</code>{' '}
+                      <code className="px-1 rounded bg-white border border-ink/10">2: 30</code>{' '}
+                      <code className="px-1 rounded bg-white border border-ink/10">3 - 12/30</code>.
+                      Works without an API key, and you still review every number before it is applied.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setTypedOpen(false); setTypedScores(''); }}
+                      title="Close"
+                      className="p-1 rounded-md text-ink/40 hover:bg-white hover:text-ink/70 transition-colors"
+                    >
+                      <LucideIcon name="X" className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <textarea
+                    value={typedScores}
+                    onChange={(e) => setTypedScores(e.target.value)}
+                    rows={4}
+                    placeholder="1 - 29, 2 - 30, 3 - 12"
+                    className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                  />
+                  <div className="flex justify-end mt-2">
+                    <button
+                      type="button"
+                      onClick={handleTypedScores}
+                      className="px-3 py-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-semibold hover:bg-iris-700 transition-colors"
+                    >
+                      Review scores
+                    </button>
+                  </div>
                 </div>
               )}
-
-              <div className="grid lg:grid-cols-12 gap-6 items-start">
-                {/* LEFT: setup */}
-                <section className="lg:col-span-5 space-y-4">
-                  {/* Test details */}
-                  <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
-                          <LucideIcon name="FileText" className="w-4 h-4" />
-                        </span>
-                        <h3 className="text-sm font-bold">Test details</h3>
-                      </div>
-                      <span className="text-[10px] font-semibold text-ink/40">{totalItems} items</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2">
-                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Subject (full title)</label>
-                        <input
-                          type="text"
-                          value={meta.subject}
-                          onChange={(e) => setMetaField('subject', e.target.value)}
-                          placeholder="e.g. MEDIA AND INFORMATION LITERACY"
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Subject code</label>
-                        <input
-                          type="text"
-                          value={meta.subjectCode}
-                          onChange={(e) => setMetaField('subjectCode', e.target.value)}
-                          placeholder="e.g. MIL"
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grade level</label>
-                        <input
-                          type="text"
-                          value={meta.gradeLevel}
-                          onChange={(e) => setMetaField('gradeLevel', e.target.value)}
-                          placeholder="e.g. 12"
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Grading period</label>
-                        <input
-                          type="text"
-                          value={meta.gradingPeriod}
-                          onChange={(e) => setMetaField('gradingPeriod', e.target.value)}
-                          placeholder="e.g. SECOND"
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">School year</label>
-                        <input
-                          type="text"
-                          value={meta.schoolYear}
-                          onChange={(e) => setMetaField('schoolYear', e.target.value)}
-                          placeholder="e.g. 2025-2026"
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink/45 mb-1.5">Number of items</label>
-                        <input
-                          type="number"
-                          value={itemCount}
-                          onChange={handleItemCountChange}
-                          min="1" max="200"
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Competency mapping */}
-                  <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
-                        <LucideIcon name="ListOrdered" className="w-4 h-4" />
-                      </span>
-                      <h3 className="text-sm font-bold">Competency mapping</h3>
-                    </div>
-                    <p className="text-xs text-ink/50 mb-4">Upload a TOS or type the competencies that each item measures.</p>
-
-                    <div className="flex bg-canvas rounded-xl p-1 ring-1 ring-black/5 mb-4">
-                      <button
-                        type="button"
-                        aria-label="Upload TOS Document"
-                        onClick={() => { setUseManualCompetencies(false); setIaSourcePicked(true); setErrorMsg(''); }}
-                        className={`flex-1 rounded-lg text-xs font-bold py-2 transition ${!useManualCompetencies && iaSourcePicked ? 'bg-white text-ink shadow-sm' : 'text-ink/50 hover:text-ink'}`}
-                      >
-                        Upload TOS
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setUseManualCompetencies(true); setIaSourcePicked(true); setErrorMsg(''); }}
-                        className={`flex-1 rounded-lg text-xs font-bold py-2 transition ${useManualCompetencies && iaSourcePicked ? 'bg-white text-ink shadow-sm' : 'text-ink/50 hover:text-ink'}`}
-                      >
-                        Manual Entry
-                      </button>
-                    </div>
-
-                    {!useManualCompetencies && iaSourcePicked && (
-                      <>
-                        {tosFile ? (
-                          <div className="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2.5 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-bold text-emerald-800 truncate">{tosFile.name}</p>
-                                <p className="text-[10px] text-emerald-700/70">Ready to map {totalItems} items</p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setTosFile(null)}
-                              className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors flex-shrink-0"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ) : (
-                          <div
-                            className={`rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors ${isDragging ? 'border-iris-500 bg-iris-50' : 'border-iris-200 bg-iris-50/50'}`}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                          >
-                            <div className="w-9 h-9 mx-auto rounded-full bg-white ring-1 ring-iris-100 grid place-items-center text-iris-600 mb-2">
-                              <LucideIcon name="UploadCloud" className="w-4 h-4" />
-                            </div>
-                            <p className="text-xs font-bold text-iris-700">Drop your TOS here</p>
-                            <p className="text-[10px] text-ink/45 mt-1">PDF, DOCX, or TXT. Old .doc files should be saved as .docx first.</p>
-                            <label className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-bold px-3 py-1.5 cursor-pointer hover:bg-iris-700 transition-colors">
-                              Browse Files
-                              <input type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
-                            </label>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {useManualCompetencies && (
-                      <div>
-                        <textarea
-                          value={manualCompetencies}
-                          onChange={(e) => setManualCompetencies(e.target.value)}
-                          rows={8}
-                          className="w-full rounded-xl bg-canvas ring-1 ring-black/5 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500 font-mono resize-none scroll-thin"
-                          placeholder={'1. Identifies the main idea\n2. Uses context clues\n3-5. Solves linear equations...'}
-                        />
-                        <p className="text-[10px] text-ink/40 mt-1.5">
-                          One competency per line. Numbered lists and ranges (1-5) are understood. No API key needed.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Sections */}
-                  <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
-                          <LucideIcon name="ClipboardList" className="w-4 h-4" />
-                        </span>
-                        <h3 className="text-sm font-bold">Sections</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addSection}
-                        className="text-[11px] font-semibold text-iris-600 hover:text-iris-800 px-2 py-1 rounded-lg hover:bg-iris-50 transition-colors"
-                      >
-                        + Add section
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {sections.map((s, i) => {
-                        const sFilled = s.scores.filter(x => String(x.score == null ? '' : x.score).trim() !== '').length;
-                        const sReady = totalItems > 0 && sFilled >= totalItems;
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setActiveIdx(i)}
-                            className={`w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors ${i === activeIdx ? 'bg-iris-50 ring-1 ring-iris-200' : 'bg-canvas ring-1 ring-black/5 hover:bg-ink/5'}`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className={`w-6 h-6 rounded-lg grid place-items-center text-[10px] font-bold flex-shrink-0 ${i === activeIdx ? 'bg-iris-600 text-white' : 'bg-white ring-1 ring-black/10 text-ink/50'}`}>
-                                {(s.name.trim() || `S${i + 1}`).charAt(0).toUpperCase()}
-                              </span>
-                              <div className="min-w-0">
-                                <p className={`text-xs font-bold truncate ${i === activeIdx ? 'text-ink' : 'text-ink/70'}`}>{s.name.trim() || `Section ${i + 1}`}</p>
-                                <p className="text-[10px] text-ink/40">{iaNum(s.takers) || 0} takers - {sFilled} of {totalItems} scored</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <span className={`text-[10px] font-bold ${sReady ? 'text-emerald-700' : 'text-ink/30'}`}>{sReady ? 'Ready' : 'Empty'}</span>
-                              {sections.length > 1 && (
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  title="Remove this section"
-                                  onClick={(e) => { e.stopPropagation(); removeSection(i); }}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); removeSection(i); } }}
-                                  className="p-1 rounded-md text-rose-500 hover:bg-rose-50 transition-colors"
-                                >
-                                  <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
-
-                {/* RIGHT: scores + draft */}
-                <section className="lg:col-span-7 space-y-4">
-                  <div className="rounded-2xl bg-white ring-1 ring-black/5 overflow-hidden">
-                    <div className="px-5 pt-5 pb-4 border-b border-black/5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Section name &amp; Total No. of Takers</p>
-                          <input
-                            type="text"
-                            value={currentSection.name}
-                            onChange={(e) => updateSection(activeIdx, { name: e.target.value })}
-                            placeholder="e.g. BABBAGE"
-                            className="mt-0.5 w-full bg-transparent text-xl font-bold tracking-tight outline-none border-b border-transparent focus:border-iris-400"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Takers</label>
-                          <input
-                            type="number" min="1"
-                            value={currentSection.takers}
-                            onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
-                            className="w-16 rounded-lg bg-canvas ring-1 ring-black/5 px-2 py-1.5 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-iris-500"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-4 flex-wrap">
-                        {sections.map((s, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setActiveIdx(i)}
-                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${i === activeIdx ? 'bg-ink text-white' : 'text-ink/50 hover:bg-canvas'}`}
-                          >
-                            {s.name.trim() || `Section ${i + 1}`}
-                            {scoreScanDrafts[i] ? <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle bg-amber-400"></span> : null}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={addSection}
-                          className="px-3 py-1.5 rounded-lg border border-dashed border-iris-300 text-iris-600 text-[11px] font-bold hover:bg-iris-50 transition-colors"
-                        >
-                          + Add
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="px-5 py-4 bg-iris-50/40 border-b border-black/5">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => scoreScanRef.current && scoreScanRef.current.click()}
-                          disabled={scoreScanBusy}
-                          title="Upload a photo of a hand-written tally - frame the tally columns, then review the reading before it fills this section"
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-iris-600 text-white text-sm font-bold px-4 py-2.5 hover:bg-iris-700 transition-colors shadow-lg shadow-iris-200 disabled:opacity-60 disabled:cursor-wait"
-                        >
-                          <LucideIcon name={scoreScanBusy ? 'Loader2' : 'Upload'} className={`w-4 h-4 ${scoreScanBusy ? 'animate-spin' : ''}`} />
-                          {scoreScanBusy ? 'Reading photo...' : 'Read from photo'}
-                        </button>
-                        <input ref={scoreScanRef} type="file" accept="image/*" className="hidden" onChange={handleScorePhoto} />
-                        <div className="text-xs text-ink/50">
-                          or{' '}
-                          <button
-                            type="button"
-                            onClick={() => { setTypedOpen(v => !v); setScoreScanError(null); }}
-                            className="font-semibold text-iris-600 underline decoration-dotted underline-offset-2 hover:text-iris-800"
-                          >
-                            type the scores
-                          </button>{' '}
-                          if you have no photo.
-                        </div>
-                        <div className="sm:ml-auto flex items-center gap-2">
-                          <label className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Fill all</label>
-                          <input
-                            id="fill-all-score"
-                            type="number" min="0"
-                            value={fillScore}
-                            onChange={(e) => setFillScore(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') applyFillScore(); }}
-                            placeholder="e.g. 4"
-                            className="w-16 rounded-lg bg-white ring-1 ring-black/10 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-iris-500"
-                          />
-                          <button
-                            type="button"
-                            aria-label="Fill All"
-                            onClick={applyFillScore}
-                            className="text-[11px] font-bold text-iris-600 hover:text-iris-800 px-2 py-1.5 rounded-lg hover:bg-iris-50 transition-colors"
-                          >
-                            Apply
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="px-5 py-4">
-                      {typedOpen && (
-                        <div className="mb-4 rounded-xl border border-iris-200 bg-iris-50/70 p-3">
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <p className="text-[11px] leading-relaxed text-ink/60">
-                              Type or paste the tally - one item per line, or comma-separated, like{' '}
-                              <code className="px-1 rounded bg-white border border-ink/10">1 - 29</code>{' '}
-                              <code className="px-1 rounded bg-white border border-ink/10">2: 30</code>{' '}
-                              <code className="px-1 rounded bg-white border border-ink/10">3 - 12/30</code>.
-                              Works without an API key, and you still review every number before it is applied.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => { setTypedOpen(false); setTypedScores(''); }}
-                              title="Close"
-                              className="p-1 rounded-md text-ink/40 hover:bg-white hover:text-ink/70 transition-colors"
-                            >
-                              <LucideIcon name="X" className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <textarea
-                            value={typedScores}
-                            onChange={(e) => setTypedScores(e.target.value)}
-                            rows={4}
-                            placeholder="1 - 29, 2 - 30, 3 - 12"
-                            className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
-                          />
-                          <div className="flex justify-end mt-2">
-                            <button
-                              type="button"
-                              onClick={handleTypedScores}
-                              className="px-3 py-1.5 rounded-lg bg-iris-600 text-white text-[11px] font-semibold hover:bg-iris-700 transition-colors"
-                            >
-                              Review scores
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {scoreScanError && scoreScanError.idx === activeIdx && (
-                        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
-                          {scoreScanError.message}
-                          <button
-                            type="button"
-                            onClick={() => setTypedOpen(true)}
-                            className="ml-2 font-semibold underline decoration-dotted underline-offset-2 hover:text-rose-900"
-                          >
-                            Type the scores instead
-                          </button>
-                        </div>
-                      )}
-
-                      {scoreScanDraft && (
-                        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
-                          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-amber-200">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-6 h-6 rounded-lg bg-amber-200/70 text-amber-800 grid place-items-center flex-shrink-0">
-                                <LucideIcon name="AlertTriangle" className="w-3.5 h-3.5" />
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-amber-900">Photo reading ready for review</p>
-                                <p className="text-[10px] text-amber-800/70">
-                                  {scoreScanDraftNos.length} item{scoreScanDraftNos.length === 1 ? '' : 's'} read from {scoreScanDraft.source} - fix anything that looks wrong, then apply.
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {!iaNum(currentSection.takers) && (
-                                <label className="flex items-center gap-1 text-[10px] text-amber-900/80">
-                                  Takers
-                                  <input
-                                    type="number" min="1"
-                                    value={scoreScanDraft.takers === 0 ? '' : scoreScanDraft.takers}
-                                    onChange={(e) => handleScoreDraftTakers(e.target.value)}
-                                    placeholder="?"
-                                    className="w-14 rounded-md border border-amber-300 bg-white px-1.5 py-1 text-center text-xs text-ink outline-none focus:ring-2 focus:ring-iris-500"
-                                  />
-                                </label>
-                              )}
-                              <button
-                                type="button"
-                                onClick={discardScoreDraft}
-                                className="rounded-lg bg-white ring-1 ring-amber-300 text-amber-800 text-[11px] font-bold px-3 py-1.5 hover:bg-amber-100 transition-colors"
-                              >
-                                Discard
-                              </button>
-                              <button
-                                type="button"
-                                onClick={applyScoreDraft}
-                                className="rounded-lg bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 hover:bg-emerald-700 transition-colors"
-                              >
-                                Apply to scores
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="grid md:grid-cols-[160px_1fr] gap-4 px-4 py-4">
-                            <div>
-                              <div className="rounded-xl overflow-hidden ring-1 ring-amber-200 bg-white h-24 grid place-items-center">
-                                {scoreCrop?.dataUrl ? (
-                                  <img src={scoreCrop.dataUrl} alt="Cropped tally preview" className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-[10px] font-semibold text-ink/30 px-2 text-center">Cropped tally preview</span>
-                                )}
-                              </div>
-                              {scoreCrop?.dataUrl && (
-                                <button
-                                  type="button"
-                                  onClick={() => setScoreCrop({
-                                    file: scoreCrop.file,
-                                    name: scoreCrop.name || 'the photo',
-                                    dataUrl: scoreCrop.dataUrl,
-                                    sel: scoreCrop.sel,
-                                    remembered: scoreCrop.remembered
-                                  })}
-                                  className="mt-2 w-full text-[10px] font-semibold text-iris-600 hover:text-iris-800 py-1.5 rounded-lg hover:bg-white transition-colors"
-                                >
-                                  Adjust crop
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 content-start">
-                              {scoreScanDraftNos.map((itemNo) => {
-                                const raw = scoreScanDraft.values[itemNo] == null ? '' : String(scoreScanDraft.values[itemNo]);
-                                const n = Number(raw);
-                                const over = scoreScanCap && Number.isFinite(n) && n > scoreScanCap;
-                                const empty = raw.trim() === '';
-                                return (
-                                  <div key={itemNo} className={`flex items-center gap-2 rounded-lg bg-white ring-1 px-2.5 py-1.5 ${over ? 'ring-amber-400' : 'ring-amber-100'}`}>
-                                    <span className="text-[10px] font-bold text-ink/40 w-8 shrink-0">Item {itemNo}</span>
-                                    <input
-                                      type="number" min="0" max={scoreScanCap || ''}
-                                      value={raw}
-                                      onChange={(e) => handleScoreDraftChange(itemNo, e.target.value)}
-                                      className={`w-11 rounded-md border px-1.5 py-1 text-xs text-center font-semibold outline-none focus:ring-2 focus:ring-iris-500 ${over ? 'border-amber-400 text-amber-700' : 'border-ink/20 text-ink'}`}
-                                    />
-                                    <span className="text-[10px] text-ink/35 truncate">
-                                      {empty ? 'skipped' : (scoreScanCap ? `/ ${scoreScanCap}` : '')}
-                                      {over ? ' - capped' : ''}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          <div className="px-4 py-2.5 border-t border-amber-200 text-[10px] text-amber-900/70 flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span>From {scoreScanDraft.source}</span>
-                            {scoreScanDraft.cached ? (
-                              <span>Reused your earlier reading of this photo - instantly, with no upload</span>
-                            ) : scoreScanDraft.ms ? (
-                              <span>Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span>
-                            ) : null}
-                            {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
-                            <span>Your scores stay unchanged until you apply.</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-[11px] font-semibold text-ink/45">
-                          Item scores <span className="font-normal">(number of learners correct)</span>
-                        </p>
-                        <p className={`text-[11px] font-semibold ${sectionReady ? 'text-emerald-700' : 'text-ink/40'}`}>
-                          {filledCount} of {totalItems} filled
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-h-[420px] overflow-y-auto pr-1 scroll-thin">
-                        {manualScores.map((item, idx) => {
-                          const raw = String(item.score == null ? '' : item.score);
-                          const scoreNum = Number(raw);
-                          const low = raw.trim() !== '' && sectionTakers > 0 && Number.isFinite(scoreNum) && scoreNum < lowCut;
-                          return (
-                            <div
-                              key={idx}
-                              className={`flex flex-col gap-1.5 rounded-lg bg-canvas ring-1 px-2.5 py-2 ${low ? 'ring-rose-200' : 'ring-black/5'}`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-ink/40 w-9 shrink-0">Item {item.itemNo}</span>
-                                <input
-                                  id={`score-input-${idx}`}
-                                  type="number"
-                                  placeholder="0"
-                                  value={item.score}
-                                  onChange={(e) => handleScoreChange(idx, 'score', e.target.value)}
-                                  min="0" max={sectionTakers || ''}
-                                  className={`w-14 rounded-md bg-white ring-1 px-1.5 py-1 text-sm text-center font-semibold outline-none focus:ring-2 focus:ring-iris-500 ${low ? 'ring-rose-200 text-rose-700' : 'ring-black/10 text-ink'}`}
-                                />
-                                <span className="text-[10px] text-ink/35">/ {sectionTakers || '?'}</span>
-                              </div>
-                              {useManualCompetencies && (
-                                <input
-                                  type="text"
-                                  placeholder="Competency (optional)"
-                                  value={item.competency}
-                                  onChange={(e) => handleScoreChange(idx, 'competency', e.target.value)}
-                                  className="w-full rounded-md bg-white ring-1 ring-black/5 px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-iris-500"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {sectionReady && (
-                        <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2.5">
-                          <LucideIcon name="CheckCircle" className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                          <p className="text-[11px] leading-relaxed text-emerald-800">
-                            <span className="font-bold">Section ready.</span> All {totalItems} items have a score. Switch to another section or continue to review.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              {/* Report details */}
-              <div className="rounded-2xl bg-white ring-1 ring-black/5 p-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-7 h-7 rounded-lg bg-iris-50 text-iris-600 grid place-items-center">
-                    <LucideIcon name="FileText" className="w-4 h-4" />
-                  </span>
-                  <h3 className="text-sm font-bold">Report details</h3>
-                </div>
-                <p className="text-xs text-ink/50 mb-4">
-                  These fill the header rows of the simplified item analysis table. School name, district and signatories are read from{' '}
-                  <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
-                  so they are never typed twice.
-                </p>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[
-                    ['School Year', 'schoolYear', 'e.g. 2025-2026'],
-                    ['Term / Grading Period', 'gradingPeriod', 'e.g. SECOND'],
-                    ['Grade Level', 'gradeLevel', 'e.g. 12'],
-                    ['Assessment Conducted', 'assessment', 'e.g. November Exam']
-                  ].map(([label, key, ph]) => (
-                    <label key={key} className="flex flex-col gap-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">{label}</span>
-                      <input
-                        type="text" value={meta[key]} placeholder={ph}
-                        onChange={(e) => setMetaField(key, e.target.value)}
-                        className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
-                      />
-                    </label>
-                  ))}
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Assessment Type (annex checkbox)</span>
-                    <select
-                      value={meta.assessmentType || ''}
-                      onChange={(e) => setMetaField('assessmentType', e.target.value)}
-                      className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
-                    >
-                      <option value="">Select the assessment...</option>
-                      <option value="ST-1">ST-1</option>
-                      <option value="ST-2">ST-2</option>
-                      <option value="TE">TE</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-
-              {/* Action bar */}
-              <div className="rounded-2xl bg-white ring-1 ring-black/5 shadow-[0_18px_50px_-24px_rgba(11,10,18,0.35)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className={`w-8 h-8 rounded-full grid place-items-center text-[11px] font-bold ${sectionReady ? 'bg-emerald-100 text-emerald-700' : 'bg-iris-50 text-iris-600'}`}>
-                    {sectionReady ? '✓' : '2'}
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold">{activeSectionName} scores {sectionReady ? 'are ready' : 'need attention'}</p>
-                    <p className="text-[10px] text-ink/45">
-                      {sectionReady ? 'Next: review the competencies, then generate the report.' : `${totalItems - filledCount} item${totalItems - filledCount === 1 ? '' : 's'} still blank.`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
+              {scoreScanError && scoreScanError.idx === activeIdx && (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
+                  {scoreScanError.message}
                   <button
                     type="button"
-                    onClick={resetAnalyzer}
-                    className="rounded-xl bg-white ring-1 ring-black/10 text-ink text-xs font-bold px-4 py-2.5 hover:ring-black/25 transition-colors"
+                    onClick={() => setTypedOpen(true)}
+                    className="ml-2 font-semibold underline decoration-dotted underline-offset-2 hover:text-rose-900"
                   >
-                    Start over
-                  </button>
-                  <button
-                    onClick={analyzeData}
-                    disabled={!useManualCompetencies && !tosFile}
-                    className={`rounded-xl text-xs font-bold px-5 py-2.5 transition-colors inline-flex items-center gap-2 ${!useManualCompetencies && !tosFile
-                      ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed'
-                      : 'bg-iris-600 text-white hover:bg-iris-700 shadow-lg shadow-iris-200'}`}
-                  >
-                    <LucideIcon name="Table" className="w-4 h-4" />
-                    Generate Item Analysis
+                    Type the scores instead
                   </button>
                 </div>
+              )}
+              {scoreScanDraft && (
+                <div id="ia-score-draft" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-amber-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <LucideIcon name="AlertTriangle" className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="text-xs font-semibold text-amber-900">
+                        Draft for {currentSection.name.trim() || `Section ${activeIdx + 1}`} — {scoreScanDraftNos.length} item{scoreScanDraftNos.length === 1 ? '' : 's'} to check. Fix anything that looks wrong, then apply.
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!iaNum(currentSection.takers) && (
+                        <span className="flex items-center gap-1 text-[11px] text-amber-900/80">
+                          Takers
+                          <input
+                            type="number" min="1"
+                            value={scoreScanDraft.takers === 0 ? '' : scoreScanDraft.takers}
+                            onChange={(e) => handleScoreDraftTakers(e.target.value)}
+                            placeholder="?"
+                            className="w-16 rounded-md border border-amber-300 bg-white px-2 py-1 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                          />
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={discardScoreDraft}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white text-[11px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                      >
+                        <LucideIcon name="X" className="w-3 h-3" /> Discard
+                      </button>                        <button
+                          type="button"
+                          onClick={applyScoreDraft}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-[11px] font-semibold text-white hover:bg-emerald-700 transition-colors"
+                        >
+                          <LucideIcon name="CheckCircle" className="w-3 h-3" /> Apply to scores
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const instruction = scoreScanDraft.notes
+                              ? `AI note: ${scoreScanDraft.notes}`
+                              : "Intervention: practice the just-read tallies; target 80 % correct.";
+                            sessionStorage.setItem("ia_custom_instruction", instruction);
+                            window.location.href = "activity.html?custom=1";
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          <LucideIcon name="Link" className="w-3 h-3" /> Send to Sheet
+                        </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-3 py-2.5 max-h-[220px] overflow-y-auto">
+                    {scoreScanDraftNos.map((itemNo) => {
+                      const raw = scoreScanDraft.values[itemNo] == null ? '' : String(scoreScanDraft.values[itemNo]);
+                      const n = Number(raw);
+                      const over = scoreScanCap && Number.isFinite(n) && n > scoreScanCap;
+                      const empty = raw.trim() === '';
+                      return (
+                        <div
+                          key={itemNo}
+                          className={`flex items-center gap-2 rounded-lg border bg-white px-2 py-1.5 ${over ? 'border-amber-400' : 'border-amber-100'}`}
+                        >
+                          <span className="text-[11px] font-semibold text-ink/50 w-12 shrink-0">Item {itemNo}</span>
+                          <input
+                            type="number" min="0" max={scoreScanCap || ''}
+                            value={raw}
+                            onChange={(e) => handleScoreDraftChange(itemNo, e.target.value)}
+                            className={`w-16 rounded-md border px-2 py-1 text-sm text-center outline-none focus:ring-2 focus:ring-iris-500 ${over ? 'border-amber-400 text-amber-700' : 'border-ink/20 text-ink'}`}
+                          />
+                          <span className="text-[11px] text-ink/40 truncate">
+                            {empty ? 'skipped' : (scoreScanCap ? `/ ${scoreScanCap}` : '')}
+                            {over ? ' · capped' : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-col items-center gap-2 px-3 py-2 border-t border-amber-200 text-[11px] text-amber-900/80">
+                    <span>From {scoreScanDraft.source}</span>
+                    {scoreScanDraft.cached ? (
+                      <span>Reused your earlier reading of this photo — instantly, with no upload</span>
+                    ) : scoreScanDraft.ms ? (
+                      <React.Fragment>
+                        <span className="text-sm">Read in {(scoreScanDraft.ms / 1000).toFixed(1)} s</span>
+                        <button
+                          type="button"
+                          onClick={() => setScoreCrop({
+                            file: scoreCrop?.file,
+                            name: scoreCrop?.name || 'the photo',
+                            dataUrl: scoreCrop?.dataUrl,
+                            sel: scoreCrop?.sel,
+                            remembered: scoreCrop?.remembered
+                          })}
+                          className="mt-1 text-[10px] text-iris-600 hover:underline"
+                        >Adjust crop
+                      </button>
+                        {scoreCrop?.dataUrl && (<img src={scoreCrop.dataUrl} alt="Cropped preview" className="w-24 h-14 rounded-md mt-1" />)}
+                      </React.Fragment>
+                    ) : null}
+                    {scoreScanDraft.notes ? <span>AI note: {scoreScanDraft.notes}</span> : null}
+                    <span>Your scores stay unchanged until you apply.</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
+                {manualScores.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-ink/5 p-2.5 rounded-lg border border-ink/10 hover:border-ink/20 transition-colors">
+                    <span className="text-sm font-medium text-ink/60 w-24">Item {item.itemNo}</span>
+                    <div className="flex items-center gap-2 flex-1 max-w-xs">
+                      <input
+                        id={`score-input-${idx}`}
+                        type="number"
+                        placeholder="Correct"
+                        value={item.score}
+                        onChange={(e) => handleScoreChange(idx, 'score', e.target.value)}
+                        className="w-24 rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-center"
+                        min="0" max={sectionTakers || ''}
+                      />
+                      {!useManualCompetencies ? (
+                        <span className="text-xs text-ink/40">/ {sectionTakers}</span>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="Competency (optional)"
+                          value={item.competency}
+                          onChange={(e) => handleScoreChange(idx, 'competency', e.target.value)}
+                          className="w-full rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
+            </div>
+
+            {/* Report details — header rows of the Excel-style table */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <LucideIcon name="FileText" className="w-5 h-5 text-iris-600" />
+                <h3 className="font-semibold text-lg text-ink">4. Report Details</h3>
+              </div>
+              <p className="text-sm text-ink/50 mb-4">
+                These fill the header rows of the SIMPLIFIED ITEM ANALYSIS table (preview and Word export).
+                School name, district and signatories are read from{' '}
+                <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
+                so they are never typed twice.
+              </p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  ['School Year', 'schoolYear', 'e.g. 2025-2026'],
+                  ['Term / Grading Period', 'gradingPeriod', 'e.g. SECOND'],
+                  ['Subject (full title)', 'subject', 'e.g. MEDIA AND INFORMATION LITERACY'],
+                  ['Subject code (table)', 'subjectCode', 'e.g. MIL'],
+                  ['Grade Level', 'gradeLevel', 'e.g. 12'],
+                  ['Assessment Conducted', 'assessment', 'e.g. November Exam']
+                ].map(([label, key, ph]) => (
+                  <label key={key} className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">{label}</span>
+                    <input
+                      type="text" value={meta[key]} placeholder={ph}
+                      onChange={(e) => setMetaField(key, e.target.value)}
+                      className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
+                    />
+                  </label>
+                ))}
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Assessment Type (annex checkbox)</span>
+                  <select
+                    value={meta.assessmentType || ''}
+                    onChange={(e) => setMetaField('assessmentType', e.target.value)}
+                    className="rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-ink"
+                  >
+                    <option value="">Select the assessment…</option>
+                    <option value="ST-1">ST-1</option>
+                    <option value="ST-2">ST-2</option>
+                    <option value="TE">TE</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center pt-4 gap-2">
+              <button
+                onClick={analyzeData}
+                disabled={!useManualCompetencies && !tosFile}
+                className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-lg transition-all shadow-md ${!useManualCompetencies && !tosFile ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed' : 'bg-iris-600 text-white hover:bg-iris-700 hover:shadow-[0_0_30px_rgba(91,70,232,0.3)]'}`}
+              >
+                <LucideIcon name="Table" className="w-6 h-6" />
+                <span>Generate Item Analysis</span>
+              </button>
               {(!useManualCompetencies && !tosFile) && (
                 <div className="text-xs text-ink/40 text-center">
-                  Upload a TOS file, or switch to manual competency entry above.
+                  Upload a TOS file, or switch to manual competency entry above
                 </div>
               )}
               {useManualCompetencies && !apiKey.trim() && (
                 <div className="text-xs text-ink/40 text-center">
-                  No API key needed - your list is read right on this device.
+                  No API key needed — your list is read right on this device.
                 </div>
               )}
               {!useManualCompetencies && tosFile && !apiKey.trim() && (
                 <div className="text-xs text-ink/40 text-center">
-                  Works without a key for common TOS layouts -{' '}
+                  Works without a key for common TOS layouts —{' '}
                   <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">add one</button>{' '}
                   to let the AI fill in any competencies the file does not list.
                 </div>
               )}
             </div>
-          );
-        };
-
+          </div>
+        );
 
         const renderAnalyzing = () => (
           <div className="max-w-5xl mx-auto flex flex-col items-center justify-center py-20">
@@ -3990,6 +4213,18 @@ ${signTable([
                 <p className="text-sm text-ink/50 mt-1">{sections.length} section{sections.length === 1 ? '' : 's'} · {totalLearners} learners evaluated across {itemCount} items</p>
               </div>
               <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
+                <button
+                  onClick={downloadAnalysisDocx}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-iris-600 text-white hover:bg-iris-700 border border-iris-600 font-medium text-sm transition-colors"
+                >
+                  <LucideIcon name="FileText" className="w-5 h-5" /> Export Analysis DOCX
+                </button>
+                <button
+                  onClick={downloadAnalysisPdf}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-sm transition-colors"
+                >
+                  <LucideIcon name="Download" className="w-5 h-5" /> Export Analysis PDF
+                </button>
                 <button
                   onClick={resetAnalyzer}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 border border-ink/10 font-medium text-sm transition-colors"
@@ -4436,6 +4671,18 @@ ${signTable([
                         <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] font-semibold text-white pointer-events-none whitespace-nowrap">
                           Drag a box around the tally columns
                         </span>
+                      )}
+                      {scoreScanBusy && (
+                        <div
+                          data-score-scan-overlay="1"
+                          role="status"
+                          aria-live="polite"
+                          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-ink/60 px-6 text-center text-white"
+                        >
+                          <LucideIcon name="Loader2" className="w-7 h-7 animate-spin" />
+                          <p className="text-sm font-semibold">{scoreScanPhase || 'Extracting the framed area…'}</p>
+                          <p className="text-[11px] text-white/70">Only the boxed area is being sent. This can take a few seconds.</p>
+                        </div>
                       )}
                     </div>
                   </div>

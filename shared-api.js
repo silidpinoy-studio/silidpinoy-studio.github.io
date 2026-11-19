@@ -15,7 +15,11 @@
 (function () {
   'use strict';
 
-  var API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
+  var API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  var DEFAULT_MODEL = 'gemini-3.5-flash';
+  function modelUrl(model) {
+    return API_BASE + encodeURIComponent(model || DEFAULT_MODEL) + ':generateContent';
+  }
 
   var DELAYS = [2000, 4000, 8000, 15000];
 
@@ -131,6 +135,9 @@
     var prompt = opts.prompt || '';
     var temperature = typeof opts.temperature === 'number' ? opts.temperature : 0.7;
     var signal = opts.signal || null;
+    // Callers with their own overall deadline (photo reading) can ask for a
+    // shorter ladder; the default stays the full 4 retries.
+    var retries = typeof opts.retries === 'number' ? opts.retries : 4;
 
     if (!key) {
       return Promise.reject(new Error('Please set your Gemini API key first — click the gear icon in the header.'));
@@ -158,14 +165,16 @@
     if (thinking) genConfig.thinkingConfig = thinking;
     payload.generationConfig = genConfig;
 
-    var url = API_BASE;
+    // Photo reading passes the lighter Flash-Lite model; everything else gets
+    // the default Flash model unless a caller asks for something else.
+    var url = modelUrl(opts.model);
 
     function send(body) {
-      return fetchWithRetry(url, body, { signal: signal, retries: 4, apiKey: key }).catch(function (err) {
+      return fetchWithRetry(url, body, { signal: signal, retries: retries, apiKey: key }).catch(function (err) {
         var msg = (err && err.message) || '';
         var isQuotaOrBusy = /quota|high demand|overloaded|resource exhausted|too many requests|temporar|unavailable|429/i.test(msg);
         if (backupKey && backupKey !== key && isQuotaOrBusy) {
-          return fetchWithRetry(url, body, { signal: signal, retries: 4, apiKey: backupKey });
+          return fetchWithRetry(url, body, { signal: signal, retries: retries, apiKey: backupKey });
         }
         throw err;
       });
@@ -202,7 +211,7 @@
   /**
    * Call Gemini and return parsed JSON.
    *
-   * opts: { prompt, systemPrompt?, temperature?, schema?, signal?, apiKey?, backupKey?, inlineData?, thinking? }
+   * opts: { prompt, systemPrompt?, temperature?, schema?, signal?, apiKey?, backupKey?, inlineData?, thinking?, model?, retries? }
    * Returns: Promise<object>
    */
   function callGeminiJSON(opts) {

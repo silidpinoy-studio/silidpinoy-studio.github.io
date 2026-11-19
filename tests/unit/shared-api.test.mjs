@@ -122,6 +122,22 @@ test('transient 429 responses are retried and then succeed', async () => {
   assert.equal(fetchImpl.calls.length, 3);
 });
 
+test('a caller can pick a lighter model and a shorter retry ladder', async () => {
+  const fetchImpl = fakeFetch([apiError(503, 'This model is currently experiencing high demand.')]);
+  const api = loadApi({ fetchImpl, storedKeys: { gemini_api_key: 'K' } });
+
+  await assert.rejects(
+    () => api.callGemini({
+      prompt: 'x',
+      model: 'gemini-3.5-flash-lite',
+      retries: 1
+    }),
+    /high demand/i
+  );
+  assert.equal(fetchImpl.calls.length, 2, 'one initial attempt plus one retry');
+  assert.match(fetchImpl.calls[0].url, /models\/gemini-3\.5-flash-lite:generateContent/);
+});
+
 test('transient network failures are retried', async () => {
   const fetchImpl = fakeFetch([networkError, networkError, ok('back online')]);
   const api = loadApi({ fetchImpl, storedKeys: { gemini_api_key: 'K' } });
