@@ -259,6 +259,15 @@
       { id:'share-link', name:'Shareable Test Link', desc:'Send any test as a link — students answer on their phones and scores flow straight into Item Analysis. No accounts needed.', icon:'Link', ready:false },
     ];
 
+    /* Views live in the URL hash (#creator, #item-analysis, #settings) so a tool
+       can be linked, reloaded straight into, and reached with Back/Forward. */
+    const APP_VIEWS = ['home', 'creator', 'settings', 'item-analysis'];
+    const viewFromHash = (hash) => {
+      const v = String(hash || '').replace(/^#\/?/, '');
+      if (v === 'test-maker') return 'creator';
+      return APP_VIEWS.includes(v) ? v : 'home';
+    };
+
     /* ============================================================
        DepEd picker lists + typeahead input
        ============================================================ */
@@ -292,7 +301,7 @@
     }
 
     function App() {
-      const [currentView, setCurrentView] = useState(() => window.location.hash === '#test-maker' ? 'creator' : 'home');
+      const [currentView, setCurrentView] = useState(() => viewFromHash(window.location.hash));
       const [mode, setMode] = useState('topic');
       const [topic, setTopic] = useState('');
       const [files, setFiles] = useState([]);
@@ -386,17 +395,30 @@
         return () => io.disconnect();
       });
 
-      /* Clear nav hash after reading it (so refresh doesn't re-trigger) */
+      /* Tool navigation writes the view into the hash; the hash drives the view.
+         pushState (not location.hash) keeps hashchange quiet, so no feedback loop. */
+      const navigate = (view, replace = false) => {
+        setCurrentView(view);
+        const next = view === 'home' ? '' : '#' + view;
+        if (window.location.hash === next) return;
+        /* Absolute URLs keep file:// pages happy — a path-only URL is a new origin. */
+        const url = next || window.location.href.replace(/#.*$/, '');
+        try { window.history[replace ? 'replaceState' : 'pushState']({ view }, '', url); } catch {}
+      };
+
       useEffect(() => {
-        const h = window.location.hash;
-        if (h === '#settings') { setCurrentView('settings'); setShowKeyInput(false); }
-        else if (h === '#creator') { setCurrentView('creator'); }
-        else if (h === '#item-analysis') { setCurrentView('item-analysis'); }
-        if (h) {
-          /* Use the absolute URL minus the hash: on a file:// page a path-only URL is
-             treated as a separate origin and Chrome refuses it. */
-          try { window.history.replaceState(null, '', window.location.href.replace(/#.*$/, '')); } catch {}
-        }
+        const apply = () => {
+          const view = viewFromHash(window.location.hash);
+          setCurrentView(view);
+          if (view === 'settings') setShowKeyInput(false);
+        };
+        apply();
+        window.addEventListener('hashchange', apply);
+        window.addEventListener('popstate', apply);
+        return () => {
+          window.removeEventListener('hashchange', apply);
+          window.removeEventListener('popstate', apply);
+        };
       }, []);
 
       /* Auto-load TOS data from TOS Maker */
@@ -409,7 +431,7 @@
           setConfig({ gradeLevel: tos.gradeLevel || '', subject: tos.subject || '', testName: tos.testName || '' });
           setTopic(tos.competencies || '');
           setMode('topic');
-          setCurrentView('creator');
+          navigate('creator', true);
           if (tos.competencyDistributions) setTosDistributions(tos.competencyDistributions);
         } catch {}
       }, []);
@@ -425,7 +447,7 @@
               if (savedCfg) applySavedConfig(savedCfg);
             } catch {}
             setGeneratedTest(stripTestTitleBlock(saved));
-            setCurrentView('creator');
+            navigate('creator', true);
           }
         } catch {}
       }, []);
@@ -3966,7 +3988,7 @@ ${signTable([
               <p className="text-sm text-ink/50 mb-4">
                 These fill the header rows of the SIMPLIFIED ITEM ANALYSIS table (preview and Word export).
                 School name, district and signatories are read from{' '}
-                <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
+                <button onClick={() => navigate('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">School &amp; Personal Info</button>,
                 so they are never typed twice.
               </p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -4025,7 +4047,7 @@ ${signTable([
               {!useManualCompetencies && tosFile && !apiKey.trim() && (
                 <div className="text-xs text-ink/40 text-center">
                   Works without a key for common TOS layouts —{' '}
-                  <button onClick={() => setCurrentView('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">add one</button>{' '}
+                  <button onClick={() => navigate('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">add one</button>{' '}
                   to let the AI fill in any competencies the file does not list.
                 </div>
               )}
@@ -4964,17 +4986,17 @@ ${signTable([
         <div className="min-h-screen font-sans text-ink">
           <header className="fixed top-4 md:top-6 inset-x-0 z-50 flex justify-center px-4 no-print">
             <nav className="flex items-center gap-1 rounded-full bg-white/70 backdrop-blur-2xl ring-1 ring-black/5 shadow-[0_8px_40px_-12px_rgba(11,10,18,0.18)] px-2 py-2 w-full md:w-max md:max-w-[95vw] justify-between md:justify-center">
-              <div className="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0" onClick={() => setCurrentView('home')}>
+              <div className="flex items-center gap-2 pl-3 pr-2 cursor-pointer shrink-0" onClick={() => navigate('home')}>
                 <img src="silidpinoy_logo.png" alt="SilidPinoy Logo" className="w-8 h-8 rounded-full object-contain" />
                 <span className="font-semibold tracking-tight text-base">Silid<span className="text-iris-600">Pinoy</span></span><span className="rounded-full bg-iris-600/10 text-iris-600 ring-1 ring-iris-600/20 px-1 py-[1px] text-[8px] font-bold uppercase tracking-[0.12em] leading-none">Studio</span>
               </div>
               <div className="hidden md:flex items-center gap-1">
-              <button onClick={() => { setCurrentView('creator'); }} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='creator'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Test Maker</button>
+              <button onClick={() => { navigate('creator'); }} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='creator'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Test Maker</button>
               <a href="tos.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">TOS Maker</a>
               <a href="lesson.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Lesson Plan</a>
               <a href="powerpoint.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">PPT Maker</a>
               <a href="activity.html" className="nav-link text-sm font-medium px-4 py-2 rounded-full text-ink/60 hover:text-ink hover:bg-black/5">Activity Sheet</a>
-              <button onClick={() => setCurrentView('item-analysis')} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='item-analysis'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Item Analysis</button>
+              <button onClick={() => navigate('item-analysis')} className={`nav-link text-sm font-medium px-4 py-2 rounded-full ${currentView==='item-analysis'?'bg-black/5 text-ink':'text-ink/60 hover:text-ink hover:bg-black/5'}`}>Item Analysis</button>
               </div>
               <span data-silid-docs-slot className="ml-1 hidden sm:flex items-center"></span>
               <span className="flex items-center gap-1 shrink-0">
@@ -4989,12 +5011,12 @@ ${signTable([
             </nav>
             {mobileOpen && (
               <div className="md:hidden absolute top-full inset-x-4 mt-2 rounded-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 p-2 z-50 animate-fade-in" style={{ boxShadow: '0 24px 70px -30px rgba(11,10,18,0.4)' }}>
-                <button onClick={() => { setCurrentView('creator'); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Test Maker</button>
+                <button onClick={() => { navigate('creator'); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Test Maker</button>
                 <a href="tos.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">TOS Maker</a>
                 <a href="lesson.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Lesson Plan</a>
                 <a href="powerpoint.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">PPT Maker</a>
                 <a href="activity.html" className="block px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Activity Sheet</a>
-                <button onClick={() => { setCurrentView('item-analysis'); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Item Analysis</button>
+                <button onClick={() => { navigate('item-analysis'); setMobileOpen(false); }} className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-ink/70 hover:bg-black/5">Item Analysis</button>
               </div>
             )}
             {showKeyInput && (
@@ -5021,7 +5043,7 @@ ${signTable([
                 {apiKeyTestStatus==='fail'&&apiKeyTestMsg&&(<p className="text-[10px] text-red-500 mt-1.5 px-1">{apiKeyTestMsg}</p>)}
                 {apiKeyTestStatus==='ok'&&(<p className="text-[10px] text-emerald-600 mt-1.5 px-1">{apiKeyTestMsg}</p>)}
                 <div className="border-t border-black/5 mt-3 pt-3">
-                  <button onClick={()=>{setShowKeyInput(false);setCurrentView('settings');}} className="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
+                  <button onClick={()=>{setShowKeyInput(false);navigate('settings');}} className="w-full text-left text-sm font-medium text-ink/70 hover:text-iris-600 flex items-center gap-2 py-1.5 transition-colors">
                     <LucideIcon name="FileText" className="w-4 h-4"/> School &amp; Personal Info
                   </button>
                 </div>
@@ -5103,7 +5125,7 @@ ${signTable([
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {TOOLS.map((t) => (
-                    <button key={t.id} onClick={() => t.url ? window.location.href = t.url : (t.ready ? setCurrentView(t.view || 'creator') : notifySoon(t.name))}
+                    <button key={t.id} onClick={() => t.url ? window.location.href = t.url : (t.ready ? navigate(t.view || 'creator') : notifySoon(t.name))}
                       className={`group text-left rounded-[1.75rem] p-1.5 transition-all duration-500 ease-spring ${t.ready ? 'bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)] hover:-translate-y-1' : 'bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-34px_rgba(11,10,18,0.25)] hover:-translate-y-1 grayscale opacity-70'}`}>
                       <div className={`rounded-[calc(1.75rem-0.375rem)] h-full p-6 flex flex-col gap-4 min-h-[230px] ${t.ready ? 'bg-white/5 backdrop-blur-sm text-white' : 'bg-canvas text-ink'}`}>
                         <div className="flex items-center justify-between">
@@ -5174,7 +5196,7 @@ ${signTable([
               <div className="card-bezel"><div className="card-inner p-8 space-y-8">
                 <div className="flex items-center justify-between">
                   <div><h2 className="font-display text-3xl font-light tracking-tight">School &amp; Personal Info</h2><p className="text-sm text-ink/50 mt-1">Auto-populates into exported Word documents.</p></div>
-                  <button onClick={()=>setCurrentView('creator')} className="text-sm font-medium text-iris-600 hover:text-iris-700 px-4 py-2 rounded-full hover:bg-iris-50 transition-colors">&larr; Back</button>
+                  <button onClick={()=>navigate(currentView==='settings' ? 'creator' : 'home')} className="text-sm font-medium text-iris-600 hover:text-iris-700 px-4 py-2 rounded-full hover:bg-iris-50 transition-colors">&larr; Back</button>
                 </div>
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-ink/40">School Information</h3>
