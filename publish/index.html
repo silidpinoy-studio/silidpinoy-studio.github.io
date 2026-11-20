@@ -3590,17 +3590,7 @@ ${signTable([
               </div>
             )}
 
-            {/* The TOS is the only entry point — the rest of the form waits for it. */}
-            <button
-              type="button"
-              onClick={() => tosInputRef.current && tosInputRef.current.click()}
-              className={`w-full p-6 rounded-2xl border-2 transition-all ${tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
-            >
-              <LucideIcon name="Upload" className={"w-8 h-8 " + (tosFile ? 'text-iris-500' : 'text-ink/40')} />
-              <span className="font-semibold text-ink">{tosFile ? tosFile.name : 'Upload TOS Document'}</span>
-              <span className="text-xs text-ink/40">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</span>
-            </button>
-
+            {/* The TOS dropzone is the only entry point — the rest of the form waits for it. */}
             <div
               className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
               onDragOver={handleDragOver}
@@ -3621,6 +3611,7 @@ ${signTable([
                     Browse Files
                     <input ref={tosInputRef} type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
                   </label>
+                  <p className="mt-3 text-xs text-ink/40 text-center">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</p>
                 </>
               )}
             </div>

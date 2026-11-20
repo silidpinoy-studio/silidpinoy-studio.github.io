@@ -3175,17 +3175,17 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     // the studio home lists every tool — open the Item Analyzer first
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
+      if (await page.getByText('Upload TOS Document').count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
+    if (!(await page.getByText('Upload TOS Document').count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
 
-    // the upload card and its file browser are the first thing shown
+    // the TOS dropzone and its file browser are the first thing shown
     assert.ok(await page.getByText('Browse Files').isVisible(),
       'the file browser must be visible right away');
     assert.equal(await page.getByText('Manual Entry').count(), 0,
@@ -3534,12 +3534,12 @@ test('the Item Analysis bands a wide report into readable grids', { timeout: LON
   try {
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
+      if (await page.getByText('Upload TOS Document').count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
+    if (!(await page.getByText('Upload TOS Document').count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
@@ -3644,12 +3644,12 @@ test('the Item Analysis never reads the subject as a competency', { timeout: LON
   try {
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
+      if (await page.getByText('Upload TOS Document').count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
+    if (!(await page.getByText('Upload TOS Document').count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
@@ -3735,12 +3735,12 @@ test('a fresh photo read applies scores to a new draft', { timeout: LONG_TIMEOUT
   try {
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
+      if (await page.getByText('Upload TOS Document').count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
+    if (!(await page.getByText('Upload TOS Document').count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
