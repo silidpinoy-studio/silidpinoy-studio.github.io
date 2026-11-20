@@ -255,7 +255,7 @@
       { id:'lesson', name:'iLaw Lesson Plan', desc:'DepEd-aligned lesson plans drafted in minutes, not hours.', icon:'ClipboardList', ready:true, url:'lesson.html' },
       { id:'ppt', name:'PPT Maker', desc:'Turn any topic, DLL, exam, or quiz into a polished slide deck automatically.', icon:'Presentation', ready:true, url:'powerpoint.html' },
       { id:'activity', name:'Activity Sheet Maker', desc:'Turn any lesson plan into a beautiful module-style worksheet with puzzles, tables, and icons.', icon:'ClipboardCheck', ready:true, url:'activity.html' },
-      { id:'item-analysis', name:'Item Analyzer', desc:'Upload a TOS and enter scores to get mastery levels, least-mastered competencies, and exportable reports.', icon:'BarChart3', ready:true },
+      { id:'item-analysis', name:'Item Analyzer', desc:'Upload a TOS and enter scores to get mastery levels, least-mastered competencies, and exportable reports.', icon:'BarChart3', ready:true, view:'item-analysis' },
       { id:'share-link', name:'Shareable Test Link', desc:'Send any test as a link — students answer on their phones and scores flow straight into Item Analysis. No accounts needed.', icon:'Link', ready:false },
     ];
 
@@ -5103,7 +5103,7 @@ ${signTable([
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {TOOLS.map((t) => (
-                    <button key={t.id} onClick={() => t.url ? window.location.href = t.url : (t.ready ? setCurrentView('creator') : notifySoon(t.name))}
+                    <button key={t.id} onClick={() => t.url ? window.location.href = t.url : (t.ready ? setCurrentView(t.view || 'creator') : notifySoon(t.name))}
                       className={`group text-left rounded-[1.75rem] p-1.5 transition-all duration-500 ease-spring ${t.ready ? 'bg-gradient-to-br from-iris-600 to-iris-700 shadow-[0_30px_80px_-30px_rgba(91,70,232,0.55)] hover:-translate-y-1' : 'bg-white ring-1 ring-black/5 shadow-[0_20px_60px_-34px_rgba(11,10,18,0.25)] hover:-translate-y-1 grayscale opacity-70'}`}>
                       <div className={`rounded-[calc(1.75rem-0.375rem)] h-full p-6 flex flex-col gap-4 min-h-[230px] ${t.ready ? 'bg-white/5 backdrop-blur-sm text-white' : 'bg-canvas text-ink'}`}>
                         <div className="flex items-center justify-between">
