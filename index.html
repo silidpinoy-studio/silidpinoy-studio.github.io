@@ -1512,7 +1512,8 @@
           'testitemno', 'testitemnumber', 'itemno', 'noofitems', 'weight', 'desiredoutcome',
           'percentage', 'total', 'numberofitems', 'numberofitem', 'noitems', 'totalitems',
           'itemplacement', 'itemplacements', 'itemnos', 'items', 'score', 'points', 'remarks',
-          'schoolyear', 'quarter', 'grading', 'semester', 'teacher', 'date'];
+          'schoolyear', 'quarter', 'grading', 'semester', 'teacher', 'date', 'term', 'subtotal',
+          'performancestandard', 'contentstandard', 'preparedby', 'tablesofspecification'];
         const isSubjectish = (cell) => {
           const k = norm(cell);
           if (!k) return true;                      // blank / dash-only cells
@@ -1525,13 +1526,20 @@
           if (!line) continue;
           if (line.includes('|')) {
             const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+            /* A facts row — "Grade Level: | 11 | Learning Area: | COMPUTER
+               SYSTEM AND SERVICING | Term: | 1" — is labelled, not a
+               competency row. Its "11" is the grade level, not an item, and
+               the learning area beside it is not a competency, so the whole
+               row must be ignored instead of handing both to the item it
+               happens to name. */
+            if (cells.filter(c => /:$/.test(c)).length >= 2) continue;
             const numCells = cells.filter(c => IA_NUM_CELL.test(c));
             if (!numCells.length) continue;
             // The longest text cell is the competency — but only among
             // cells that are not the subject or a column header; in a wide
             // row the last pure-number cell is the "Total" column, not an
             // item number.
-            const texts = cells.filter(c => !IA_NUM_CELL.test(c) && !isSubjectish(c));
+            const texts = cells.filter(c => !IA_NUM_CELL.test(c) && !/:$/.test(c) && !isSubjectish(c));
             if (!texts.length) continue;
             const comp = texts.reduce((a, b) => (b.length > a.length ? b : a), '');
             let used = numCells;

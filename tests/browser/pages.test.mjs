@@ -3888,6 +3888,70 @@ test('a ToS subject cell spelled differently never becomes a competency', { time
   }
 });
 
+/* A DepEd TOS opens with a facts row — "Grade Level: | 11 | Learning Area: |
+   COMPUTER SYSTEM AND SERVICING | Term: | 1". Its 11 is the grade level, not
+   an item, and the learning area is not a competency, yet the parser gave both
+   to item 11 and the learning area showed up as that item's competency. */
+test('a TOS facts row never hands the learning area to an item', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-facts-row-tos.txt');
+  try {
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.getByText('Upload TOS Document').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    if (!(await page.getByText('Upload TOS Document').count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+
+    fs.writeFileSync(tosPath, [
+      'TABLE OF SPECIFICATION IN COMPUTER SYSTEM AND SERVICING',
+      'Grade Level: | 11 | Learning Area: | COMPUTER SYSTEM AND SERVICING | Term: | 1',
+      'Performance Standard: | The learners perform installation, configuration and testing of computer networks.',
+      'Content Standard: | The learners demonstrate an understanding of the principles of setting up a computer network.',
+      'Competencies | Item Number/s(Placement) | Cognitive Level | TotalItems',
+      'Perform setting up of computer network. | 1-21 | 21',
+      'Discuss the concepts of computer network. | 22-31 | 10',
+      'Perform network testing and documentation. | 32-41 | 10',
+      'Perform computer testing and documentation | 42-52 | 11',
+      'Subtotal | 52 | 22 | 15 | 10 | 5 | 52',
+      ''
+    ].join('\n'));
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.waitForTimeout(300);
+
+    const ITEMS = 52;
+    await page.locator('#ia-item-count').fill(String(ITEMS));
+    await page.locator('#fill-all-score').fill('4');
+    await page.getByRole('button', { name: 'Fill All' }).click();
+    await page.locator('#ia-section-name').fill('BABBAGE');
+    await page.locator('#ia-section-takers').fill('50');
+    await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+
+    const review = await page.evaluate(() => Array.from(
+      document.querySelectorAll('input[id^="review-comp-"]')).map(i => i.value));
+    assert.deepEqual(new Set(review), new Set([
+      'Perform setting up of computer network.',
+      'Discuss the concepts of computer network.',
+      'Perform network testing and documentation.',
+      'Perform computer testing and documentation'
+    ]), 'only the competencies on the ToS may appear — got ' + JSON.stringify([...new Set(review)]));
+    assert.equal(review[10], 'Perform setting up of computer network.',
+      'item 11 must carry its competency — got ' + JSON.stringify(review[10]));
+
+    assert.deepEqual(errors, [], 'the ToS upload must not raise page errors');
+  } finally {
+    await context.close();
+    fs.rmSync(tosPath, { force: true });
+  }
+});
+
 /* ===============================================================
    a fresh photo read applies scores to a new draft (no caching)
    =============================================================== */
