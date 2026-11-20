@@ -38,6 +38,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
+    <script src="shared-hash-nav.js"></script>
     <script src="shared-validate.js"></script>
     <script src="shared-docs.js"></script>
     <script src="shared-docs-ui.js"></script>
@@ -773,7 +774,7 @@
         }
 
         /* ---------- mode switching ---------- */
-        function switchMode(mode) {
+        function switchMode(mode, fromHash) {
             state.mode = mode;
             state.current = 0;
             state.slides = [];
@@ -790,6 +791,28 @@
             show('card-' + mode);
 
             setPhase('empty');
+            if (!fromHash && hashReady && window.SilidHashNav) window.SilidHashNav.write(mode);
+        }
+
+        /* Mode and the settings panel live in the URL hash (#dll, #exam,
+           #settings) so reloads and shared links keep the same view. */
+        var hashReady = false;
+        var HASH_PANES = ['topic', 'dll', 'exam'];
+        function initHashNav() {
+            if (!window.SilidHashNav) { hashReady = true; return; }
+            var apply = function (token) {
+                if (token === 'settings') {
+                    if (window.__silidSettingsSetOpen) window.__silidSettingsSetOpen(true, true);
+                    return;
+                }
+                if (window.__silidSettingsSetOpen) window.__silidSettingsSetOpen(false, true);
+                if (HASH_PANES.indexOf(token) !== -1) switchMode(token, true);
+            };
+            var token = window.SilidHashNav.read();
+            if (token === 'settings' || HASH_PANES.indexOf(token) !== -1) apply(token);
+            else window.SilidHashNav.write(HASH_PANES.indexOf(state.mode) === -1 ? 'topic' : state.mode, true);
+            hashReady = true;
+            window.SilidHashNav.listen(apply);
         }
 
         /* ---------- IO toggles (paste / file) ---------- */
@@ -2238,17 +2261,20 @@ function escapeHtml(str) {
             var testBtn = $('settings-test-btn');
             if (!gear || !dd) return;
 
-            function close() { dd.classList.add('hidden'); }
+            function setOpen(open, fromHash) {
+                dd.classList.toggle('hidden', !open);
+                if (open && input) input.focus();
+                if (!fromHash && hashReady && window.SilidHashNav) {
+                    window.SilidHashNav.write(open ? 'settings' : (HASH_PANES.indexOf(state.mode) === -1 ? 'topic' : state.mode));
+                }
+            }
+            function close() { if (!dd.classList.contains('hidden')) setOpen(false); }
+            window.__silidSettingsSetOpen = setOpen;
 
             gear.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                var wasHidden = dd.classList.contains('hidden');
-                close();
-                if (wasHidden) {
-                    dd.classList.remove('hidden');
-                    if (input) input.focus();
-                }
+                setOpen(dd.classList.contains('hidden'));
             });
             document.addEventListener('mousedown', function (e) {
                 if (dd.classList.contains('hidden')) return;
@@ -2441,6 +2467,7 @@ function escapeHtml(str) {
 
             bindSettingsDropdown();
             bindMobileNav();
+            initHashNav();
 
             $('btn-topic-generate').addEventListener('click', generateTopic);
             $('btn-dll-generate').addEventListener('click', generateDll);

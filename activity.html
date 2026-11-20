@@ -41,6 +41,7 @@
     <script src="shared-store.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
+    <script src="shared-hash-nav.js"></script>
     <script src="shared-validate.js"></script>
     <script src="shared-docs.js"></script>
     <script src="shared-docs-ui.js"></script>
@@ -675,7 +676,7 @@
         });
     }
 
-    function setMode(mode) {
+    function setMode(mode, fromHash) {
         state.mode = mode;
         document.querySelectorAll('#mode-tabs button').forEach(function (b) {
             b.classList.toggle('active', b.dataset.mode === mode);
@@ -683,6 +684,29 @@
         $('card-lesson').classList.toggle('hidden', mode !== 'lesson');
         $('card-custom').classList.toggle('hidden', mode !== 'custom');
         renderSections();   /* per-section mini lesson radios follow the mode */
+        if (!fromHash && hashReady && window.SilidHashNav) window.SilidHashNav.write(mode);
+    }
+
+    /* The active pane and the settings panel live in the URL hash (#custom,
+       #settings) so a reload or a shared link lands on the same view. */
+    var hashReady = false;
+    function hashPane() { return state.mode === 'custom' ? 'custom' : 'lesson'; }
+    function initHashNav() {
+        if (!window.SilidHashNav) { hashReady = true; return; }
+        var PANES = ['lesson', 'custom'];
+        var apply = function (token) {
+            if (token === 'settings') {
+                if (window.__silidSettingsSetOpen) window.__silidSettingsSetOpen(true, true);
+                return;
+            }
+            if (window.__silidSettingsSetOpen) window.__silidSettingsSetOpen(false, true);
+            if (PANES.indexOf(token) !== -1) setMode(token, true);
+        };
+        var token = window.SilidHashNav.read();
+        if (token === 'settings' || PANES.indexOf(token) !== -1) apply(token);
+        else window.SilidHashNav.write(hashPane(), true);
+        hashReady = true;
+        window.SilidHashNav.listen(apply);
     }
 
     /* ============================================================
@@ -1791,6 +1815,11 @@
         applySheetKidTheme();
         state.sheetLang = saved.sheetLang || 'english';
         state.mode = saved.mode === 'custom' ? 'custom' : 'lesson';
+        /* a linked pane outranks the remembered one */
+        if (window.SilidHashNav) {
+            var token = window.SilidHashNav.read();
+            if (token === 'lesson' || token === 'custom') state.mode = token;
+        }
         if (saved.grade && $('lesson-grade')) $('lesson-grade').value = saved.grade;
         if (saved.subject && $('lesson-subject')) $('lesson-subject').value = saved.subject;
         setMode(state.mode);
@@ -1950,12 +1979,18 @@
         var input = $('settings-key-input');
         var testBtn = $('settings-test-btn');
         if (!gear || !dd) return;
-        function close() { dd.classList.add('hidden'); }
+        function setOpen(open, fromHash) {
+            dd.classList.toggle('hidden', !open);
+            if (open && input) input.focus();
+            if (!fromHash && hashReady && window.SilidHashNav) {
+                window.SilidHashNav.write(open ? 'settings' : hashPane());
+            }
+        }
+        function close() { if (!dd.classList.contains('hidden')) setOpen(false); }
+        window.__silidSettingsSetOpen = setOpen;
         gear.addEventListener('click', function (e) {
             e.preventDefault(); e.stopPropagation();
-            var wasHidden = dd.classList.contains('hidden');
-            close();
-            if (wasHidden) { dd.classList.remove('hidden'); if (input) input.focus(); }
+            setOpen(dd.classList.contains('hidden'));
         });
         document.addEventListener('mousedown', function (e) {
             if (dd.classList.contains('hidden')) return;
@@ -2090,6 +2125,8 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
         }
+
+        initHashNav();
 
         // reveal animation
         setTimeout(function () {

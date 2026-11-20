@@ -81,6 +81,7 @@
   <script src="shared-store.js"></script>
   <script src="shared-api.js"></script>
   <script src="shared-keys.js"></script>
+  <script src="shared-hash-nav.js"></script>
   <script src="shared-validate.js"></script>
   <script src="shared-docs.js"></script>
   <script src="shared-docs-ui.js"></script>
@@ -1010,6 +1011,31 @@
       const [keyTestStatus, setKeyTestStatus] = useState('');
       const [keyTestMsg, setKeyTestMsg] = useState('');
       const settingsRef = useRef(null);
+
+      /* Panes live in the URL hash (#choose, #school, #solo, #settings) so a TOS
+         view can be linked, reloaded into, and reached with Back/Forward. */
+      const hashPaneToken = showSettings ? 'settings'
+        : tosTemplate === 'school' ? 'school'
+        : tosTemplate === 'silidpinoy' ? 'solo' : 'choose';
+      const hashFirstRun = useRef(true);
+      useEffect(() => {
+        const nav = window.SilidHashNav;
+        if (!nav) return;
+        const apply = (token) => {
+          if (token === 'settings') { setShowSettings(true); return; }
+          setShowSettings(false);
+          setTosTemplate(token === 'school' ? 'school' : token === 'solo' ? 'silidpinoy' : null);
+        };
+        const token = nav.read();
+        apply(['settings', 'school', 'solo', 'choose'].indexOf(token) !== -1 ? token : 'choose');
+        if (!token) nav.write('choose', true);
+        return nav.listen(apply);
+      }, []);
+      useEffect(() => {
+        if (hashFirstRun.current) { hashFirstRun.current = false; return; }
+        const nav = window.SilidHashNav;
+        if (nav) nav.write(hashPaneToken, !nav.read());
+      }, [hashPaneToken]);
 
       /* Auto-save current working state */
       useEffect(() => {

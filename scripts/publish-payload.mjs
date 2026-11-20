@@ -20,6 +20,7 @@ export const PAGES = [
 export const PAYLOAD = PAGES.concat([
   'shared-assets.js',
   'shared-store.js',
+  'shared-hash-nav.js',
   'shared-analytics.js',
   'analytics-config.js',
   'shared-api.js',

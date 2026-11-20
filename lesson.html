@@ -42,6 +42,7 @@
     <script src="shared-store.js"></script>
     <script src="shared-api.js"></script>
     <script src="shared-keys.js"></script>
+    <script src="shared-hash-nav.js"></script>
     <script src="shared-validate.js"></script>
     <script src="shared-docs.js"></script>
     <script src="shared-docs-ui.js"></script>
@@ -4097,17 +4098,22 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                 var input = document.getElementById('settings-key-input');
                 var testBtn = document.getElementById('settings-test-btn');
                 if (!gear || !dd) return;
-                function close() { dd.classList.add('hidden'); }
-                gear.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    var wasHidden = dd.classList.contains('hidden');
-                    close();
-                    if (wasHidden) {
-                        dd.classList.remove('hidden');
+                function setOpen(open, fromHash) {
+                    dd.classList.toggle('hidden', !open);
+                    if (open) {
                         if (input && !input.value) input.value = window.SilidKeys ? window.SilidKeys.get('primary') : (localStorage.getItem('gemini_api_key') || '');
                         if (input) input.focus();
                     }
+                    if (!fromHash && hashReady && window.SilidHashNav) {
+                        window.SilidHashNav.write(open ? 'settings' : 'plan');
+                    }
+                }
+                function close() { if (!dd.classList.contains('hidden')) setOpen(false); }
+                window.__silidSettingsSetOpen = setOpen;
+                gear.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOpen(dd.classList.contains('hidden'));
                 });
                 document.addEventListener('mousedown', function (e) {
                     if (dd.classList.contains('hidden')) return;
@@ -4188,10 +4194,29 @@ FORMAT REQUIREMENT (OUTPUT THIS EXACT HTML STRUCTURE WITH FILLED CONTENT):
                     if (window.innerWidth >= 768) setOpen(false);
                 });
             }
+            /* The page's only panes are the plan itself and the settings panel,
+               so the hash either names the plan or opens Settings (#settings). */
+            var hashReady = false;
+            function initHashNav() {
+                if (!window.SilidHashNav) { hashReady = true; return; }
+                var apply = function (token) {
+                    if (token === 'settings') {
+                        if (window.__silidSettingsSetOpen) window.__silidSettingsSetOpen(true, true);
+                    } else if (window.__silidSettingsSetOpen) {
+                        window.__silidSettingsSetOpen(false, true);
+                    }
+                };
+                var token = window.SilidHashNav.read();
+                if (token === 'settings' || token === 'plan') apply(token);
+                else window.SilidHashNav.write('plan', true);
+                hashReady = true;
+                window.SilidHashNav.listen(apply);
+            }
             document.addEventListener('DOMContentLoaded', function () {
                 updateSettingsDot();
                 bindSettingsDropdown();
                 bindMobileNav();
+                initHashNav();
             });
         })();
     </script>
