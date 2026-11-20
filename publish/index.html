@@ -65,25 +65,8 @@
     }
     .halo { background:radial-gradient(42% 48% at 50% 0%,rgba(109,91,245,0.20) 0%,transparent 70%); }
     .halo-2 { background:radial-gradient(30% 35% at 82% 18%,rgba(236,72,153,0.12) 0%,transparent 70%); }
-    .reveal { opacity:0; transform:translateY(28px); filter:blur(6px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1), filter .9s cubic-bezier(.22,1,.36,1); }
-    .reveal.in { opacity:1; transform:none; filter:none; }
-    /* Hero headline: 3D word flip with a springy overshoot, staged once the
-       parent .reveal has faded in. Words default to visible — the hidden start
-       frame comes from `backwards` fill, so if the animation never runs the
-       headline still renders. */
-    .hero-title { perspective:900px; }
-    .hero-word { display:inline-block; transform-origin:50% 100%; backface-visibility:hidden; }
-    @keyframes heroFlip {
-      from { opacity:0; transform:rotateX(-95deg) translateY(35%); filter:blur(7px); }
-      to { opacity:1; transform:rotateX(0) translateY(0); filter:blur(0px); }
-    }
-    .reveal.in .hero-word {
-      animation:heroFlip .95s cubic-bezier(.2,1.35,.3,1) backwards;
-      animation-delay:calc(var(--i, 0) * 75ms + 120ms);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .reveal.in .hero-word { animation:none; }
-    }
+    .reveal { opacity:0; transform:translateY(28px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); }
+    .reveal.in { opacity:1; transform:none; }
     .btn-spring { transition: transform .5s cubic-bezier(.32,.72,0,1), background .5s cubic-bezier(.32,.72,0,1), box-shadow .5s cubic-bezier(.32,.72,0,1); }
     .btn-spring:hover { transform:translateY(-2px); }
     .btn-spring:active { transform:scale(.98); }
@@ -1575,6 +1558,9 @@
         const [openPanels, setOpenPanels] = useState({ excel: true, annex1: true, annex3: true });
         const togglePanel = (key) => setOpenPanels(p => ({ ...p, [key]: !p[key] }));
         const [overallScores, setOverallScores] = useState({ mean: 0, mps: 0 });
+        // Which slice of the class the report shows: 'all' is the consolidated
+        // result, any other value is the index of one section.
+        const [resultScope, setResultScope] = useState('all');
 
         // The competency mapping the teacher reviews (step 3) before the report.
         const [reviewComps, setReviewComps] = useState([]);
@@ -2430,88 +2416,16 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
         const finishAnalysis = () => {
           setErrorMsg('');
           try {
-            const compList = reviewComps.map(c => String(c || '').trim() || 'Unspecified Competency');
-            let finalData = [];
-            const counts = { 'High Mastery': 0, 'Moderately Average Mastery': 0, 'Average Mastery': 0, 'Low Mastery': 0, 'No Mastery': 0 };
-
-            // Correct responses pooled across every section, as entered.
-            const pooledCorrect = manualScores.map((_, i) => sections.reduce((sum, s) => {
-              const raw = Number((s.scores[i] || {}).score) || 0;
-              return sum + (raw > 0 ? raw : 0);
-            }, 0));
-
-            manualScores.forEach((ms, idx) => {
-              const comp = compList[idx] || `Item ${ms.itemNo}`;
-              const safeCorrect = pooledCorrect[idx] || 0;
-              const pct = totalLearners > 0 ? (safeCorrect / totalLearners) * 100 : 0;
-              const mastery = getMasteryLevel(pct);
-              counts[mastery]++;
-              finalData.push({
-                itemNo: ms.itemNo,
-                competency: comp,
-                correctResponses: safeCorrect,
-                percentage: pct.toFixed(2),
-                masteryLevel: mastery
-              });
-            });
-
-            const totalCorrect = finalData.reduce((a, c) => a + c.correctResponses, 0);
-            const mean = totalLearners > 0 ? totalCorrect / totalLearners : 0;
-            const mps = (mean / itemCount) * 100;
-            setOverallScores({ mean: mean.toFixed(2), mps: mps.toFixed(2) });
-
-            /* ── Least Learned Competencies: DepEd 75% cut-off, two rules ──
-               Pooled across every section, as entered.
-               Rule A (competency level): correct answers over all items
-                 mapped to the competency ÷ (total takers × items mapped).
-                 Flagged when that competency mastery % is below 75.
-               Rule B (item level): each individual mapped item's correct
-                 answers ÷ total takers. Flagged when any of those items is
-                 below 75.
-               A competency is declared Least Learned when EITHER rule flags
-               it, and grouped by iaCompKey so it is never declared twice. */
-            const compGroups = new Map();
-            finalData.forEach((it, i) => {
-              const key = iaCompKey(it.competency) || ('item ' + it.itemNo);
-              if (!compGroups.has(key)) compGroups.set(key, { competency: it.competency, correct: 0, n: 0, weakItems: [], lowest: 100 });
-              const g = compGroups.get(key);
-              const correct = pooledCorrect[i] || 0;
-              const itemPct = totalLearners > 0 ? (correct / totalLearners) * 100 : 0;
-              g.correct += correct;
-              g.n += 1;
-              if (itemPct < IA_MASTERY_CUT) g.weakItems.push(it.itemNo);
-              if (itemPct < g.lowest) g.lowest = itemPct;
-            });
-            const leastLearned = [];
-            compGroups.forEach(g => {
-              const mastery = (totalLearners > 0 && g.n > 0) ? (g.correct / (totalLearners * g.n)) * 100 : 0;
-              const ruleA = mastery < IA_MASTERY_CUT;   // competency-level mastery
-              const ruleB = g.weakItems.length > 0;     // at least one item below 75%
-              if (!ruleA && !ruleB) return;
-              leastLearned.push({
-                competency: g.competency,
-                average: mastery.toFixed(2),
-                mastery,
-                ruleA,
-                ruleB,
-                items: g.n,
-                weakItems: g.weakItems,
-                lowestItem: g.lowest.toFixed(2)
-              });
-            });
-            leastLearned.sort((a, b) => a.mastery - b.mastery || parseFloat(a.lowestItem) - parseFloat(b.lowestItem));
-            setLeastMastered(leastLearned);
-
-            let insight = `Based on ${totalLearners} learners across ${finalData.length} items: `;
-            if (counts['High Mastery'] >= finalData.length * 0.5) insight += 'Over half the items reached High Mastery — excellent class understanding. ';
-            else if (counts['No Mastery'] + counts['Low Mastery'] > finalData.length * 0.4) insight += 'Many competencies show Low or No Mastery — reteaching is recommended. ';
-            else insight += 'Overall performance is in the Average to Moderately Average range. ';
-            const hardest = [...finalData].sort((a, b) => parseFloat(a.percentage) - parseFloat(b.percentage))[0];
-            if (hardest) insight += `Most challenging: Item ${hardest.itemNo} ("${hardest.competency}" — ${hardest.percentage}% correct).`;
-            setAiInsight(insight);
-
-            setResults(finalData);
-            setSummaryStats(counts);
+            /* The report opens on the consolidated result; the dropdown on the
+               report switches it to one section without recomputing anything
+               by hand. Same rules either way — see iaAnalyzeScope. */
+            const view = iaAnalyzeScope('all');
+            setResults(view.results);
+            setSummaryStats(view.counts);
+            setLeastMastered(view.leastMastered);
+            setOverallScores(view.overall);
+            setAiInsight(view.aiInsight);
+            setResultScope('all');
             setStep(4);
           } catch (err) {
             console.error(err);
@@ -2524,6 +2438,7 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
           setTosFile(null);
           setSections([iaNewSection(itemCount)]);
           setActiveIdx(0);
+          setResultScope('all');
           setResults([]);
           setLeastMastered([]);
           setReviewComps([]);
@@ -2904,8 +2819,108 @@ ${sigTable}`;
         }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
           .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
 
+        /* One analysis, computed for whatever the report is scoped to: 'all'
+           pools every section into the consolidated result, a number narrows it
+           to that one section. The report dropdown, the screen and the Analysis
+           Report exports all run through here, so a section's figures can never
+           disagree with the class-wide ones.
+
+           Least Learned Competencies keeps the DepEd 75% cut-off and both
+           rules, applied to the chosen scope:
+             Rule A (competency level): correct answers over every item mapped
+               to the competency ÷ (takers × items mapped), flagged below 75.
+             Rule B (item level): any single mapped item below 75%.
+           A competency is declared once, grouped by iaCompKey. */
+        const iaAnalyzeScope = (scope) => {
+          let idx = scope === 'all' ? -1 : Number(scope);
+          if (!(idx >= 0 && idx < sections.length)) idx = -1;
+          const scoped = idx === -1 ? sections : [sections[idx]];
+          const compList = reviewComps.map(c => String(c || '').trim() || 'Unspecified Competency');
+          const learners = scoped.reduce((a, s) => a + iaNum(s.takers), 0);
+          // Correct responses per item inside this scope, exactly as entered.
+          const correct = Array.from({ length: itemCount }, (_, i) => scoped.reduce((sum, s) => {
+            const raw = Number((s.scores[i] || {}).score) || 0;
+            return sum + (raw > 0 ? raw : 0);
+          }, 0));
+          const counts = { 'High Mastery': 0, 'Moderately Average Mastery': 0, 'Average Mastery': 0, 'Low Mastery': 0, 'No Mastery': 0 };
+          const rows = correct.map((c, i) => {
+            const pct = learners > 0 ? (c / learners) * 100 : 0;
+            const masteryLevel = getMasteryLevel(pct);
+            counts[masteryLevel]++;
+            return {
+              itemNo: i + 1,
+              competency: compList[i] || `Item ${i + 1}`,
+              correctResponses: c,
+              percentage: pct.toFixed(2),
+              masteryLevel
+            };
+          });
+          const totalCorrect = rows.reduce((a, r) => a + r.correctResponses, 0);
+          const mean = learners > 0 ? totalCorrect / learners : 0;
+          const mps = itemCount > 0 ? (mean / itemCount) * 100 : 0;
+          const compGroups = new Map();
+          rows.forEach(it => {
+            const key = iaCompKey(it.competency) || ('item ' + it.itemNo);
+            if (!compGroups.has(key)) compGroups.set(key, { competency: it.competency, correct: 0, n: 0, weakItems: [], lowest: 100 });
+            const g = compGroups.get(key);
+            const itemPct = learners > 0 ? (it.correctResponses / learners) * 100 : 0;
+            g.correct += it.correctResponses;
+            g.n += 1;
+            if (itemPct < IA_MASTERY_CUT) g.weakItems.push(it.itemNo);
+            if (itemPct < g.lowest) g.lowest = itemPct;
+          });
+          const leastLearned = [];
+          compGroups.forEach(g => {
+            const mastery = (learners > 0 && g.n > 0) ? (g.correct / (learners * g.n)) * 100 : 0;
+            const ruleA = mastery < IA_MASTERY_CUT;   // competency-level mastery
+            const ruleB = g.weakItems.length > 0;     // at least one item below 75%
+            if (!ruleA && !ruleB) return;
+            leastLearned.push({
+              competency: g.competency,
+              average: mastery.toFixed(2),
+              mastery,
+              ruleA,
+              ruleB,
+              items: g.n,
+              weakItems: g.weakItems,
+              lowestItem: g.lowest.toFixed(2)
+            });
+          });
+          leastLearned.sort((a, b) => a.mastery - b.mastery || parseFloat(a.lowestItem) - parseFloat(b.lowestItem));
+          const compPerf = Object.values(rows.reduce((acc, r) => {
+            const k = r.competency;
+            if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
+            acc[k].total += parseFloat(r.percentage);
+            acc[k].n += 1;
+            return acc;
+          }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
+            .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+          const label = idx === -1
+            ? 'All sections (consolidated)'
+            : (String(sections[idx].name || '').trim() || `Section ${idx + 1}`);
+          let insight = `Based on ${learners} learner${learners === 1 ? '' : 's'} across ${rows.length} item${rows.length === 1 ? '' : 's'}${idx === -1 ? '' : ' in ' + label}: `;
+          if (counts['High Mastery'] >= rows.length * 0.5) insight += 'Over half the items reached High Mastery — excellent class understanding. ';
+          else if (counts['No Mastery'] + counts['Low Mastery'] > rows.length * 0.4) insight += 'Many competencies show Low or No Mastery — reteaching is recommended. ';
+          else insight += 'Overall performance is in the Average to Moderately Average range. ';
+          const hardest = [...rows].sort((a, b) => parseFloat(a.percentage) - parseFloat(b.percentage))[0];
+          if (hardest) insight += `Most challenging: Item ${hardest.itemNo} ("${hardest.competency}" — ${hardest.percentage}% correct).`;
+          return {
+            scope: idx === -1 ? 'all' : String(idx),
+            idx,
+            label,
+            learners,
+            results: rows,
+            counts,
+            overall: { mean: mean.toFixed(2), mps: mps.toFixed(2) },
+            leastMastered: leastLearned,
+            compPerf,
+            aiInsight: insight
+          };
+        };
+
         const buildAnalysisReportHtml = (opts) => {
           const forDoc = !!(opts && opts.forDoc);
+          const view = (opts && opts.view) || null;
           const si = iaSi();
           const esc = (s) => String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2928,12 +2943,21 @@ ${sigTable}`;
             const tone = tones[level] || ['#F8F7FC', C.line, C.muted];
             return `<span style="background:${tone[0]};border:1px solid ${tone[1]};color:${tone[2]};padding:1px 6px;font-size:7.5pt;font-weight:bold;">${esc(level)}</span>`;
           };
-          const compPerf = iaCompPerf();
+          const compPerf = view ? view.compPerf : iaCompPerf();
+          /* The export follows the report dropdown: one section or the whole
+             class. Without a view (older callers) it uses the consolidated
+             state, exactly as before. */
+          const reportResults = view ? view.results : results;
+          const reportLearners = view ? view.learners : totalLearners;
+          const reportStats = view ? view.counts : summaryStats;
+          const reportLeast = view ? view.leastMastered : leastMastered;
+          const reportOverall = view ? view.overall : overallScores;
+          const reportInsight = view ? view.aiInsight : aiInsight;
           const metaRows = [
             ['School', si.schoolName || '', 'School Year', meta.schoolYear || ''],
             ['Subject', meta.subject || '', 'Term / Grading Period', meta.gradingPeriod || ''],
             ['Grade Level', meta.gradeLevel || '', 'Assessment', meta.assessment || ''],
-            ['Sections', sections.map(s => String(s.name || '').trim()).filter(Boolean).join(', ') || '—', 'Learners / Items', `${totalLearners} / ${itemCount}`]
+            [view && view.idx >= 0 ? 'Section' : 'Sections', (view && view.idx >= 0) ? view.label : (sections.map(s => String(s.name || '').trim()).filter(Boolean).join(', ') || '—'), 'Learners / Items', `${reportLearners} / ${itemCount}`]
           ];
           const infoLabel = 'padding:5px 7px;font-size:7.5pt;font-weight:bold;color:' + C.muted + ';background:#F8F7FC;border-bottom:1px solid ' + C.line + ';';
           const infoValue = 'padding:5px 7px;font-size:8.5pt;color:' + C.ink + ';border-bottom:1px solid ' + C.line + ';';
@@ -2950,15 +2974,15 @@ ${sigTable}`;
               `<td style="${cell}${line}">${badge(getMasteryLevel(parseFloat(c.average)))}</td></tr>`).join('')
             : `<tr><td colspan="4" style="${cell}${line}text-align:center;color:${C.muted};">No competency data</td></tr>`;
           const summary = [
-            ['High', summaryStats['High Mastery'] || 0, ['#ECFDF5', '#A7F3D0', '#047857']],
-            ['Mod. Avg', summaryStats['Moderately Average Mastery'] || 0, ['#EFF6FF', '#BFDBFE', '#1D4ED8']],
-            ['Average', summaryStats['Average Mastery'] || 0, ['#FEFCE8', '#FEF08A', '#A16207']],
-            ['Low', summaryStats['Low Mastery'] || 0, ['#FFF7ED', '#FED7AA', '#C2410C']],
-            ['None', summaryStats['No Mastery'] || 0, ['#FFF1F2', '#FECDD3', '#BE123C']]
+            ['High', reportStats['High Mastery'] || 0, ['#ECFDF5', '#A7F3D0', '#047857']],
+            ['Mod. Avg', reportStats['Moderately Average Mastery'] || 0, ['#EFF6FF', '#BFDBFE', '#1D4ED8']],
+            ['Average', reportStats['Average Mastery'] || 0, ['#FEFCE8', '#FEF08A', '#A16207']],
+            ['Low', reportStats['Low Mastery'] || 0, ['#FFF7ED', '#FED7AA', '#C2410C']],
+            ['None', reportStats['No Mastery'] || 0, ['#FFF1F2', '#FECDD3', '#BE123C']]
           ];
           const summaryRow = summary.map(([label, value, tone]) =>
             `<td width="20%" style="border:1px solid ${tone[1]};background:${tone[0]};padding:8px 4px;text-align:center;vertical-align:top;"><p style="margin:0;font-size:20pt;font-weight:bold;color:${C.ink};">${value}</p><p style="margin:2px 0 0;font-size:7pt;font-weight:bold;color:${tone[2]};text-transform:uppercase;">${esc(label)}</p></td>`).join('');
-          const leastHtml = leastMastered.length ? leastMastered.map((c, i) =>
+          const leastHtml = reportLeast.length ? reportLeast.map((c, i) =>
             `<table width="100%" style="width:100%;border-collapse:collapse;margin:0 0 6px;"><tr>` +
             `<td style="border:1px solid #FECDD3;background:#FFFFFF;padding:8px 10px;vertical-align:top;">` +
             `<table width="100%" style="width:100%;border-collapse:collapse;"><tr>` +
@@ -2966,7 +2990,7 @@ ${sigTable}`;
             `<td align="right" style="font-size:9pt;font-weight:bold;color:#E11D48;white-space:nowrap;">${esc(c.average)}%</td>` +
             `</tr></table></td></tr></table>`).join('')
             : `<p style="font-size:9pt;color:${C.muted};margin:0;">No competency fell below the mastery cut-off.</p>`;
-          const insightsHtml = leastMastered.length ? leastMastered.map((c, i) => {
+          const insightsHtml = reportLeast.length ? reportLeast.map((c, i) => {
             const d = compDetail(c.competency);
             return `<table width="100%" style="width:100%;border-collapse:collapse;margin:0 0 9px;"><tr><td style="padding:0 0 7px;border-bottom:1px solid ${C.line};">` +
               `<table width="100%" style="width:100%;border-collapse:collapse;"><tr>` +
@@ -2980,10 +3004,10 @@ ${sigTable}`;
               `<td width="49%" style="border:1px solid #A7F3D0;background:#ECFDF5;padding:7px;vertical-align:top;"><p style="margin:0 0 3px;font-size:7pt;font-weight:bold;color:#047857;">PROPOSED INTERVENTION</p><p style="margin:0;font-size:8pt;line-height:1.4;color:${C.ink};">${esc(interventionFor(d))}</p></td>` +
               `</tr></table></td></tr></table>`;
           }).join('') : '';
-          const detailRows = results.length ? results.map(r => `<tr>` +
+          const detailRows = reportResults.length ? reportResults.map(r => `<tr>` +
             `<td style="${cell}${line}text-align:center;">${esc(r.itemNo)}</td>` +
             `<td style="${cell}${line}">${esc(r.competency)}</td>` +
-            `<td style="${cell}${line}text-align:center;">${esc(r.correctResponses)} / ${totalLearners}</td>` +
+            `<td style="${cell}${line}text-align:center;">${esc(r.correctResponses)} / ${reportLearners}</td>` +
             `<td style="${cell}${line}text-align:center;font-weight:bold;color:${C.iris600};">${esc(r.percentage)}%</td>` +
             `<td style="${cell}${line}">${badge(r.masteryLevel)}</td></tr>`).join('')
             : `<tr><td colspan="5" style="${cell}${line}text-align:center;color:${C.muted};">No item data</td></tr>`;
@@ -3007,16 +3031,16 @@ ${sigTable}`;
             `<p style="text-align:center;font-size:8.5pt;color:${C.muted};margin:0 0 12pt;">${esc([meta.subject, meta.gradingPeriod, meta.schoolYear].filter(Boolean).join(' · '))}</p>` +
             panel(`<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">${metaRows.map(r => infoRow(r[0], r[1], r[2], r[3])).join('')}</table>`) +
             panel(`<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>` +
-              `<td width="50%" style="${metric}"><p style="margin:0;font-size:7.5pt;font-weight:bold;color:${C.muted};text-transform:uppercase;">Mean Score</p><p style="margin:3px 0 0;font-size:24pt;font-weight:bold;color:${C.iris600};">${esc(overallScores.mean)}</p></td>` +
-              `<td width="50%" style="${metric}"><p style="margin:0;font-size:7.5pt;font-weight:bold;color:${C.muted};text-transform:uppercase;">Mean Percentage Score (MPS)</p><p style="margin:3px 0 0;font-size:24pt;font-weight:bold;color:${C.iris600};">${esc(overallScores.mps)}%</p></td>` +
+              `<td width="50%" style="${metric}"><p style="margin:0;font-size:7.5pt;font-weight:bold;color:${C.muted};text-transform:uppercase;">Mean Score</p><p style="margin:3px 0 0;font-size:24pt;font-weight:bold;color:${C.iris600};">${esc(reportOverall.mean)}</p></td>` +
+              `<td width="50%" style="${metric}"><p style="margin:0;font-size:7.5pt;font-weight:bold;color:${C.muted};text-transform:uppercase;">Mean Percentage Score (MPS)</p><p style="margin:3px 0 0;font-size:24pt;font-weight:bold;color:${C.iris600};">${esc(reportOverall.mps)}%</p></td>` +
               `</tr></table>`) +
-            section('AI Interpretation', `<p style="margin:0;font-size:9pt;line-height:1.45;color:${C.ink};">${esc(aiInsight)}</p>`, C.iris50, C.iris200) +
+            section('AI Interpretation', `<p style="margin:0;font-size:9pt;line-height:1.45;color:${C.ink};">${esc(reportInsight)}</p>`, C.iris50, C.iris200) +
             section('Performance by Competency', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">` +
               `<thead><tr><th style="${headCell}">Competency</th><th style="${headCell}width:10%;text-align:center;">Items</th><th style="${headCell}width:13%;text-align:center;">Avg %</th><th style="${headCell}width:22%;">Mastery</th></tr></thead>` +
               `<tbody>${performanceRows}</tbody></table>`) +
             section('Mastery Summary', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>${summaryRow}</tr></table>`) +
             section('Least Mastered Competencies (Focus Areas)', leastHtml, '#FFF1F2', '#FECDD3', '#BE123C') +
-            (leastMastered.length ? section(`Why These Competencies Fell Below ${IA_MASTERY_CUT}%`, insightsHtml) : '') +
+            (reportLeast.length ? section(`Why These Competencies Fell Below ${IA_MASTERY_CUT}%`, insightsHtml) : '') +
             section('Item Detail', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">` +
               `<thead><tr><th style="${headCell}width:8%;text-align:center;">Item #</th><th style="${headCell}">Competency</th><th style="${headCell}width:14%;text-align:center;">Correct</th><th style="${headCell}width:10%;text-align:center;">%</th><th style="${headCell}width:20%;">Mastery</th></tr></thead>` +
               `<tbody>${detailRows}</tbody></table>`) +
@@ -3026,56 +3050,15 @@ ${sigTable}`;
         };
 
         const downloadAnalysisDocx = async () => {
-          // Compute section-specific data based on activeIdx
-          let sectionOverallScores = overallScores;
-          let sectionResults = results;
-          let sectionSummaryStats = summaryStats;
-          let sectionLeastMastered = leastMastered;
-          let sectionTotalLearners = totalLearners;
-
-          if (activeIdx >= 0 && sections[activeIdx]) {
-            const section = sections[activeIdx];
-            const sectionCorrect = section.scores.reduce((sum, s, i) => sum + (s.correct || 0), 0);
-            const sectionTotal = section.takers || 50;
-            const sectionMean = sectionTotal > 0 ? sectionCorrect / sectionTotal : 0;
-            const sectionMps = (sectionMean / (itemCount || 10)) * 100;
-            sectionOverallScores = { mean: sectionMean.toFixed(2), mps: sectionMps.toFixed(2) };
-
-            // Filter results to this section's items
-            // (results are already global, but we'll use section total learners)
-            sectionTotalLearners = sectionTotal;
-
-            // Compute summary stats for this section only
-            const sectionCompPerf = section.scores.map((s, i) => {
-              const correct = s.correct || 0;
-              const pct = sectionTotal > 0 ? (correct / sectionTotal) * 100 : 0;
-              return { competency: s.competency || '', n: 1, average: pct.toFixed(2) };
-            });
-            const sectionCompAgg = Object.values(sectionCompPerf.reduce((acc, r) => {
-              const k = r.competency;
-              if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
-              acc[k].total += parseFloat(r.average);
-              acc[k].n += 1;
-              return acc;
-            }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
-              .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
-            sectionSummaryStats = {};
-            sectionCompAgg.forEach(c => {
-              sectionSummaryStats[`${c.average}% Mastery`] = (sectionSummaryStats[`${c.average}% Mastery`] || 0) + c.n;
-            });
-
-            // Compute least mastered for this section
-            const IA_MASTERY_CUT = 75;
-            sectionLeastMastered = sectionCompAgg.filter(c => parseFloat(c.average) < IA_MASTERY_CUT);
-          }
-
+          // The download carries whatever the report dropdown is showing.
+          const view = iaAnalyzeScope(resultScope);
           if (!window.htmlDocx || !window.saveAs) {
-            const blob = new Blob(['\ufeff', buildAnalysisReportHtml({ forDoc: true })], { type: 'application/msword' });
+            const blob = new Blob(['\ufeff', buildAnalysisReportHtml({ forDoc: true, view })], { type: 'application/msword' });
             saveWordBlob(blob, analysisFileName('.doc'));
             return;
           }
           try {
-            const blob = window.htmlDocx.asBlob(buildAnalysisReportHtml({}), {
+            const blob = window.htmlDocx.asBlob(buildAnalysisReportHtml({ view }), {
               orientation: 'portrait',
               margins: { top: 720, bottom: 720, left: 720, right: 720 }
             });
@@ -3093,49 +3076,8 @@ ${sigTable}`;
             if (window.SilidToast) window.SilidToast.error(m); else alert(m);
             return;
           }
-          // Compute section-specific data based on activeIdx
-          let sectionOverallScores = overallScores;
-          let sectionCompPerf = compPerf;
-          let sectionSummaryStats = summaryStats;
-          let sectionLeastMastered = leastMastered;
-          let sectionTotalLearners = totalLearners;
-
-          if (activeIdx >= 0 && sections[activeIdx]) {
-            const section = sections[activeIdx];
-            const sectionCorrect = section.scores.reduce((sum, s, i) => sum + (s.correct || 0), 0);
-            const sectionTotal = section.takers || 50;
-            const sectionMean = sectionTotal > 0 ? sectionCorrect / sectionTotal : 0;
-            const sectionMps = (sectionMean / (itemCount || 10)) * 100;
-            sectionOverallScores = { mean: sectionMean.toFixed(2), mps: sectionMps.toFixed(2) };
-
-            // Compute competency performance for this section only
-            sectionCompPerf = section.scores.map((s, i) => {
-              const correct = s.correct || 0;
-              const pct = sectionTotal > 0 ? (correct / sectionTotal) * 100 : 0;
-              return { competency: s.competency || '', n: 1, average: pct.toFixed(2) };
-            });
-
-            // Aggregate competency performance
-            const compAgg = Object.values(sectionCompPerf.reduce((acc, r) => {
-              const k = r.competency;
-              if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
-              acc[k].total += parseFloat(r.average);
-              acc[k].n += 1;
-              return acc;
-            }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) }))
-              .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
-
-            sectionSummaryStats = {};
-            compAgg.forEach(c => {
-              sectionSummaryStats[`${c.average}% Mastery`] = (sectionSummaryStats[`${c.average}% Mastery`] || 0) + c.n;
-            });
-
-            // Compute least mastered for this section
-            const IA_MASTERY_CUT = 75;
-            sectionLeastMastered = compAgg.filter(c => parseFloat(c.average) < IA_MASTERY_CUT);
-
-            sectionTotalLearners = sectionTotal;
-          }
+          // The download carries whatever the report dropdown is showing.
+          const view = iaAnalyzeScope(resultScope);
           try {
             const jsPDF = window.jspdf.jsPDF;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -3144,7 +3086,7 @@ ${sigTable}`;
             const margin = 13;
             const contentW = pageW - margin * 2;
             const si = iaSi();
-            const compPerf = iaCompPerf();
+            const compPerf = view.compPerf;
             let y = margin;
             // The report the teacher sees carries the Settings logos; put them
             // above the letterhead, centred as a pair.
@@ -3263,14 +3205,14 @@ ${sigTable}`;
               ['School', si.schoolName || '', 'School Year', meta.schoolYear || ''],
               ['Subject', meta.subject || '', 'Term / Grading Period', meta.gradingPeriod || ''],
               ['Grade Level', meta.gradeLevel || '', 'Assessment', meta.assessment || ''],
-              ['Sections', sections.map(s => String(s.name || '').trim()).filter(Boolean).join(', ') || '-', 'Learners / Items', `${totalLearners} / ${itemCount}`]
+              [view.idx >= 0 ? 'Section' : 'Sections', view.idx >= 0 ? view.label : (sections.map(s => String(s.name || '').trim()).filter(Boolean).join(', ') || '-'), 'Learners / Items', `${view.learners} / ${itemCount}`]
             ], [34, 54, 32, 64], { noHeader: true, size: 8.5 });
 
             heading('Summary');
-            table(['Mean Score', 'Mean Percentage Score (MPS)'], [[overallScores.mean, overallScores.mps + '%']], [92, 92], { size: 10 });
+            table(['Mean Score', 'Mean Percentage Score (MPS)'], [[view.overall.mean, view.overall.mps + '%']], [92, 92], { size: 10 });
 
             heading('AI Interpretation');
-            paragraph(aiInsight, 9);
+            paragraph(view.aiInsight, 9);
 
             heading('Performance by Competency');
             table(['Competency', 'Items', 'Avg %', 'Mastery'], compPerf.map(c => [
@@ -3279,16 +3221,16 @@ ${sigTable}`;
 
             heading('Mastery Summary');
             table(['High', 'Mod. Avg', 'Average', 'Low', 'None'], [[
-              summaryStats['High Mastery'] || 0,
-              summaryStats['Moderately Average Mastery'] || 0,
-              summaryStats['Average Mastery'] || 0,
-              summaryStats['Low Mastery'] || 0,
-              summaryStats['No Mastery'] || 0
+              view.counts['High Mastery'] || 0,
+              view.counts['Moderately Average Mastery'] || 0,
+              view.counts['Average Mastery'] || 0,
+              view.counts['Low Mastery'] || 0,
+              view.counts['No Mastery'] || 0
             ]], [36.8, 36.8, 36.8, 36.8, 36.8], { size: 10 });
 
-            if (leastMastered.length) {
+            if (view.leastMastered.length) {
               heading(`Least Mastered Competencies (Below ${IA_MASTERY_CUT}%)`);
-              leastMastered.forEach((c, i) => {
+              view.leastMastered.forEach((c, i) => {
                 const d = compDetail(c.competency);
                 ensure(14);
                 doc.setFont('helvetica', 'bold');
@@ -3302,8 +3244,8 @@ ${sigTable}`;
             }
 
             heading('Item Detail');
-            table(['Item #', 'Competency', 'Correct', '%', 'Mastery'], results.map(r => [
-              r.itemNo, r.competency, `${r.correctResponses} / ${totalLearners}`, `${r.percentage}%`, r.masteryLevel
+            table(['Item #', 'Competency', 'Correct', '%', 'Mastery'], view.results.map(r => [
+              r.itemNo, r.competency, `${r.correctResponses} / ${view.learners}`, `${r.percentage}%`, r.masteryLevel
             ]), [13, 91, 26, 15, 39]);
 
             const sigs = iaSignatories();
@@ -4166,13 +4108,11 @@ ${signTable([
         };
 
         const renderResults = () => {
-          const compPerf = Object.values(results.reduce((acc, r) => {
-            const k = r.competency;
-            if (!acc[k]) acc[k] = { competency: k, total: 0, n: 0 };
-            acc[k].total += parseFloat(r.percentage);
-            acc[k].n += 1;
-            return acc;
-          }, {})).map(c => ({ ...c, average: (c.total / c.n).toFixed(2) })).sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+          /* Everything below reports on the dropdown's scope: the consolidated
+             class, or one section. The Excel grid further down always lists
+             every section — it is the official per-subject sheet. */
+          const view = iaAnalyzeScope(resultScope);
+          const compPerf = view.compPerf;
 
           // Data + column maths for the Excel-style preview.
           const xl = iaBuildModel(meta, sections, itemCount);
@@ -4230,11 +4170,11 @@ ${signTable([
           // Numbers for the insights card: the individual items that fell below
           // the cut-off, and how many competencies each rule caught.
           const weakItemSet = new Set();
-          leastMastered.forEach(c => (c.weakItems || []).forEach(n => weakItemSet.add(n)));
-          const ruleACount = leastMastered.filter(c => c.ruleA).length;
-          const ruleBCount = leastMastered.filter(c => c.ruleB).length;
-          const lowestItemPct = leastMastered.length
-            ? Math.min.apply(null, leastMastered.map(c => parseFloat(c.lowestItem) || 0))
+          view.leastMastered.forEach(c => (c.weakItems || []).forEach(n => weakItemSet.add(n)));
+          const ruleACount = view.leastMastered.filter(c => c.ruleA).length;
+          const ruleBCount = view.leastMastered.filter(c => c.ruleB).length;
+          const lowestItemPct = view.leastMastered.length
+            ? Math.min.apply(null, view.leastMastered.map(c => parseFloat(c.lowestItem) || 0))
             : 0;
 
           return (
@@ -4242,7 +4182,23 @@ ${signTable([
             <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h2 className="font-display text-2xl font-light tracking-tight text-ink">Analysis Report</h2>
-                <p className="text-sm text-ink/50 mt-1">{sections.length} section{sections.length === 1 ? '' : 's'} · {totalLearners} learners evaluated across {itemCount} items</p>
+                <p className="text-sm text-ink/50 mt-1">
+                  {view.idx >= 0 ? view.label : `${sections.length} section${sections.length === 1 ? '' : 's'}`} · {view.learners} learner{view.learners === 1 ? '' : 's'} evaluated across {itemCount} items
+                </p>
+                <label htmlFor="ia-result-scope" className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Results for</span>
+                  <select
+                    id="ia-result-scope"
+                    value={view.scope}
+                    onChange={(e) => setResultScope(e.target.value)}
+                    className="rounded-lg border border-ink/20 bg-white px-2.5 py-1.5 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
+                  >
+                    <option value="all">All sections (consolidated)</option>
+                    {sections.map((s, i) => (
+                      <option key={i} value={String(i)}>{s.name.trim() || `Section ${i + 1}`}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
                 <button
@@ -4270,12 +4226,12 @@ ${signTable([
             <div className="grid md:grid-cols-2 gap-4">
               <div className="bg-iris-50 border border-iris-100 p-6 rounded-2xl flex flex-col items-center text-center">
                 <span className="text-ink/40 text-xs font-semibold uppercase tracking-wider mb-1">Mean Score</span>
-                <span className="text-4xl font-bold text-iris-600">{overallScores.mean}</span>
+                <span className="text-4xl font-bold text-iris-600">{view.overall.mean}</span>
               </div>
               <div className="bg-iris-50 border border-iris-100 p-6 rounded-2xl flex flex-col items-center text-center">
                 <span className="text-ink/40 text-xs font-semibold uppercase tracking-wider mb-1">Mean Percentage Score (MPS)</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold text-iris-600">{overallScores.mps}</span>
+                  <span className="text-4xl font-bold text-iris-600">{view.overall.mps}</span>
                   <span className="text-xl font-bold text-iris-600">%</span>
                 </div>
               </div>
@@ -4287,7 +4243,7 @@ ${signTable([
                 <div className="p-2.5 bg-iris-500 text-white rounded-lg"><LucideIcon name="BrainCircuit" className="w-5 h-5" /></div>
                 <div>
                   <h3 className="font-semibold text-lg text-ink mb-1">AI Interpretation</h3>
-                  <p className="text-ink/60 text-sm leading-relaxed">{aiInsight}</p>
+                  <p className="text-ink/60 text-sm leading-relaxed">{view.aiInsight}</p>
                 </div>
               </div>
             </div>
@@ -4336,21 +4292,21 @@ ${signTable([
                 { label: 'None', key: 'No Mastery', color: 'bg-rose-500/10 text-rose-600 border-rose-200' },
               ].map((s, i) => (
                 <div key={i} className={`p-4 rounded-xl border flex flex-col items-center text-center ${s.color}`}>
-                  <span className="text-3xl font-bold text-ink">{summaryStats[s.key] || 0}</span>
+                  <span className="text-3xl font-bold text-ink">{view.counts[s.key] || 0}</span>
                   <span className="text-[10px] uppercase tracking-wider font-medium text-ink/50 mt-1">{s.label}</span>
                 </div>
               ))}
             </div>
 
             {/* Least mastered */}
-            {leastMastered.length > 0 && (
+            {view.leastMastered.length > 0 && (
               <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl">
                 <h3 className="text-lg font-semibold text-rose-700 mb-4 flex items-center gap-2">
                   <LucideIcon name="AlertTriangle" className="w-5 h-5 text-rose-500" />
                   Least Mastered Competencies (Focus Areas)
                 </h3>
                 <div className="grid md:grid-cols-3 gap-3">
-                  {leastMastered.map((c, i) => (
+                  {view.leastMastered.map((c, i) => (
                     <div key={i} className="p-4 rounded-xl border border-rose-100 bg-white">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-rose-600 font-bold">#{i + 1}</span>
@@ -4366,7 +4322,7 @@ ${signTable([
             {/* Competency insights — the report's own analytics. The causes and
                 interventions come from the same helpers the Annex 3 export
                 uses, so the screen and the downloaded form never disagree. */}
-            {leastMastered.length > 0 && (
+            {view.leastMastered.length > 0 && (
               <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                   <div>
@@ -4380,7 +4336,7 @@ ${signTable([
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
                     {[
-                      ['Flagged', leastMastered.length],
+                      ['Flagged', view.leastMastered.length],
                       ['Items < ' + IA_MASTERY_CUT + '%', weakItemSet.size],
                       ['Rule A', ruleACount],
                       ['Rule B', ruleBCount],
@@ -4394,7 +4350,7 @@ ${signTable([
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {leastMastered.map((c, i) => {
+                  {view.leastMastered.map((c, i) => {
                     const d = compDetail(c.competency);
                     return (
                       <div key={i} className="rounded-xl border border-ink/10 bg-ink/5 p-4">
@@ -4452,11 +4408,11 @@ ${signTable([
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-ink/10">
-                    {results.map(row => (
+                    {view.results.map(row => (
                       <tr key={row.itemNo} className="hover:bg-ink/5 transition-colors">
                         <td className="py-4 px-6 text-sm font-bold text-ink">{row.itemNo}</td>
                         <td className="py-4 px-6 text-sm text-ink/60 max-w-xs">{row.competency}</td>
-                        <td className="py-4 px-6 text-sm text-center text-ink">{row.correctResponses} / {totalLearners}</td>
+                        <td className="py-4 px-6 text-sm text-center text-ink">{row.correctResponses} / {view.learners}</td>
                         <td className="py-4 px-6 text-sm font-bold text-center text-ink">{row.percentage}%</td>
                         <td className="py-4 px-6 text-sm">
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getMasteryBadge(row.masteryLevel)}`}>
@@ -4858,15 +4814,8 @@ ${signTable([
                   <span className="inline-flex items-center gap-2 rounded-full bg-white/70 ring-1 ring-black/5 backdrop-blur px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] font-semibold text-iris-600 mb-8 shadow-sm">
                     <span className="w-1.5 h-1.5 rounded-full bg-iris-600"></span> The AI teaching studio for educators
                   </span>
-                  <h1 className="hero-title font-display text-[clamp(2.8rem,7vw,5.5rem)] leading-[0.98] tracking-tight font-light mb-7">
-                    {['Turn','hours','of','prep','into'].map((w,i)=>(
-                      <React.Fragment key={w}>
-                        {i>0 && ' '}
-                        <span className="hero-word" style={{'--i':String(i)}}>{w}</span>
-                      </React.Fragment>
-                    ))}
-                    {' '}
-                    <span className="hero-word italic font-medium" style={{'--i':'5'}}>minutes.</span>
+                  <h1 className="font-display text-[clamp(2.8rem,7vw,5.5rem)] leading-[0.98] tracking-tight font-light mb-7">
+                    Turn hours of prep into <span className="italic font-medium">minutes.</span>
                   </h1>
                   <p className="text-lg md:text-xl text-ink/60 max-w-2xl mx-auto leading-relaxed mb-12">
                     One studio for every teacher task — generate rigorous tests, build your TOS and DepEd-aligned lesson plans, and spin up slide decks. Upload your modules or paste competencies and let the AI handle the rest.
