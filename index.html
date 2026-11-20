@@ -1445,6 +1445,8 @@
          Returns one string per test item ("" when nothing was found).
          ============================================================ */
       const IA_NUM_CELL = /^\d+(?:\s*[-–—,]\s*\d+)*$/;
+      // a bare figure that is never a competency: "14", "47.06%", "100%"
+      const IA_MEASURE_CELL = /^\d+(?:[.,]\d+)?\s*%?$/;
 
       const iaNumberList = (cell) => {
         const out = [];
@@ -1539,12 +1541,28 @@
             // cells that are not the subject or a column header; in a wide
             // row the last pure-number cell is the "Total" column, not an
             // item number.
-            const texts = cells.filter(c => !IA_NUM_CELL.test(c) && !/:$/.test(c) && !isSubjectish(c));
+            const texts = cells.filter(c =>
+              !IA_NUM_CELL.test(c) && !IA_MEASURE_CELL.test(c) && !/:$/.test(c) && !isSubjectish(c));
             if (!texts.length) continue;
             const comp = texts.reduce((a, b) => (b.length > a.length ? b : a), '');
-            let used = numCells;
-            if (numCells.length > 1) used = numCells.slice(0, -1);
-            else if (cells.length >= 4) used = [];
+            /* Which number cell holds the placements? A wide ToS row also
+               carries teaching time, item counts and cognitive tallies, and
+               the placement column can sit anywhere — in one template it is
+               the second cell, in another the last. The placement is the
+               cell that names the most items as a list or range
+               ("1, 4, 7, 26-30" beats "14"); when no cell names two items,
+               fall back to the old reading: the last number is the Total. */
+            const ranked = numCells.map(c => ({ c, n: iaNumberList(c).length, listy: /[,\-–—]/.test(c) }));
+            const most = ranked.length ? Math.max(...ranked.map(r => r.n)) : 0;
+            let used = [];
+            if (most >= 2) {
+              const best = ranked.filter(r => r.n === most);
+              used = [(best.find(r => r.listy) || best[best.length - 1]).c];
+            } else if (numCells.length > 1) {
+              used = numCells.slice(0, -1);
+            } else if (cells.length < 4) {
+              used = numCells;
+            }
             assign(used.flatMap(iaNumberList), comp);
             continue;
           }

@@ -3952,6 +3952,66 @@ test('a TOS facts row never hands the learning area to an item', { timeout: LONG
   }
 });
 
+/* This TOS ends each row with the placement column ("1, 4, 7, 10") and puts
+   teaching time, item counts and cognitive tallies before it. The parser used
+   to read those counts as item numbers, so most items came back blank and
+   "100%" from the Total row could even be taken as a competency. */
+test('a TOS with its placement column last still maps every item', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-placement-last-tos.txt');
+  try {
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.getByText('Upload TOS Document').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    if (!(await page.getByText('Upload TOS Document').count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+
+    fs.writeFileSync(tosPath, [
+      'Table of Specification',
+      'Grade Level: Grade 10 Learning Area: Mathematics Total Items: 10',
+      'Learning Competencies | Teaching Time | No. ofTest Items | Levels of Thinking | Total | Placement',
+      'Generates patterns and illustrates an arithmetic sequence | 8 | 47.06% | 14 | 6 | 1 | 14 | 1, 4, 7, 10',
+      'Determines arithmetic means, term of an arithmetic sequence | 5 | 29.41% | 9 | 4 | 1 | 9 | 2, 5, 8',
+      'Illustrates a geometric sequence | 4 | 23.53% | 7 | 3 | 1 | 7 | 3, 6, 9',
+      'Total | 17 | 100% | 30 | 13 | 3 | 30 |',
+      ''
+    ].join('\n'));
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.waitForTimeout(300);
+
+    const ITEMS = 10;
+    await page.locator('#ia-item-count').fill(String(ITEMS));
+    await page.locator('#fill-all-score').fill('4');
+    await page.getByRole('button', { name: 'Fill All' }).click();
+    await page.locator('#ia-section-name').fill('EINSTEIN');
+    await page.locator('#ia-section-takers').fill('40');
+    await page.getByPlaceholder('e.g. November Exam').fill('Q1 EXAM');
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+
+    const review = await page.evaluate(() => Array.from(
+      document.querySelectorAll('input[id^="review-comp-"]')).map(i => i.value));
+    const expected = [];
+    for (let n = 1; n <= ITEMS; n++) {
+      if ([1, 4, 7, 10].includes(n)) expected.push('Generates patterns and illustrates an arithmetic sequence');
+      else if ([2, 5, 8].includes(n)) expected.push('Determines arithmetic means, term of an arithmetic sequence');
+      else expected.push('Illustrates a geometric sequence');
+    }
+    assert.deepEqual(review, expected);
+
+    assert.deepEqual(errors, [], 'the ToS upload must not raise page errors');
+  } finally {
+    await context.close();
+    fs.rmSync(tosPath, { force: true });
+  }
+});
+
 /* ===============================================================
    a fresh photo read applies scores to a new draft (no caching)
    =============================================================== */
