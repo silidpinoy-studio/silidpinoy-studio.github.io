@@ -1206,6 +1206,7 @@
         '- 3 Pics 1 Word: show three dashed-border picture boxes with a simple emoji or symbol inside each, then the letter tiles of the answer scrambled below (e.g. U M S N). ' +
         '- Scrambled Words: show the jumbled letters in spaced capitals (e.g. L E P P A) with a clue/definition. ' +
         '- Use tables for any two-column content. Keep item text academically accurate and age-appropriate for the grade level. ' +
+        '- Any chart, graph, cycle or pie chart: draw it as a self-contained inline <svg> with explicit width, height and viewBox attributes, plain fill/stroke colours and text labels inside the SVG — never scripts, external images or CSS backgrounds. ' +
         '- Do NOT include a school header, name field, title, or "Activity Sheet" heading — only the mini lesson (when requested) and the activity sections. Keep total length sensible for one printed page (aim ~12–20 items).';
 
     /* Early Learners (K-3): the emoji-visual rules the K-3 Test Maker was built
@@ -1847,19 +1848,68 @@
             '</style></head><body>' + content + '</body></html>';
     }
 
+    /* Word does not draw an inline <svg> element out of imported HTML — it drops
+       the markup and the figure (e.g. a pie chart) prints as blank space. Before
+       either Word download, every figure is therefore rasterized to a PNG data
+       URI: Word renders a base64 <img> picture reliably. A figure that fails to
+       rasterize keeps its raw markup rather than vanishing. */
+    function rasterizeWordSvg(html) {
+        var spans = String(html || '').match(/<svg[\s\S]*?<\/svg\s*>/gi) || [];
+        if (!spans.length) return Promise.resolve(html);
+        var pngs = spans.map(function (svg) {
+            return new Promise(function (resolve) {
+                try {
+                    var dim = function (name) {
+                        var m = svg.match(new RegExp('\\s' + name + '=["\']([\\d.]+)', 'i'));
+                        return m ? parseFloat(m[1]) : 0;
+                    };
+                    var vb = (svg.match(/viewBox=["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([-\d.]+)[\s,]+([-\d.]+)/i) || []).slice(1).map(Number);
+                    var w = dim('width') || vb[0] || 300, h = dim('height') || vb[1] || 150;
+                    var img = new Image();
+                    img.onload = function () {
+                        try {
+                            var scale = 2; /* 2x keeps the strokes crisp on paper */
+                            var canvas = document.createElement('canvas');
+                            canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+                            var ctx = canvas.getContext('2d');
+                            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            resolve('<img src="' + canvas.toDataURL('image/png') + '" width="' + Math.round(w) + '" height="' + Math.round(h) + '" />');
+                        } catch (e) { console.warn('SVG rasterization failed, keeping the raw figure:', e); resolve(svg); }
+                    };
+                    img.onerror = function () { resolve(svg); };
+                    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+                } catch (e) { console.warn('SVG rasterization failed, keeping the raw figure:', e); resolve(svg); }
+            });
+        });
+        return Promise.all(pngs).then(function (done) {
+            var i = 0;
+            return html.replace(/<svg[\s\S]*?<\/svg\s*>/gi, function () { return done[i++]; });
+        });
+    }
+
     function downloadDocx() {
         if (!state.sheetHtml) { setError('Generate the activity sheet first.'); return; }
-        try {
-            var converted = htmlDocx.asBlob(buildWordHtml(), { orientation: 'portrait', margins: { top: 720, bottom: 720, left: 720, right: 720 } });
-            var topic = (state.sheetMeta.topic || 'Activity_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            saveAs(converted, 'Activity_Sheet_' + topic + '.docx');
-            var orig = $('btn-download').innerHTML;
-            $('btn-download').innerHTML = '✔ Downloaded!';
-            setTimeout(function () { $('btn-download').innerHTML = orig; }, 2000);
-        } catch (err) {
+        var btn = $('btn-download');
+        var orig = btn.innerHTML;
+        btn.disabled = true;
+        rasterizeWordSvg(buildWordHtml()).then(function (html) {
+            try {
+                var converted = htmlDocx.asBlob(html, { orientation: 'portrait', margins: { top: 720, bottom: 720, left: 720, right: 720 } });
+                var topic = (state.sheetMeta.topic || 'Activity_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                saveAs(converted, 'Activity_Sheet_' + topic + '.docx');
+                btn.innerHTML = '✔ Downloaded!';
+                setTimeout(function () { btn.innerHTML = orig; }, 2000);
+            } catch (err) {
+                console.error(err);
+                setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '. Try the Word (.doc) button or the Print / PDF button instead.');
+            }
+            btn.disabled = false;
+        }).catch(function (err) {
             console.error(err);
-            setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '. Try the Word (.doc) button or the Print / PDF button instead.');
-        }
+            btn.disabled = false;
+            setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '.');
+        });
     }
 
     /* Flat .doc: one HTML file Word opens straight away — nothing to unzip, and it
@@ -1867,24 +1917,32 @@
     function downloadFlatDoc() {
         if (!state.sheetHtml) { setError('Generate the activity sheet first.'); return; }
         var btn = $('btn-download-doc');
-        try {
-            var blob = new Blob(['\ufeff', buildWordHtml()], { type: 'application/msword' });
-            var url = URL.createObjectURL(blob);
-            var link = document.createElement('a');
-            var topic = (state.sheetMeta.topic || 'Activity_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            link.href = url;
-            link.download = 'Activity_Sheet_' + topic + '.doc';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-            var orig = btn.innerHTML;
-            btn.innerHTML = '✔ Downloaded!';
-            setTimeout(function () { btn.innerHTML = orig; }, 2000);
-        } catch (err) {
+        btn.disabled = true;
+        rasterizeWordSvg(buildWordHtml()).then(function (html) {
+            try {
+                var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+                var url = URL.createObjectURL(blob);
+                var link = document.createElement('a');
+                var topic = (state.sheetMeta.topic || 'Activity_Sheet').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                link.href = url;
+                link.download = 'Activity_Sheet_' + topic + '.doc';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+                var orig = btn.innerHTML;
+                btn.innerHTML = '✔ Downloaded!';
+                setTimeout(function () { btn.innerHTML = orig; }, 2000);
+            } catch (err) {
+                console.error('Word export error:', err);
+                setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '. Try the Print / PDF button instead.');
+            }
+            btn.disabled = false;
+        }).catch(function (err) {
             console.error('Word export error:', err);
-            setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '. Try the Print / PDF button instead.');
-        }
+            btn.disabled = false;
+            setError('Failed to build the Word file: ' + ((err && err.message) || 'unknown error') + '.');
+        });
     }
 
     /* ============================================================

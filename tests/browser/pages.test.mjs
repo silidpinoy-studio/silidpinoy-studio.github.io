@@ -1693,6 +1693,56 @@ test('a K-3 activity sheet wears the kid theme', { timeout: LONG_TIMEOUT }, asyn
 });
 
 /* ===============================================================
+   14a1. a chart in the sheet survives the Word export as a picture
+   =============================================================== */
+
+test('an activity sheet chart reaches the Word export as a picture', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors } = await openPage('activity.html', {
+    initScript: () => {
+      try {
+        const pie = '<h2>Chart Time</h2>' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">' +
+          '<circle cx="100" cy="100" r="90" fill="#f59e0b"></circle>' +
+          '<path d="M100 100 L100 10 A90 90 0 0 1 190 100 Z" fill="#6366f1"></path>' +
+          '</svg><p>Favourite fruit</p>';
+        localStorage.setItem('saved_activity_output', JSON.stringify({
+          html: pie,
+          sheetHtml: pie,
+          sheetMeta: { grade: 'Grade 4', subject: 'Math', quarter: '1st Quarter', topic: 'Charts' }
+        }));
+      } catch { /* storage unavailable */ }
+    }
+  });
+  try {
+    const out = page.locator('#output-content');
+    if (!(await out.count())) { t.skip('activity.html did not render (CDN unavailable?)'); return; }
+    await page.waitForTimeout(WAIT_MS);
+    assert.ok(await page.locator('#output-content svg').count(), 'the chart must show in the preview');
+
+    const [docFile] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#btn-download-doc').click()
+    ]);
+    const docText = fs.readFileSync(await docFile.path(), 'utf8');
+    assert.ok(!/<svg/i.test(docText), 'Word drops inline SVG, so the .doc export must not carry raw <svg>');
+    assert.match(docText, /<img[^>]+src="data:image\/png;base64,/, 'the .doc export must carry the chart as a PNG');
+    assert.ok(docText.includes('Favourite fruit'), 'the chart caption should stay');
+
+    const hasDocxLibs = await page.evaluate(() => !!(window.htmlDocx && window.saveAs));
+    if (!hasDocxLibs) { t.skip('the .docx helper did not load (offline?) — .doc path already checked'); return; }
+    const [docxFile] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#btn-download').click()
+    ]);
+    const docxBytes = fs.readFileSync(await docxFile.path());
+    assert.ok(docxBytes.includes('iVBORw0KGgo'), 'the .docx package must embed the chart as a PNG picture');
+    assert.deepEqual(errors, [], 'exporting a chart must not raise page errors');
+  } finally {
+    await context.close();
+  }
+});
+
+/* ===============================================================
    14a2. the Activity Sheet Maker asks the AI for K-3 emoji visuals
    =============================================================== */
 
