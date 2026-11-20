@@ -3120,35 +3120,40 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       } catch { /* storage unavailable */ }
     }
   });
+  const tosPath = path.join(os.tmpdir(), 'ia-report-tos.txt');
   try {
     // the studio home lists every tool — open the Item Analyzer first
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    const start = page.getByRole('button', { name: 'Get Started' });
-    if (!(await start.count())) {
+    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
-    await start.click();
 
-    // the file browser stays hidden until a source is picked
-    assert.equal(await page.getByText('Browse Files').count(), 0,
-      'the file browser must stay hidden until Upload or Manual Entry is chosen');
-
-    await page.getByRole('button', { name: /Manual Entry/ }).click();
-    assert.ok(await page.getByPlaceholder(/Identifies the main idea/).isVisible(),
-      'choosing Manual Entry must reveal the competency textarea');
-
-    // switching to Upload reveals the file browser instead — then back to manual
-    await page.getByRole('button', { name: /Upload TOS Document/ }).click();
+    // the upload card and its file browser are the first thing shown
     assert.ok(await page.getByText('Browse Files').isVisible(),
-      'choosing Upload must reveal the file browser');
-    await page.getByRole('button', { name: /Manual Entry/ }).click();
+      'the file browser must be visible right away');
+    assert.equal(await page.getByText('Manual Entry').count(), 0,
+      'Manual Entry must be gone');
+    assert.equal(await page.locator('#ia-section-name').count(), 0,
+      'the rest of the form must wait for the TOS upload');
+
+    // upload a TOS listing the five competencies
+    fs.writeFileSync(tosPath, [
+      '1. Identifies the main idea',
+      '2. Analyzes the credibility of sources',
+      '3. Recognizes propaganda techniques',
+      '4. Compares conflicting reports',
+      '5. Evaluates media bias',
+      ''
+    ].join('\n'));
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.getByRole('button', { name: 'Fill All' }).waitFor({ timeout: NAV_TIMEOUT });
 
     // section switcher + Add Section lead, then one box each for name,
     // takers and item count, then the score-entry controls
@@ -3188,10 +3193,6 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
       labels.includes('Grade Level') && labels.includes('Assessment Conducted'),
       'the table header fields must remain in Report Details');
 
-    await page.getByPlaceholder(/Identifies the main idea/).fill(
-      ['1. Identifies the main idea', '2. Analyzes the credibility of sources',
-       '3. Recognizes propaganda techniques', '4. Compares conflicting reports',
-       '5. Evaluates media bias'].join('\n'));
     await page.locator('input[type="number"][max="200"]').fill('5');
     await page.waitForTimeout(150);
     // one value typed once fills every item
@@ -3461,15 +3462,14 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
     // and Settings keeps the district the annexes read
     await page.getByRole('button', { name: /New Analysis/ }).click();
     await page.waitForTimeout(300);
-    if (await page.locator('button:has-text("Get Started")').count()) {
-      await page.getByRole('button', { name: 'Get Started' }).click();
-    }
-    await page.getByRole('button', { name: /School & Personal Info/ }).first().click({ timeout: 10000 });
+    await page.goto(server.url + 'index.html#settings', { waitUntil: 'load', timeout: NAV_TIMEOUT });
+    await page.locator('input[name="district"]').waitFor({ timeout: NAV_TIMEOUT });
     assert.equal(await page.locator('input[name="district"]').inputValue(), 'Imelda',
       'Settings must hold the District field the annexes read');
 
     assert.deepEqual(errors, [], 'the item analysis flow must not raise page errors');
   } finally {
+    fs.rmSync(tosPath, { force: true });
     await context.close();
   }
 });
@@ -3480,25 +3480,24 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
 
 test('the Item Analysis bands a wide report into readable grids', { timeout: LONG_TIMEOUT }, async (t) => {
   const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-wide-tos.txt');
   try {
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    const start = page.getByRole('button', { name: 'Get Started' });
-    if (!(await start.count())) {
+    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
-    await start.click();
-    await page.getByRole('button', { name: /Manual Entry/ }).click();
-
     const ITEMS = 45;
-    await page.getByPlaceholder(/Identifies the main idea/).fill(
-      Array.from({ length: ITEMS }, (_, i) => `${i + 1}. Demonstrates competency ${i + 1}`).join('\n'));
+    fs.writeFileSync(tosPath,
+      Array.from({ length: ITEMS }, (_, i) => `${i + 1}. Demonstrates competency ${i + 1}`).join('\n') + '\n');
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.getByRole('button', { name: 'Fill All' }).waitFor({ timeout: NAV_TIMEOUT });
     await page.locator('input[type="number"][max="200"]').fill(String(ITEMS));
     await page.waitForTimeout(150);
     await page.locator('#fill-all-score').fill('4');
@@ -3580,6 +3579,7 @@ test('the Item Analysis bands a wide report into readable grids', { timeout: LON
 
     assert.deepEqual(errors, [], 'the banded report must not raise page errors');
   } finally {
+    fs.rmSync(tosPath, { force: true });
     await context.close();
   }
 });
@@ -3594,20 +3594,17 @@ test('the Item Analysis never reads the subject as a competency', { timeout: LON
   try {
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    const start = page.getByRole('button', { name: 'Get Started' });
-    if (!(await start.count())) {
+    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
-    await start.click();
 
-    // a source must be picked before the file browser appears
-    await page.getByRole('button', { name: /Upload TOS Document/ }).click();
+    // the file browser is visible from the start
 
     // A ToS table row that repeats the SUBJECT cell — longer than the
     // competency text, which used to make "longest text wins" hand back the
@@ -3684,21 +3681,23 @@ test('the Item Analysis never reads the subject as a competency', { timeout: LON
 
 test('a fresh photo read applies scores to a new draft', { timeout: LONG_TIMEOUT }, async (t) => {
   const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-photo-tos.txt');
   try {
     const nav = page.getByText('Item Analysis', { exact: true });
     for (let i = 0; i < 4; i++) {
-      if (await page.locator('button:has-text("Get Started")').count()) break;
+      if (await page.getByRole('button', { name: /Upload TOS Document/ }).count()) break;
       if (i >= await nav.count()) break;
       await nav.nth(i).click().catch(() => {});
       await page.waitForTimeout(300);
     }
-    const start = page.getByRole('button', { name: 'Get Started' });
-    if (!(await start.count())) {
+    if (!(await page.getByRole('button', { name: /Upload TOS Document/ }).count())) {
       if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
       assert.fail('index.html did not render the Item Analyzer');
     }
-    await start.click();
-    await page.getByRole('button', { name: /Manual Entry/ }).click();
+    // the photo controls live behind the TOS upload — upload one first
+    fs.writeFileSync(tosPath, '1. Identifies the main idea\n');
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.getByRole('button', { name: 'Read from photo' }).waitFor({ timeout: NAV_TIMEOUT });
 
     // A tiny valid PNG.
     const png = Buffer.from(
@@ -3730,6 +3729,7 @@ test('a fresh photo read applies scores to a new draft', { timeout: LONG_TIMEOUT
     await page.waitForTimeout(200);
     assert.deepEqual(errors, [], 'fresh photo read must not raise page errors');
   } finally {
+    fs.rmSync(tosPath, { force: true });
     await context.close();
   }
 });

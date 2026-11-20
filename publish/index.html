@@ -1391,7 +1391,7 @@
       const IA_TITLE = 'SIMPLIFIED ITEM ANALYSIS PER SUBJECT';
 
       const iaBlankScores = (n) => Array.from({ length: n }, (_, i) => ({ itemNo: i + 1, score: '', competency: '' }));
-      const iaNewSection = (n) => ({ name: '', takers: 50, scores: iaBlankScores(n) });
+      const iaNewSection = (n) => ({ name: '', takers: '', scores: iaBlankScores(n) });
       const iaNum = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
       const iaFixed = (n, d) => (Number(n) || 0).toFixed(d);
       const iaTrim = (n) => String(Math.round((Number(n) || 0) * 100) / 100);
@@ -1542,17 +1542,13 @@
       const ItemAnalyzer = () => {
         const [step, setStep] = useState(1);
         const [tosFile, setTosFile] = useState(null);
-        const [manualCompetencies, setManualCompetencies] = useState('');
-        const [useManualCompetencies, setUseManualCompetencies] = useState(false);
-        /* The file browser only appears once the teacher has picked Upload or
-           Manual Entry — nothing to browse before a source is chosen. */
-        const [iaSourcePicked, setIaSourcePicked] = useState(false);
+        const tosInputRef = useRef(null);
 
-        const [itemCount, setItemCount] = useState(10);
+        const [itemCount, setItemCount] = useState('');
         // Scratch value for the "fill every item at once" control.
         const [fillScore, setFillScore] = useState('');
         // One entry per section — the Excel sheet prints one table row each.
-        const [sections, setSections] = useState(() => [iaNewSection(10)]);
+        const [sections, setSections] = useState(() => [iaNewSection('')]);
         const [activeIdx, setActiveIdx] = useState(0);
         const [meta, setMeta] = useState({
           schoolYear: '2025-2026',
@@ -2245,12 +2241,6 @@
         };
         const setMetaField = (key, value) => setMeta(prev => ({ ...prev, [key]: value }));
 
-        const handleCompetencyToggle = () => {
-          setUseManualCompetencies(!useManualCompetencies);
-          setIaSourcePicked(true); // choosing Manual Entry counts as a source pick
-          if (!useManualCompetencies) setErrorMsg('');
-        };
-
         const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
         const handleDragLeave = () => { setIsDragging(false); };
         const handleDrop = (e) => {
@@ -2301,7 +2291,7 @@
               fullText += tc.items.map(it => it.str).join(' ') + '\n';
             }
             if (fullText.trim().length < 40) {
-              throw new Error('This PDF has no readable text — it looks like a scanned image. Re-save the TOS as a Word (.docx) file, or type the competencies with Manual Entry.');
+              throw new Error('This PDF has no readable text — it looks like a scanned image. Re-save the TOS as a Word (.docx) file and upload it again.');
             }
             return fullText.substring(0, CAP);
           }
@@ -2373,8 +2363,12 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
            hand the mapping to the review step. The reading itself is local —
            the AI is only asked to fill gaps, and only when a key is set. */
         const analyzeData = async () => {
-          if (!useManualCompetencies && !tosFile) {
-            setErrorMsg('Please upload a TOS document, or switch to manual competency entry.');
+          if (!tosFile) {
+            setErrorMsg('Please upload a TOS document.');
+            return;
+          }
+          if (iaNum(itemCount) < 1) {
+            setErrorMsg('Enter the number of test items so each one can be scored.');
             return;
           }
           if (totalLearners <= 0) {
@@ -2386,42 +2380,28 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
           try {
             let mapped = [];
             let note = '';
-            if (useManualCompetencies) {
-              setLoadingStatus('Reading your competency list...');
-              mapped = iaParseCompetencies(manualCompetencies, itemCount, meta);
-              // per-item boxes from the score grid still count
-              sections[0].scores.forEach((s, i) => {
-                if (!mapped[i] && s.competency) mapped[i] = s.competency;
-              });
-              // safety net: the subject must never survive as a competency
-              mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
-              if (mapped.every(c => !c)) {
-                throw new Error('No competencies were read from your list. Type one per line, e.g. "1. Identifies the main idea" — no API key is needed.');
+            setLoadingStatus('Extracting text from TOS document...');
+            const tosText = await extractTosText(tosFile);
+            if (!tosText.trim()) throw new Error('The TOS document appears empty or unreadable.');
+            setLoadingStatus('Matching competencies to items...');
+            mapped = iaParseCompetencies(tosText, itemCount, meta);
+            // safety net: the subject must never survive as a competency
+            mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
+            const missing = mapped.reduce((a, c, i) => { if (!c) a.push(i + 1); return a; }, []);
+            if (missing.length && apiKey.trim()) {
+              setLoadingStatus(`AI is filling in ${missing.length} remaining item${missing.length === 1 ? '' : 's'}...`);
+              try {
+                const filled = await aiFillCompetencies(tosText, mapped, missing);
+                mapped = mapped.map((c, i) => c || filled[i] || '');
+                // the AI reads the TOS header too — keep the subject out
+                mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
+              } catch (err) {
+                note = `The AI could not fill in the remaining items (${err.message}). You can type them below.`;
               }
-            } else {
-              setLoadingStatus('Extracting text from TOS document...');
-              const tosText = await extractTosText(tosFile);
-              if (!tosText.trim()) throw new Error('The TOS document appears empty or unreadable.');
-              setLoadingStatus('Matching competencies to items...');
-              mapped = iaParseCompetencies(tosText, itemCount, meta);
-              // safety net: the subject must never survive as a competency
-              mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
-              const missing = mapped.reduce((a, c, i) => { if (!c) a.push(i + 1); return a; }, []);
-              if (missing.length && apiKey.trim()) {
-                setLoadingStatus(`AI is filling in ${missing.length} remaining item${missing.length === 1 ? '' : 's'}...`);
-                try {
-                  const filled = await aiFillCompetencies(tosText, mapped, missing);
-                  mapped = mapped.map((c, i) => c || filled[i] || '');
-                  // the AI reads the TOS header too — keep the subject out
-                  mapped = mapped.map(c => (iaIsSubject(c, meta) ? '' : c));
-                } catch (err) {
-                  note = `The AI could not fill in the remaining items (${err.message}). You can type them below.`;
-                }
-              } else if (missing.length && mapped.every(c => !c)) {
-                throw new Error('No competencies could be read from this file. Add your Gemini API key so the AI can read it, or type the competencies with Manual Entry.');
-              } else if (missing.length) {
-                note = `${missing.length} item${missing.length === 1 ? ' was' : 's were'} not found in the TOS — type ${missing.length === 1 ? 'it' : 'them'} below.`;
-              }
+            } else if (missing.length && mapped.every(c => !c)) {
+              throw new Error('No competencies could be read from this file. Add your Gemini API key so the AI can read it.');
+            } else if (missing.length) {
+              note = `${missing.length} item${missing.length === 1 ? ' was' : 's were'} not found in the TOS — type ${missing.length === 1 ? 'it' : 'them'} below.`;
             }
             setReviewComps(mapped.map(c => c || 'Unspecified Competency'));
             setReviewNote(note);
@@ -3600,7 +3580,7 @@ ${signTable([
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="text-center space-y-2">
               <h2 className="font-display text-3xl font-light tracking-tight text-ink">Item Analysis Setup</h2>
-              <p className="text-ink/55">Choose how to map competencies to test items.</p>
+              <p className="text-ink/55">Upload your Table of Specifications (TOS) to begin.</p>
             </div>
 
             {errorMsg && (
@@ -3610,71 +3590,43 @@ ${signTable([
               </div>
             )}
 
-            {/* Mode selector */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <button
-                onClick={() => { setUseManualCompetencies(false); setTosFile(null); setIaSourcePicked(true); }}
-                className={`p-6 rounded-2xl border-2 transition-all ${!useManualCompetencies && tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
-              >
-                <LucideIcon name="Upload" className={"w-8 h-8 " + (!useManualCompetencies && tosFile ? 'text-iris-500' : 'text-ink/40')} />
-                <span className="font-semibold text-ink">{!useManualCompetencies && tosFile ? tosFile.name : 'Upload TOS Document'}</span>
-                <span className="text-xs text-ink/40">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</span>
-              </button>
-              <button
-                onClick={handleCompetencyToggle}
-                className={`p-6 rounded-2xl border-2 transition-all ${useManualCompetencies ? 'border-iris-500 bg-iris-500 text-white' : 'border-ink/20 bg-ink/5 hover:border-iris-300 text-ink'} flex flex-col items-center gap-3 cursor-pointer`}
-              >
-                <LucideIcon name="Edit3" className={`w-8 h-8 ${useManualCompetencies ? 'text-white' : 'text-ink/40'}`} />
-                <span className="font-semibold">Manual Entry</span>
-                <span className={`text-xs ${useManualCompetencies ? 'opacity-80' : 'text-ink/40'}`}>Type competencies yourself</span>
-              </button>
+            {/* The TOS is the only entry point — the rest of the form waits for it. */}
+            <button
+              type="button"
+              onClick={() => tosInputRef.current && tosInputRef.current.click()}
+              className={`w-full p-6 rounded-2xl border-2 transition-all ${tosFile ? 'border-iris-500 bg-iris-500/5' : 'border-ink/20 bg-ink/5 hover:border-iris-300'} flex flex-col items-center gap-3 cursor-pointer`}
+            >
+              <LucideIcon name="Upload" className={"w-8 h-8 " + (tosFile ? 'text-iris-500' : 'text-ink/40')} />
+              <span className="font-semibold text-ink">{tosFile ? tosFile.name : 'Upload TOS Document'}</span>
+              <span className="text-xs text-ink/40">Accepts .pdf, .docx, .txt — old .doc files: save as .docx first</span>
+            </button>
+
+            <div
+              className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {tosFile ? (
+                <div className="flex flex-col items-center space-y-3">
+                  <div className="p-3 bg-iris-500/20 rounded-full text-iris-500"><LucideIcon name="FileText" className="w-8 h-8" /></div>
+                  <p className="font-semibold text-ink text-center">{tosFile.name}</p>
+                  <button onClick={() => setTosFile(null)} className="text-xs text-rose-500 hover:text-rose-600 hover:underline">Remove file</button>
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 bg-ink/20 rounded-full text-ink/30 mb-4"><LucideIcon name="UploadCloud" className="w-8 h-8" /></div>
+                  <p className="font-medium text-ink/60">1. Upload TOS Document</p>
+                  <label className="mt-4 px-4 py-2 bg-white border border-ink/20 rounded-lg text-sm font-medium text-ink hover:bg-iris-50 hover:border-iris-300 cursor-pointer transition-colors">
+                    Browse Files
+                    <input ref={tosInputRef} type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
+                  </label>
+                </>
+              )}
             </div>
 
-            {!useManualCompetencies && iaSourcePicked && (
-              <div
-                className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl h-[260px] transition-all ${tosFile ? 'border-iris-500 bg-iris-500/10' : 'border-ink/10 bg-ink/5 hover:border-iris-300 hover:bg-ink/10'}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                {tosFile ? (
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="p-3 bg-iris-500/20 rounded-full text-iris-500"><LucideIcon name="FileText" className="w-8 h-8" /></div>
-                    <p className="font-semibold text-ink text-center">{tosFile.name}</p>
-                    <button onClick={() => setTosFile(null)} className="text-xs text-rose-500 hover:text-rose-600 hover:underline">Remove file</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="p-4 bg-ink/20 rounded-full text-ink/30 mb-4"><LucideIcon name="UploadCloud" className="w-8 h-8" /></div>
-                    <p className="font-medium text-ink/60">1. Upload TOS Document</p>
-                    <label className="mt-4 px-4 py-2 bg-white border border-ink/20 rounded-lg text-sm font-medium text-ink hover:bg-iris-50 hover:border-iris-300 cursor-pointer transition-colors">
-                      Browse Files
-                      <input type="file" className="hidden" accept=".pdf,.docx,.doc,.txt" onChange={handleFileSelect} />
-                    </label>
-                  </>
-                )}
-              </div>
-            )}
-
-            {useManualCompetencies && (
-              <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <LucideIcon name="Edit3" className="w-5 h-5 text-iris-600" />
-                  <h3 className="font-semibold text-lg text-ink">2. Enter Competencies Manually</h3>
-                </div>
-                <p className="text-sm text-ink/50 mb-4">
-                  Type one competency per line for each test item — no API key needed.
-                  Numbered lists ("1. Identifies main idea", "Item 2: Uses context clues") and ranges ("1-5. Solves linear equations") are both understood.
-                </p>
-                <textarea
-                  value={manualCompetencies}
-                  onChange={(e) => setManualCompetencies(e.target.value)}
-                  rows={10}
-                  className="w-full rounded-xl bg-ink/5 ring-1 ring-ink/10 px-4 py-3 text-sm focus:ring-2 focus:ring-iris-500 focus:border-iris-500 outline-none font-mono"
-                  placeholder="1. Identifies the main idea&#10;2. Uses context clues&#10;3-5. Solves linear equations..."
-                />
-              </div>
-            )}
+            {tosFile && (
+              <>
 
             {/* Scores section */}
             <div className="bg-white rounded-2xl ring-1 ring-ink/10 p-6 shadow-sm">
@@ -3730,7 +3682,8 @@ ${signTable([
                     id="ia-section-takers"
                     type="number" value={currentSection.takers}
                     onChange={(e) => updateSection(activeIdx, { takers: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-lg font-semibold text-ink"
+                    placeholder="e.g. 50"
+                    className="w-full px-3 py-2 rounded-lg border border-ink/20 bg-white focus:ring-2 focus:ring-iris-500 outline-none text-lg font-semibold text-ink placeholder:text-sm placeholder:font-normal placeholder:text-ink/30"
                     min="1"
                   />
                 </label>
@@ -3741,6 +3694,7 @@ ${signTable([
                   <input
                     id="ia-item-count"
                     type="number" value={itemCount} onChange={handleItemCountChange}
+                    placeholder="e.g. 40"
                     className="w-full rounded-lg border border-ink/20 bg-ink/5 px-3 py-2 text-sm focus:ring-2 focus:ring-iris-500 outline-none"
                     min="1" max="200"
                   />
@@ -3962,17 +3916,7 @@ ${signTable([
                         className="w-24 rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none text-center"
                         min="0" max={sectionTakers || ''}
                       />
-                      {!useManualCompetencies ? (
-                        <span className="text-xs text-ink/40">/ {sectionTakers}</span>
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder="Competency (optional)"
-                          value={item.competency}
-                          onChange={(e) => handleScoreChange(idx, 'competency', e.target.value)}
-                          className="w-full rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-iris-500 outline-none"
-                        />
-                      )}
+                      <span className="text-xs text-ink/40">/ {sectionTakers}</span>
                     </div>
                   </div>
                 ))}
@@ -4028,23 +3972,13 @@ ${signTable([
             <div className="flex flex-col items-center pt-4 gap-2">
               <button
                 onClick={analyzeData}
-                disabled={!useManualCompetencies && !tosFile}
-                className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-lg transition-all shadow-md ${!useManualCompetencies && !tosFile ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed' : 'bg-iris-600 text-white hover:bg-iris-700 hover:shadow-[0_0_30px_rgba(91,70,232,0.3)]'}`}
+                disabled={!tosFile}
+                className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-lg transition-all shadow-md ${!tosFile ? 'bg-ink/10 text-ink/30 border border-ink/20 cursor-not-allowed' : 'bg-iris-600 text-white hover:bg-iris-700 hover:shadow-[0_0_30px_rgba(91,70,232,0.3)]'}`}
               >
                 <LucideIcon name="Table" className="w-6 h-6" />
                 <span>Generate Item Analysis</span>
               </button>
-              {(!useManualCompetencies && !tosFile) && (
-                <div className="text-xs text-ink/40 text-center">
-                  Upload a TOS file, or switch to manual competency entry above
-                </div>
-              )}
-              {useManualCompetencies && !apiKey.trim() && (
-                <div className="text-xs text-ink/40 text-center">
-                  No API key needed — your list is read right on this device.
-                </div>
-              )}
-              {!useManualCompetencies && tosFile && !apiKey.trim() && (
+              {!apiKey.trim() && (
                 <div className="text-xs text-ink/40 text-center">
                   Works without a key for common TOS layouts —{' '}
                   <button onClick={() => navigate('settings')} className="text-iris-600 font-semibold underline hover:text-iris-700">add one</button>{' '}
@@ -4052,6 +3986,8 @@ ${signTable([
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         );
 
