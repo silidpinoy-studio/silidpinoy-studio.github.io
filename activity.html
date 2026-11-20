@@ -502,16 +502,15 @@
        Update custom activity type when user selects 'Other'
        ============================================================ */
     function updateCustomActivityType(select, sec) {
-        var customInput = select.parentElement.querySelector('.custom-activity-type');
+        var wrap = select.parentElement.querySelector('.custom-activity-wrap');
+        var customInput = wrap ? wrap.querySelector('.custom-activity-type') : null;
         if (select.value === 'custom') {
             sec.type = 'custom';
-            if (customInput) {
-                customInput.style.display = 'block';
-                customInput.focus();
-            }
+            if (wrap) wrap.style.display = 'block';
+            if (customInput) customInput.focus();
         } else {
             sec.type = select.value;
-            if (customInput) customInput.style.display = 'none';
+            if (wrap) wrap.style.display = 'none';
         }
     }
 
@@ -564,7 +563,10 @@
                             ACTIVITY_TYPES.map(function (t) { return '<option value="' + t + '"' + (t === sec.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
                             '<option value="custom"' + (sec.type === 'custom' ? ' selected' : '') + '>Other</option>' +
                         '</select>' +
-                        '<input type="text" class="custom-activity-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm placeholder:text-ink/35 focus:outline-none focus:ring-2 focus:ring-iris-500" style="display:' + (sec.type === 'custom' ? 'block' : 'none') + ';" placeholder="Enter custom activity type" value="' + esc(sec.type === 'custom' ? (sec.customType || '') : '') + '">' +
+                        '<div class="custom-activity-wrap" style="display:' + (sec.type === 'custom' ? 'block' : 'none') + ';">' +
+                            '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1 mt-2">Custom Activity Type</label>' +
+                            '<input type="text" class="custom-activity-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm placeholder:text-ink/35 focus:outline-none focus:ring-2 focus:ring-iris-500" placeholder="Enter custom activity type" value="' + esc(sec.type === 'custom' ? (sec.customType || '') : '') + '">' +
+                        '</div>' +
                     '</div>' +
                     '<div>' +
                         '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Items</label>' +
