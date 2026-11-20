@@ -447,7 +447,7 @@
         'Scrambled Words', '3 Pics 1 Word', 'Identification', 'Multiple Choice',
         'True or False', 'Matching Type', 'Fill in the Blanks', 'Word Search',
         'Crossword Puzzle', 'Acrostic / Slogan', 'Analogy', 'Enumeration',
-        'Short Answer', 'Essay / Reflection', 'Problem Solving', 'Sequencing / Arrange', 'Other'
+        'Short Answer', 'Essay / Reflection', 'Problem Solving', 'Sequencing / Arrange'
     ];
 
     var CATEGORY_BADGES = {
@@ -502,19 +502,16 @@
        Update custom activity type when user selects 'Other'
        ============================================================ */
     function updateCustomActivityType(select, sec) {
+        var customInput = select.parentElement.querySelector('.custom-activity-type');
         if (select.value === 'custom') {
             sec.type = 'custom';
-            var customInput = select.closest('div').querySelector('.custom-activity-type');
             if (customInput) {
-                customInput.style.display = '';
+                customInput.style.display = 'block';
                 customInput.focus();
             }
         } else {
             sec.type = select.value;
-            var customInput = select.closest('div').querySelector('.custom-activity-type');
-            if (customInput) {
-                customInput.style.display = 'none';
-            }
+            if (customInput) customInput.style.display = 'none';
         }
     }
 
@@ -563,11 +560,11 @@
                 '<div class="grid grid-cols-[1fr_auto] gap-2 items-end">' +
                     '<div>' +
                         '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Activity Type</label>' +
-                        '<select class="sec-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500" onchange="updateCustomActivityType(this, sec)">' +
+                        '<select class="sec-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-iris-500">' +
                             ACTIVITY_TYPES.map(function (t) { return '<option value="' + t + '"' + (t === sec.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
                             '<option value="custom"' + (sec.type === 'custom' ? ' selected' : '') + '>Other</option>' +
                         '</select>' +
-                        '<input type="text" class="custom-activity-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm placeholder:text-ink/35 focus:outline-none focus:ring-2 focus:ring-iris-500" style="display:none;" placeholder="Enter custom activity type" value="' + (sec.type === 'custom' ? (sec.customType || '') : '') + '">' +
+                        '<input type="text" class="custom-activity-type w-full rounded-lg bg-white ring-1 ring-black/10 px-2.5 py-2 text-sm placeholder:text-ink/35 focus:outline-none focus:ring-2 focus:ring-iris-500" style="display:' + (sec.type === 'custom' ? 'block' : 'none') + ';" placeholder="Enter custom activity type" value="' + esc(sec.type === 'custom' ? (sec.customType || '') : '') + '">' +
                     '</div>' +
                     '<div>' +
                         '<label class="block text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1">Items</label>' +
@@ -597,6 +594,10 @@
                 updateTotal();
             });
             div.querySelector('.sec-instruction').addEventListener('input', function (e) { sec.instruction = e.target.value.trim(); });
+            var typeSelect = div.querySelector('.sec-type');
+            typeSelect.addEventListener('change', function () { updateCustomActivityType(typeSelect, sec); });
+            var customInput = div.querySelector('.custom-activity-type');
+            customInput.addEventListener('input', function (e) { sec.customType = e.target.value; });
             // Mini lesson radio change listeners for per-section overrides
             div.querySelectorAll('input[name="sec-mini-lesson-' + idx + '"]').forEach(function (r) {
                 r.addEventListener('change', function () {
@@ -1206,6 +1207,25 @@
         detailed: '- Length: DETAILED — a 4–6 sentence explanation of the key concept, a KEY TERMS list of 4–6 words with one-line meanings, and one short worked example.'
     };
     function miniLessonRules() {
+        /* Custom builder: every section carries its own mini lesson choice, so a
+           box is requested before each section that asks for one — not only the
+           first section. */
+        if (state.mode === 'custom') {
+            var perSection = state.sections.map(function (sec, idx) {
+                var level = sec.miniLesson;
+                if (!level || level === 'none' || !MINI_LESSON_LENGTH[level]) return '';
+                var label = sec.type === 'custom' ? (sec.customType || 'Other') : sec.type;
+                return '- Before section ' + (idx + 1) + ' (' + label + '): ' + MINI_LESSON_LENGTH[level].replace(/^- /, '');
+            }).filter(Boolean);
+            if (!perSection.length) return '';
+            return '\n\nMINI LESSONS — ONE BOX BEFORE EACH SECTION THAT ASKS FOR ONE:\n' +
+                '- A mini lesson is a clearly labelled box titled "Mini Lesson" (for a Filipino sheet: "Maikling Aralin") with a 📘 icon, a light shaded background and a colored left border. It is a short concept review the learner reads before answering — not an activity, and its lines are not numbered.\n' +
+                '- Put each mini lesson box immediately BEFORE its activity section; a section set to None gets no box and is numbered normally.\n' +
+                perSection.join('\n') + '\n' +
+                '- Base each recap on the lesson objectives and key concept (from the lesson plan, or from the topic/source material).\n' +
+                (currentSheetK3() ? '- For early learners, keep each mini lesson to 1–2 very short sentences with emojis.\n' : '') +
+                '- Write them in the same language as the rest of the sheet.';
+        }
         var level = state.miniLesson;
         if (!level || level === 'none' || !MINI_LESSON_LENGTH[level]) return '';
         return '\n\nMINI LESSON — REQUIRED FIRST SECTION:\n' +
@@ -1320,7 +1340,10 @@
         var source = $('custom-source').value.trim();
         var comps = state.competencies.map(function (c) { return String(c || '').trim(); }).filter(Boolean);
         var secs = state.sections.map(function (s, i) {
-            return (i + 1) + '. ' + s.type + ' — ' + s.count + ' items' + (s.instruction ? ' (instruction: ' + s.instruction + ')' : '') + (s.miniLesson ? ' | Mini Lesson: ' + s.miniLesson : '');
+            var label = s.type === 'custom' ? (s.customType || 'Other') : s.type;
+            return (i + 1) + '. ' + label + ' — ' + s.count + ' items' +
+                (s.instruction ? ' (instruction: ' + s.instruction + ')' : '') +
+                (s.miniLesson && s.miniLesson !== 'none' ? ' | Mini Lesson: ' + s.miniLesson : '');
         }).join('\n');
         var user = 'Create an activity sheet with these exact sections and item counts. ' +
             'Topic: ' + topic + ' | Grade: ' + grade + ' | Subject: ' + subject + ' | Difficulty: ' + state.difficulty + '.' +
