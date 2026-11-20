@@ -2192,8 +2192,11 @@
         };
 
         const handleItemCountChange = (e) => {
-          const count = Math.max(1, Math.min(200, parseInt(e.target.value) || 1));
-          setItemCount(count);
+          /* Keep the box editable: an empty value stays empty so the teacher can
+             clear it and type a new count, instead of it snapping back to 1. */
+          const digits = String(e.target.value || '').replace(/[^\d]/g, '').slice(0, 3);
+          const count = Math.min(200, parseInt(digits, 10) || 0);
+          setItemCount(digits === '' ? '' : String(count));
           setSections(prev => prev.map(s => ({
             ...s,
             scores: Array.from({ length: count }, (_, i) => s.scores.find(x => x.itemNo === i + 1) || { itemNo: i + 1, score: '', competency: '' })
