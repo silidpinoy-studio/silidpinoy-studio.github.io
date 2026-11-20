@@ -1518,7 +1518,7 @@
       };
 
       const ItemAnalyzer = () => {
-        const [step, setStep] = useState(0);
+        const [step, setStep] = useState(1);
         const [tosFile, setTosFile] = useState(null);
         const [manualCompetencies, setManualCompetencies] = useState('');
         const [useManualCompetencies, setUseManualCompetencies] = useState(false);
@@ -2990,8 +2990,8 @@ ${sigTable}`;
             `<td align="right" style="font-size:9pt;font-weight:bold;color:#E11D48;white-space:nowrap;">${esc(c.average)}%</td>` +
             `</tr></table></td></tr></table>`).join('')
             : `<p style="font-size:9pt;color:${C.muted};margin:0;">No competency fell below the mastery cut-off.</p>`;
-          const insightsHtml = reportLeast.length ? reportLeast.map((c, i) => {
-            const d = compDetail(c.competency);
+          const leastCardsHtml = (list, rows) => list.length ? list.map((c, i) => {
+            const d = compDetailIn(c.competency, rows);
             return `<table width="100%" style="width:100%;border-collapse:collapse;margin:0 0 9px;"><tr><td style="padding:0 0 7px;border-bottom:1px solid ${C.line};">` +
               `<table width="100%" style="width:100%;border-collapse:collapse;"><tr>` +
               `<td style="font-size:9pt;color:${C.ink};"><b style="color:#E11D48;">#${i + 1}</b> <b>${esc(c.competency)}</b></td>` +
@@ -3003,7 +3003,16 @@ ${sigTable}`;
               `<td width="2%"></td>` +
               `<td width="49%" style="border:1px solid #A7F3D0;background:#ECFDF5;padding:7px;vertical-align:top;"><p style="margin:0 0 3px;font-size:7pt;font-weight:bold;color:#047857;">PROPOSED INTERVENTION</p><p style="margin:0;font-size:8pt;line-height:1.4;color:${C.ink};">${esc(interventionFor(d))}</p></td>` +
               `</tr></table></td></tr></table>`;
-          }).join('') : '';
+          }).join('')
+            : `<p style="font-size:9pt;color:${C.muted};margin:0;">No competency fell below the ${IA_MASTERY_CUT}% mastery cut-off.</p>`;
+          const insightsHtml = leastCardsHtml(reportLeast, reportResults);
+          // Every section is analysed on its own scores, not the pooled ones.
+          const sectionViews = sections.map((s, i) => iaAnalyzeScope(String(i)));
+          const sectionLeastHtml = sectionViews.map(sv =>
+            `<p style="margin:10pt 0 4pt;font-size:10pt;font-weight:bold;color:${C.ink};">${esc(sv.label)}` +
+            `<span style="font-weight:normal;color:${C.muted};"> · MPS ${esc(sv.overall.mps)}% · ${sv.leastMastered.length} of ${sv.compPerf.length} competencies below ${IA_MASTERY_CUT}%</span></p>` +
+            leastCardsHtml(sv.leastMastered, sv.results)
+          ).join('');
           const detailRows = reportResults.length ? reportResults.map(r => `<tr>` +
             `<td style="${cell}${line}text-align:center;">${esc(r.itemNo)}</td>` +
             `<td style="${cell}${line}">${esc(r.competency)}</td>` +
@@ -3041,6 +3050,7 @@ ${sigTable}`;
             section('Mastery Summary', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>${summaryRow}</tr></table>`) +
             section('Least Mastered Competencies (Focus Areas)', leastHtml, '#FFF1F2', '#FECDD3', '#BE123C') +
             (reportLeast.length ? section(`Why These Competencies Fell Below ${IA_MASTERY_CUT}%`, insightsHtml) : '') +
+            (sectionViews.length ? section('Least Mastered Detail by Section', sectionLeastHtml) : '') +
             section('Item Detail', `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">` +
               `<thead><tr><th style="${headCell}width:8%;text-align:center;">Item #</th><th style="${headCell}">Competency</th><th style="${headCell}width:14%;text-align:center;">Correct</th><th style="${headCell}width:10%;text-align:center;">%</th><th style="${headCell}width:20%;">Mastery</th></tr></thead>` +
               `<tbody>${detailRows}</tbody></table>`) +
@@ -3243,6 +3253,29 @@ ${sigTable}`;
               });
             }
 
+            if (sections.length) {
+              heading('Least Mastered Detail by Section');
+              sections.forEach((s, si) => {
+                const sv = iaAnalyzeScope(String(si));
+                heading(`${sv.label} - MPS ${sv.overall.mps}%`);
+                if (!sv.leastMastered.length) {
+                  paragraph(`No competency fell below the ${IA_MASTERY_CUT}% cut-off in this section.`, 9);
+                  return;
+                }
+                sv.leastMastered.forEach((c, i) => {
+                  const d = compDetailIn(c.competency, sv.results);
+                  ensure(14);
+                  doc.setFont('helvetica', 'bold');
+                  doc.setFontSize(9.5);
+                  const lines = doc.splitTextToSize(safe(`#${i + 1}  ${c.competency} - ${c.average}%`), contentW);
+                  lines.forEach(line => { ensure(4.2); doc.text(line, margin, y); y += 4.2; });
+                  paragraph('Reasons / Causes: ' + reasonFor(d, i), 8.5);
+                  paragraph('Proposed Intervention: ' + interventionFor(d), 8.5);
+                  y += 2;
+                });
+              });
+            }
+
             heading('Item Detail');
             table(['Item #', 'Competency', 'Correct', '%', 'Mastery'], view.results.map(r => [
               r.itemNo, r.competency, `${r.correctResponses} / ${view.learners}`, `${r.percentage}%`, r.masteryLevel
@@ -3303,14 +3336,15 @@ ${sigTable}`;
 
           /* Annex 3 cause + intervention — computed from the same results the
              report shows, so the columns are never left blank. */
-          const compDetail = (name) => {
+          const compDetailIn = (name, rows) => {
             /* Match on iaCompKey, not the raw string, so items whose competency
                was spelled differently still land under the one declared row. */
             const key = iaCompKey(name);
-            const items = results.filter(r => iaCompKey(r.competency) === key);
+            const items = rows.filter(r => iaCompKey(r.competency) === key);
             const avg = items.length ? items.reduce((a, r) => a + (Number(r.percentage) || 0), 0) / items.length : 0;
             return { nums: items.map(r => r.itemNo).join(', '), avg, n: items.length };
           };
+          const compDetail = (name) => compDetailIn(name, results);
           /* Likely causes for the Reasons/s/Cause/s column — why learners got
              the items wrong, not just what they scored. Severe band (<40%) and
              moderate band (40–59%) pools; a stable hash of the row's own data
@@ -3539,26 +3573,6 @@ ${signTable([
           const blob = new Blob(['\ufeff', buildAnnexHtml(kind, { forDoc: true })], { type: 'application/msword' });
           saveWordBlob(blob, annexFileName(kind, '.doc'));
         };
-
-        const renderHome = () => (
-          <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-6">
-            <div className="p-6 rounded-full bg-iris-500/10 border border-iris-500/20 shadow-[0_0_50px_-10px_rgba(91,70,232,0.2)]">
-              <LucideIcon name="BarChart3" className="w-16 h-16 text-iris-500" />
-            </div>
-            <div className="max-w-2xl space-y-4">
-              <h1 className="font-display text-5xl font-light tracking-tight text-ink">Welcome to <span className="text-iris-600 font-semibold">Item Analyzer</span></h1>
-              <p className="text-lg text-ink/60 leading-relaxed">
-                Upload your Table of Specifications (TOS) and enter item scores to get mastery levels, identify least-mastered competencies, and export reports.
-              </p>
-            </div>
-            <button
-              onClick={() => setStep(1)}
-              className="inline-flex items-center justify-center px-8 py-4 font-semibold text-white bg-iris-600 rounded-xl hover:bg-iris-700 transition-all shadow-[0_0_40px_-10px_rgba(91,70,232,0.3)]"
-            >
-              <LucideIcon name="Play" className="w-6 h-6 mr-2" /> Get Started
-            </button>
-          </div>
-        );
 
         const renderUpload = () => (
           <div className="max-w-5xl mx-auto space-y-6">
@@ -4126,6 +4140,13 @@ ${signTable([
             { label: 'Least mastered competencies', value: (c) => c.leastMastered.length }
           ];
 
+          // Every competency as a row, its average mastery per scope as cells.
+          const competencyRows = view.compPerf.map((c) => ({
+            competency: c.competency,
+            items: c.n,
+            cells: comparisons.map(v => v.compPerf.find(x => x.competency === c.competency) || null)
+          }));
+
           // One competency card with its rule flags, reasons and intervention —
           // the same content the consolidated block shows, per section.
           const leastDetailCard = (comp, index) => {
@@ -4399,6 +4420,51 @@ ${signTable([
               </div>
               <p className="px-6 py-3 text-[11px] text-ink/40 border-t border-ink/10">
                 Cells in red are below the {IA_MASTERY_CUT}% mastery cut-off.
+              </p>
+            </div>
+
+            {/* Competency-level comparison, next to the item-level one */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-ink/10 flex items-center gap-2">
+                <LucideIcon name="ClipboardList" className="w-5 h-5 text-iris-600" />
+                <h3 className="font-semibold text-lg text-ink">Competency Mastery by Section</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-ink/5 border-b border-ink/10">
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Competency</th>
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center">Items</th>
+                      {comparisons.map((c, i) => (
+                        <th key={i} className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center whitespace-nowrap min-w-[130px]">
+                          {i === 0 ? 'Consolidated' : c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {competencyRows.map((row, ri) => (
+                      <tr key={ri} className="hover:bg-ink/5 transition-colors">
+                        <td className="py-3 px-6 text-sm text-ink/70 max-w-xs">{row.competency}</td>
+                        <td className="py-3 px-6 text-sm text-center text-ink/50">{row.items}</td>
+                        {row.cells.map((cell, ci) => (
+                          <td key={ci} className="py-3 px-6 text-center">
+                            {cell ? (
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getMasteryBadge(getMasteryLevel(parseFloat(cell.average)))}`}>
+                                {cell.average}%
+                              </span>
+                            ) : (
+                              <span className="text-sm text-ink/30">—</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="px-6 py-3 text-[11px] text-ink/40 border-t border-ink/10">
+                Each cell is the competency's average % correct in that section, coloured by the same mastery bands as the item table.
               </p>
             </div>
 
@@ -4766,7 +4832,6 @@ ${signTable([
 
         return (
           <div className="min-h-screen bg-ink/5 font-sans text-ink pb-12">
-            {step === 0 && renderHome()}
             {step === 1 && renderUpload()}
             {step === 2 && renderAnalyzing()}
             {step === 3 && renderReview()}
