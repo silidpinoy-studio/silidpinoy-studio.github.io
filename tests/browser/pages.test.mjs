@@ -3826,6 +3826,68 @@ test('the Item Analysis never reads the subject as a competency', { timeout: LON
   }
 });
 
+/* The same table row spells the subject the way the paper does — "Media and
+   Information Literacy" — while the form holds "MEDIA INFORMATION LITERACY".
+   The subject cell is longer than the competency beside it, so it used to win
+   "longest text wins" and be printed on the last items of the test. */
+test('a ToS subject cell spelled differently never becomes a competency', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-subject-spelling-tos.txt');
+  try {
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.getByText('Upload TOS Document').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    if (!(await page.getByText('Upload TOS Document').count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+
+    fs.writeFileSync(tosPath, [
+      '1. Cites sources',
+      '2. Grades sources',
+      '3. Compares sources',
+      '4. Summarizes the text',
+      '5. Identifies the main idea',
+      '6. Explains the purpose',
+      '7. Describes the audience',
+      '8. Outlines the argument',
+      '9. Recognizes bias',
+      '10. Defines media literacy',
+      'Media and Information Literacy | 11-15 | Adds context',
+      ''
+    ].join('\n'));
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.waitForTimeout(300);
+
+    const ITEMS = 15;
+    await page.locator('#ia-item-count').fill(String(ITEMS));
+    await page.locator('#fill-all-score').fill('4');
+    await page.getByRole('button', { name: 'Fill All' }).click();
+    await page.locator('#ia-section-name').fill('BABBAGE');
+    await page.locator('#ia-section-takers').fill('50');
+    await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+
+    const review = await page.evaluate(() => Array.from(
+      document.querySelectorAll('input[id^="review-comp-"]')).map(i => i.value));
+    assert.equal(review.length, ITEMS, 'every item must be listed');
+    assert.equal(review[10], 'Adds context',
+      'item 11 must carry the competency from the ToS — got ' + JSON.stringify(review[10]));
+    assert.ok(!review.some(v => /information literacy/i.test(v)),
+      'the subject must never appear as a competency — got ' + JSON.stringify(review));
+
+    assert.deepEqual(errors, [], 'the ToS upload must not raise page errors');
+  } finally {
+    await context.close();
+    fs.rmSync(tosPath, { force: true });
+  }
+});
+
 /* ===============================================================
    a fresh photo read applies scores to a new draft (no caching)
    =============================================================== */

@@ -1466,14 +1466,30 @@
 
       /* A subject name is NEVER a competency. A ToS row repeats the subject
          cell, and when it is the longest text in the row the table parser
-         below used to return it instead of the competency. Compare loosely
-         (case, punctuation, spacing). */
+         below used to return it instead of the competency. The cell on the
+         paper is rarely the exact wording typed into the form — it carries a
+         code, a grade or the school's decoration ("MEDIA INFORMATION LITERACY
+         (MIL)", "MIL - Media Information Literacy", "Media and Information
+         Literacy | Grade 11") — so compare loosely: case, punctuation and
+         spacing are ignored, and the subject's own words win even with a
+         couple of extra ones (a code, a number) around them. */
+      const iaWords = (s) => String(s == null ? '' : s).toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 1);
       const iaIsSubject = (comp, meta) => {
-        const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '');
-        const v = norm(comp);
-        if (v.length < 3) return false;
+        const words = iaWords(comp);
+        const joined = words.join('');
+        if (joined.length < 3) return false;
         return [meta && meta.subject, meta && meta.subjectCode]
-          .map(norm).filter(Boolean).some(k => v === k);
+          .map(iaWords).filter(w => w.length).some(sw => {
+            const key = sw.join('');
+            if (key.length < 3) return false;
+            if (joined === key) return true;
+            // the whole subject spelled inside a decorated cell
+            if (key.length >= 8 && joined.includes(key) && joined.length <= key.length + 20) return true;
+            // the subject's own words, plus at most two others (a code, a grade)
+            const hit = sw.filter(w => words.includes(w)).length;
+            return sw.length >= 2 && hit >= Math.min(3, sw.length) && words.length - hit <= 2;
+          });
       };
 
       const iaParseCompetencies = (text, itemCount, meta) => {
@@ -1491,20 +1507,17 @@
            they were the competency — which is how the subject name ended up
            in the list of competencies. */
         const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '');
-        const subjKeys = [meta && meta.subject, meta && meta.subjectCode]
-          .map(norm).filter(k => k.length >= 3);
         const HEADER_KEYS = ['subject', 'gradelevel', 'grade', 'section', 'learningarea',
           'learningcompetency', 'learningcompetencies', 'competency', 'content', 'topic',
           'testitemno', 'testitemnumber', 'itemno', 'noofitems', 'weight', 'desiredoutcome',
-          'percentage', 'total'];
+          'percentage', 'total', 'numberofitems', 'numberofitem', 'noitems', 'totalitems',
+          'itemplacement', 'itemplacements', 'itemnos', 'items', 'score', 'points', 'remarks',
+          'schoolyear', 'quarter', 'grading', 'semester', 'teacher', 'date'];
         const isSubjectish = (cell) => {
           const k = norm(cell);
           if (!k) return true;                      // blank / dash-only cells
           if (HEADER_KEYS.includes(k)) return true;
-          if (subjKeys.some(s => k === s)) return true;
-          // the subject spelled out with decoration:
-          // "MIL - Media Information Literacy"
-          return subjKeys.some(s => s.length >= 8 && k.includes(s));
+          return iaIsSubject(cell, meta);
         };
         const lines = String(text || '').replace(/\r/g, '').split('\n');
         for (const raw of lines) {
