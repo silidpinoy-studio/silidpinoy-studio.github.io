@@ -1558,9 +1558,6 @@
         const [openPanels, setOpenPanels] = useState({ excel: true, annex1: true, annex3: true });
         const togglePanel = (key) => setOpenPanels(p => ({ ...p, [key]: !p[key] }));
         const [overallScores, setOverallScores] = useState({ mean: 0, mps: 0 });
-        // Which slice of the class the report shows: 'all' is the consolidated
-        // result, any other value is the index of one section.
-        const [resultScope, setResultScope] = useState('all');
 
         // The competency mapping the teacher reviews (step 3) before the report.
         const [reviewComps, setReviewComps] = useState([]);
@@ -2425,7 +2422,6 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
             setLeastMastered(view.leastMastered);
             setOverallScores(view.overall);
             setAiInsight(view.aiInsight);
-            setResultScope('all');
             setStep(4);
           } catch (err) {
             console.error(err);
@@ -2438,7 +2434,6 @@ Structure: [ { "itemNo": 3, "competency": "..." } ]
           setTosFile(null);
           setSections([iaNewSection(itemCount)]);
           setActiveIdx(0);
-          setResultScope('all');
           setResults([]);
           setLeastMastered([]);
           setReviewComps([]);
@@ -3050,8 +3045,8 @@ ${sigTable}`;
         };
 
         const downloadAnalysisDocx = async () => {
-          // The download carries whatever the report dropdown is showing.
-          const view = iaAnalyzeScope(resultScope);
+          // The download carries the consolidated report.
+          const view = iaAnalyzeScope('all');
           if (!window.htmlDocx || !window.saveAs) {
             const blob = new Blob(['\ufeff', buildAnalysisReportHtml({ forDoc: true, view })], { type: 'application/msword' });
             saveWordBlob(blob, analysisFileName('.doc'));
@@ -3076,8 +3071,8 @@ ${sigTable}`;
             if (window.SilidToast) window.SilidToast.error(m); else alert(m);
             return;
           }
-          // The download carries whatever the report dropdown is showing.
-          const view = iaAnalyzeScope(resultScope);
+          // The download carries the consolidated report.
+          const view = iaAnalyzeScope('all');
           try {
             const jsPDF = window.jspdf.jsPDF;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -4108,11 +4103,23 @@ ${signTable([
         };
 
         const renderResults = () => {
-          /* Everything below reports on the dropdown's scope: the consolidated
-             class, or one section. The Excel grid further down always lists
-             every section — it is the official per-subject sheet. */
-          const view = iaAnalyzeScope(resultScope);
+          /* The class result leads, and every section is shown beside it —
+             nothing has to be switched away from to be seen. The Excel grid
+             further down already lists every section row by row. */
+          const view = iaAnalyzeScope('all');
           const compPerf = view.compPerf;
+          // Consolidated first, then one column per section.
+          const comparisons = [view].concat(sections.map((_, i) => iaAnalyzeScope(String(i))));
+          const weakItemCount = (c) => new Set(
+            c.leastMastered.reduce((all, x) => all.concat(x.weakItems || []), [])
+          ).size;
+          const comparisonRows = [
+            { label: 'Learners', value: (c) => c.learners },
+            { label: 'Mean Score', value: (c) => c.overall.mean },
+            { label: 'MPS', value: (c) => c.overall.mps + '%' },
+            { label: `Items below ${IA_MASTERY_CUT}%`, value: (c) => weakItemCount(c) },
+            { label: 'Least mastered competencies', value: (c) => c.leastMastered.length }
+          ];
 
           // Data + column maths for the Excel-style preview.
           const xl = iaBuildModel(meta, sections, itemCount);
@@ -4183,22 +4190,8 @@ ${signTable([
               <div>
                 <h2 className="font-display text-2xl font-light tracking-tight text-ink">Analysis Report</h2>
                 <p className="text-sm text-ink/50 mt-1">
-                  {view.idx >= 0 ? view.label : `${sections.length} section${sections.length === 1 ? '' : 's'}`} · {view.learners} learner{view.learners === 1 ? '' : 's'} evaluated across {itemCount} items
+                  {sections.length} section{sections.length === 1 ? '' : 's'} · {view.learners} learner{view.learners === 1 ? '' : 's'} evaluated across {itemCount} items
                 </p>
-                <label htmlFor="ia-result-scope" className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink/40">Results for</span>
-                  <select
-                    id="ia-result-scope"
-                    value={view.scope}
-                    onChange={(e) => setResultScope(e.target.value)}
-                    className="rounded-lg border border-ink/20 bg-white px-2.5 py-1.5 text-sm text-ink outline-none focus:ring-2 focus:ring-iris-500"
-                  >
-                    <option value="all">All sections (consolidated)</option>
-                    {sections.map((s, i) => (
-                      <option key={i} value={String(i)}>{s.name.trim() || `Section ${i + 1}`}</option>
-                    ))}
-                  </select>
-                </label>
               </div>
               <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
                 <button
@@ -4235,6 +4228,83 @@ ${signTable([
                   <span className="text-xl font-bold text-iris-600">%</span>
                 </div>
               </div>
+            </div>
+
+            {/* Consolidated + every section, side by side — no switching */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-ink/10 flex items-center gap-2">
+                <LucideIcon name="Layers" className="w-5 h-5 text-iris-600" />
+                <h3 className="font-semibold text-lg text-ink">Consolidated and Sections at a Glance</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-ink/5 border-b border-ink/10">
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider">Metric</th>
+                      {comparisons.map((c, i) => (
+                        <th key={i} className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center whitespace-nowrap">
+                          {i === 0 ? 'Consolidated' : c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {comparisonRows.map((row) => (
+                      <tr key={row.label} className="hover:bg-ink/5 transition-colors">
+                        <td className="py-3 px-6 text-sm text-ink/60">{row.label}</td>
+                        {comparisons.map((c, i) => (
+                          <td key={i} className={`py-3 px-6 text-sm text-center ${i === 0 ? 'font-bold text-ink' : 'text-ink/70'}`}>
+                            {row.value(c)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Item-level comparison — every section's % correct per item */}
+            <div className="bg-white rounded-2xl ring-1 ring-ink/10 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-ink/10 flex items-center gap-2">
+                <LucideIcon name="Table" className="w-5 h-5 text-iris-600" />
+                <h3 className="font-semibold text-lg text-ink">Item Performance by Section (% correct)</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-ink/5 border-b border-ink/10">
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider w-16">Item</th>
+                      <th className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider min-w-[220px]">Competency</th>
+                      {comparisons.map((c, i) => (
+                        <th key={i} className="py-3 px-6 text-[10px] font-semibold text-ink/40 uppercase tracking-wider text-center whitespace-nowrap min-w-[110px]">
+                          {i === 0 ? 'Consolidated' : c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {view.results.map((row, ri) => (
+                      <tr key={row.itemNo} className="hover:bg-ink/5 transition-colors">
+                        <td className="py-2.5 px-6 text-sm font-bold text-ink">{row.itemNo}</td>
+                        <td className="py-2.5 px-6 text-sm text-ink/60 max-w-xs">{row.competency}</td>
+                        {comparisons.map((c, ci) => {
+                          const cell = c.results[ri] || { percentage: '0.00' };
+                          const pct = parseFloat(cell.percentage) || 0;
+                          return (
+                            <td key={ci} className={`py-2.5 px-6 text-sm text-center ${pct < IA_MASTERY_CUT ? 'text-rose-600 font-semibold' : 'text-ink/70'}`}>
+                              {pct.toFixed(2)}%
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="px-6 py-3 text-[11px] text-ink/40 border-t border-ink/10">
+                Cells in red are below the {IA_MASTERY_CUT}% mastery cut-off.
+              </p>
             </div>
 
             {/* Insight */}
