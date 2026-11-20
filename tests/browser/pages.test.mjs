@@ -3525,6 +3525,107 @@ test('the Item Analysis report uses Settings and exports both annexes', { timeou
 });
 
 /* ===============================================================
+   25b. each DepEd annex can be scoped to one section
+   =============================================================== */
+
+test('each DepEd annex can be scoped to a single section', { timeout: LONG_TIMEOUT }, async (t) => {
+  const { context, page, errors, cdnBlocked } = await openPage('index.html');
+  const tosPath = path.join(os.tmpdir(), 'ia-annex-section-tos.txt');
+  try {
+    const nav = page.getByText('Item Analysis', { exact: true });
+    for (let i = 0; i < 4; i++) {
+      if (await page.getByText('Upload TOS Document').count()) break;
+      if (i >= await nav.count()) break;
+      await nav.nth(i).click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    if (!(await page.getByText('Upload TOS Document').count())) {
+      if (cdnBlocked) { t.skip('external CDN unavailable'); return; }
+      assert.fail('index.html did not render the Item Analyzer');
+    }
+
+    fs.writeFileSync(tosPath, [
+      '1. Identifies the main idea',
+      '2. Analyzes the credibility of sources',
+      '3. Evaluates media bias',
+      ''
+    ].join('\n'));
+    await page.locator('input[type="file"][accept=".pdf,.docx,.doc,.txt"]').setInputFiles(tosPath);
+    await page.getByRole('button', { name: 'Fill All' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.locator('input[type="number"][max="200"]').fill('3');
+    await page.waitForTimeout(150);
+
+    // section 1 — 10 takers, 15 of 30 correct, so MPS 50.00
+    await page.locator('#ia-section-name').fill('BABBAGE');
+    await page.locator('#ia-section-takers').fill('10');
+    for (const [i, v] of [8, 5, 2].entries()) {
+      await page.locator(`#score-input-${i}`).fill(String(v));
+    }
+    // section 2 — 10 takers, everything right, so MPS 100.00
+    await page.getByRole('button', { name: 'Add Section' }).click();
+    await page.waitForTimeout(200);
+    await page.locator('#ia-section-name').fill('LOVELACE');
+    await page.locator('#ia-section-takers').fill('10');
+    // typed per item: Fill All writes every section, which would undo section 1
+    for (let i = 0; i < 3; i++) {
+      await page.locator(`#score-input-${i}`).fill('10');
+    }
+    await page.waitForTimeout(150);
+
+    await page.getByPlaceholder('e.g. November Exam').fill('NOVEMBER EXAM');
+    await page.getByRole('button', { name: 'Generate Item Analysis' }).click();
+    await page.getByRole('heading', { name: 'Review Competencies' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.getByRole('button', { name: 'Generate Report' }).click();
+    await page.getByRole('heading', { name: 'Analysis Report' }).waitFor({ timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(300);
+
+    const preview = (kind) => page.evaluate((k) => {
+      const el = document.querySelector(`[data-annex-preview="${k}"]`);
+      return el ? el.innerText : null;
+    }, kind);
+
+    // default: both annexes stay consolidated and say which sections they pool
+    let a1 = await preview('annex1');
+    assert.match(a1, /Section: BABBAGE, LOVELACE/, 'the consolidated annex must name every section');
+    assert.match(a1, /75\.00/, 'the consolidated MPS must pool both sections (75.00)');
+    let a3 = await preview('annex3');
+    assert.match(a3, /Evaluates media bias/, 'the consolidated Annex 3 lists the weak competencies');
+
+    // pick a section on Annex 1 — the template and the figures follow
+    await page.locator('select[aria-label="Section for Annex 1 · MPS per Learning Area"]').selectOption('0');
+    await page.waitForTimeout(250);
+    a1 = await preview('annex1');
+    assert.match(a1, /Section: BABBAGE/, 'the template must print the chosen section under the subject');
+    assert.match(a1, /50\.00/, 'a section Annex 1 must use that section\u2019s own MPS');
+    assert.doesNotMatch(a1, /75\.00/, 'a section Annex 1 must not print the pooled MPS');
+
+    // ... and the download is that same section, named after it
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 20000 }),
+      page.getByRole('button', { name: 'Download Annex 1' }).click()
+    ]);
+    const dlName = dl.suggestedFilename();
+    assert.match(dlName, /^Annex1_MPS-per-Learning-Area_Second_2025-2026_BABBAGE\.(docx|doc)$/,
+      'the download must be named for the chosen section');
+
+    // Annex 3 keeps its own scope: LOVELACE has nothing below the cut-off
+    await page.locator('select[aria-label="Section for Annex 3 · Least Mastered Competencies"]').selectOption('1');
+    await page.waitForTimeout(250);
+    a3 = await preview('annex3');
+    assert.match(a3, /Section: LOVELACE/, 'Annex 3 must follow its own section picker');
+    assert.match(a3, /every competency met the 75% mastery cut-off/,
+      'a section with full marks must print no least-mastered rows');
+    a1 = await preview('annex1');
+    assert.match(a1, /Section: BABBAGE/, 'the two annexes must keep separate scopes');
+
+    assert.deepEqual(errors, [], 'the scoped annexes must not raise page errors');
+  } finally {
+    fs.rmSync(tosPath, { force: true });
+    await context.close();
+  }
+});
+
+/* ===============================================================
    26. wide reports print in readable bands instead of one squeezed row
    =============================================================== */
 
